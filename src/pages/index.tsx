@@ -86,7 +86,7 @@ interface DataTableProps<TData, TValue> {
 export function DataTable<TData, TValue>({
     columns,
 }: DataTableProps<TData, TValue>) {
-    const rowHeight = 20;
+    const rowHeight = 53;
     const query = api.users.useInfiniteQuery(
         {},
         {
@@ -134,100 +134,60 @@ export function DataTable<TData, TValue>({
         getCoreRowModel: getCoreRowModel(),
     });
 
-    console.log("refreshing");
+    const bodyRef = useRef<HTMLTableSectionElement>(null);
 
-    const randomIdx = useMemo(() => {
-        let idx = 0;
-        // @ts-ignore
-        for (let i = 0; i < data.length; i++) {
-            // @ts-ignore
-            if (data[i]?._skeleton) {
-                idx = i;
-                break;
-            }
-        }
+    const { rows } = table.getRowModel();
 
-        console.log("randomIdx", idx);
-        return idx;
-    }, [data]);
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        // https://github.com/TanStack/virtual/issues/555#issuecomment-1600642269
+        estimateSize: useCallback(() => rowHeight, []),
+        getScrollElement: () => bodyRef.current,
+        overscan: 10,
+    });
 
     const RowCell = useCallback(
-        ({
-            key,
-            size,
-            children,
-        }: {
-            key: number | string;
-            size: number;
-            children: ReactNode;
-        }) => {
-            return (
-                <TableCell
-                    key={key}
-                    style={{
-                        width: size,
-                        height: rowHeight,
-                    }}
-                >
-                    {children}
-                </TableCell>
-            );
+        ({ key, children }: { key: number | string; children: ReactNode }) => {
+            return <TableCell key={key}>{children}</TableCell>;
         },
         [table, rowHeight],
     );
 
-    function renderRow(row: Row<TData>, index: number) {
-            const visibleCells = row.getVisibleCells();
-            const renderedCells = new Array(visibleCells.length);
-            // @ts-ignore
-            if (row.original._skeleton) {
-                for (let i = 0; i < visibleCells.length; i++) {
-                    let context = visibleCells[i]!.getContext();
-                    const size = visibleCells[i]!.column.getSize();
-                    renderedCells[i] = (
-                        <RowCell key={i + index} size={size}>
-                            {flexRender(
-                                <Skeleton
-                                    style={{
-                                        width: size * 0.9,
-                                        height: rowHeight * 0.9,
-                                    }}
-                                />,
-                                context,
-                            )}
-                        </RowCell>
-                    );
-                }
-                return renderedCells;
-            }
+    function renderRow(row: Row<TData>) {
+        const visibleCells = row.getVisibleCells();
+        const renderedCells = new Array(visibleCells.length);
+        // @ts-ignore
+        if (row.original._skeleton) {
             for (let i = 0; i < visibleCells.length; i++) {
-                let cell = visibleCells[i]!;
-
+                const cell = visibleCells[i]!;
+                const context = cell.getContext();
                 const size = cell.column.getSize();
+                const key = cell.id;
                 renderedCells[i] = (
-                    <RowCell key={i + index} size={size}>
-                        {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                        )}
+                    <RowCell key={key}>
+                        <Skeleton
+                            className="w-9/12"
+                            style={{
+                                height: "1rem",
+                            }}
+                        />
                     </RowCell>
                 );
             }
             return renderedCells;
         }
-    const bodyRef = useRef<HTMLTableSectionElement>(null);
+        for (let i = 0; i < visibleCells.length; i++) {
+            let cell = visibleCells[i]!;
+            const key = cell.id;
 
-
-    const virtualizer = useVirtualizer({
-        count: numRows,
-        // https://github.com/TanStack/virtual/issues/555#issuecomment-1600642269
-        estimateSize: useCallback(() => rowHeight, []),
-        getScrollElement: useCallback(() => bodyRef.current, [bodyRef]),
-        overscan: 10,
-        debug: true,
-    });
-
-    const { rows } = table.getRowModel();
+            renderedCells[i] = (
+                <RowCell key={key}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </RowCell>
+            );
+        }
+        return renderedCells;
+    }
 
     function renderRows() {
         console.log("rerendering rows");
@@ -247,7 +207,7 @@ export function DataTable<TData, TValue>({
         const vitems = virtualizer.getVirtualItems();
         const vrows = new Array(vitems.length);
 
-        console.log("vitems", vitems.length, virtualizer.range)
+        console.log("vitems", vitems.length, virtualizer.range);
         for (let i = 0; i < vitems.length; i++) {
             const vitem = vitems[i]!;
             const row = rows[vitem.index]!;
@@ -255,14 +215,14 @@ export function DataTable<TData, TValue>({
                 <TableRow
                     key={vitem.key}
                     data-state={row.getIsSelected() && "selected"}
-                  style={{
-                    height: `${vitem.size}px`,
-                    transform: `translateY(${
-                     vitem.start - i * vitem.size
-                    }px)`,
-                  }}
+                    style={{
+                        height: `${vitem.size}px`,
+                        transform: `translateY(${
+                            vitem.start - i * vitem.size
+                        }px)`,
+                    }}
                 >
-                    {renderRow(row, vitem.index)}
+                    {renderRow(row)}
                 </TableRow>
             );
         }
@@ -270,48 +230,52 @@ export function DataTable<TData, TValue>({
     }
 
     return (
-        <div className="h-[500px] w-[600px] overflow-auto rounded-md border bg-white">
-            <div style={{height: virtualizer.getTotalSize()}}><Table>
-                <TableHeader className="sticky top-0 z-10">
-                    {table.getHeaderGroups().map((headerGroup) => (
-                        <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => {
-                                return (
-                                    <TableHead
-                                        key={header.id}
-                                        colSpan={header.colSpan}
-                                        style={{
-                                            width: header.getSize(),
-                                            position: "relative",
-                                        }}
-                                    >
-                                        {header.isPlaceholder
-                                            ? null
-                                            : flexRender(
-                                                  header.column.columnDef
-                                                      .header,
-                                                  header.getContext(),
-                                              )}
-                                        <div
-                                            className={`${styles.resizer} ${
-                                                header.column.getIsResizing()
-                                                    ? styles.isResizing
-                                                    : ""
-                                            }`}
-                                            onMouseDown={header.getResizeHandler()}
-                                            onTouchStart={header.getResizeHandler()}
-                                        ></div>
-                                    </TableHead>
-                                );
-                            })}
-                        </TableRow>
-                    ))}
-                </TableHeader>
-                <TableBody
-                >
-                    {renderRows()}
-                </TableBody>
-            </Table>
+        <div
+            ref={bodyRef}
+            className="h-[500px] w-[800px] overflow-auto rounded-md border bg-white"
+        >
+            <div
+                style={{ height: `${virtualizer.getTotalSize()}px` }}
+                className="relative"
+            >
+                <table className="w-full caption-bottom text-sm">
+                    <TableHeader>
+                        {table.getHeaderGroups().map((headerGroup) => (
+                            <TableRow key={headerGroup.id}>
+                                {headerGroup.headers.map((header) => {
+                                    return (
+                                        <TableHead
+                                            key={header.id}
+                                            colSpan={header.colSpan}
+                                            style={{
+                                                width: header.getSize(),
+                                                position: "relative",
+                                            }}
+                                        >
+                                            {header.isPlaceholder
+                                                ? null
+                                                : flexRender(
+                                                      header.column.columnDef
+                                                          .header,
+                                                      header.getContext(),
+                                                  )}
+                                            <div
+                                                className={`${styles.resizer} ${
+                                                    header.column.getIsResizing()
+                                                        ? styles.isResizing
+                                                        : ""
+                                                }`}
+                                                onMouseDown={header.getResizeHandler()}
+                                                onTouchStart={header.getResizeHandler()}
+                                            ></div>
+                                        </TableHead>
+                                    );
+                                })}
+                            </TableRow>
+                        ))}
+                    </TableHeader>
+                    <TableBody>{renderRows()}</TableBody>
+                </table>
             </div>
         </div>
     );
