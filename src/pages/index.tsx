@@ -1,48 +1,44 @@
 import styles from "./table.module.css";
 
 import {
-    ComponentPropsWithoutRef,
-    MutableRefObject,
-    ReactNode,
+    Dispatch,
+    SetStateAction,
     useCallback,
     useEffect,
     useMemo,
+    useReducer,
     useRef,
     useState,
 } from "react";
 import Head from "next/head";
-import Link from "next/link";
 
 import {
     Table,
     TableBody,
     TableCell,
-    TableFooter,
     TableHead,
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 
 import {
     ColumnDef,
+    ColumnSort,
     Header,
     HeaderGroup,
     Row,
+    SortingState,
     flexRender,
     getCoreRowModel,
-    getPaginationRowModel,
+    getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
 import {
-    VirtualItem,
     Virtualizer,
     notUndefined,
     useVirtualizer,
 } from "@tanstack/react-virtual";
-
-import debounce from "lodash/debounce";
 
 import { api } from "@/utils/api";
 import { Person } from "@/server/api/mockData";
@@ -86,6 +82,8 @@ export default function Home() {
         </>
     );
 }
+
+type Setter<T> = Dispatch<SetStateAction<T>>;
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
@@ -141,8 +139,10 @@ export function DataTable<TData, TValue>({
         data,
         columns,
         enableColumnResizing: true,
+        enableSorting: true,
         columnResizeMode: "onChange",
         getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel()
     });
 
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -185,7 +185,7 @@ export function DataTable<TData, TValue>({
         <div
             ref={bodyRef}
             className="h-[500px] w-[800px] overflow-auto rounded-md border bg-white"
-            style={{overflowAnchor: "none"}}
+            style={{ overflowAnchor: "none" }}
         >
             <div
                 style={{ height: `${virtualizer.getTotalSize()}px` }}
@@ -193,7 +193,10 @@ export function DataTable<TData, TValue>({
             >
                 <Table>
                     <TableHeader className="sticky top-0 z-[1] bg-white">
-                        <HeaderGroups groups={table.getHeaderGroups()} />
+                        <HeaderGroups
+                            groups={table.getHeaderGroups()}
+                            setSorting={table.setSorting}
+                        />
                     </TableHeader>
                     <TableBody>
                         <TableRows
@@ -274,8 +277,29 @@ function TableRows<TData>({
     );
 }
 
-function HeaderGroups<TData>({ groups }: { groups: HeaderGroup<TData>[] }) {
+function HeaderGroups<TData>({
+    groups,
+    setSorting,
+}: {
+    groups: HeaderGroup<TData>[];
+    setSorting: Setter<SortingState>;
+}) {
     const renderHeader = useCallback((header: Header<TData, unknown>) => {
+        function setDesc(desc: boolean | null) {
+            const columnId = header.column.id;
+            const filterThisCol = (sorting: SortingState) =>
+                sorting.filter((sort) => sort.id !== columnId);
+            if (desc === null) {
+                console.log("clearing sorting", header.column.columnDef.header)
+                setSorting(filterThisCol);
+                return;
+            }
+            console.log("setting sorting", desc ? "desc" : "asc" , header.column.columnDef.header)
+            setSorting((sorting) => ( [
+                ...filterThisCol(sorting),
+                { id: columnId, desc },
+            ] ));
+        }
         return (
             <TableHead
                 key={header.id}
@@ -291,6 +315,9 @@ function HeaderGroups<TData>({ groups }: { groups: HeaderGroup<TData>[] }) {
                           header.column.columnDef.header,
                           header.getContext(),
                       )}
+                {header.column.getCanSort() ? (
+                    <HeaderSortIcon setDesc={setDesc} />
+                ) : null}
                 <div
                     className={`${styles.resizer} ${
                         header.column.getIsResizing() ? styles.isResizing : ""
@@ -423,36 +450,42 @@ function pageOfRow(row: number) {
     return page;
 }
 
-function OnVisibleCallbackSkeleton(
-    props: ComponentPropsWithoutRef<typeof Skeleton> & {
-        onVisible: () => void;
-    },
-) {
-    const ref = useRef(null);
-    useVisibleCallback(ref, props.onVisible);
-    return (
-        <div ref={ref}>
-            <Skeleton {...{ ...props, onVisible: undefined }} />
-        </div>
-    );
-}
+type HeaderSort = "none" | "asc" | "desc";
 
-function useVisibleCallback(
-    ref: MutableRefObject<null | HTMLElement>,
-    cb: () => void,
-) {
+function HeaderSortIcon({
+    setDesc,
+}: {
+    setDesc: (sort: boolean | null) => void;
+}) {
+    const stateMap = useMemo(() => ({
+        none: {
+            next: "asc",
+            symbol: "o",
+            desc: null
+        },
+        asc: {
+            next: "desc",
+            symbol: "^",
+            desc: false
+        },
+        desc: {
+            next: "none",
+            symbol: "v",
+            desc: true
+        }
+    } as const), [])
+    const [state, dispatch] = useReducer((state: HeaderSort) => {
+        return stateMap[state].next
+    }, "none");
+
+    let symbol = useMemo(() => stateMap[state].symbol, [state]);
     useEffect(() => {
-        if (!ref.current) return;
-        const observer = new IntersectionObserver(([entry]) => {
-            if (entry?.isIntersecting) {
-                cb();
-                observer.disconnect();
-            }
-        });
+        setDesc(stateMap[state].desc)
+    }, [state])
 
-        observer.observe(ref.current);
-        return () => {
-            observer.disconnect();
-        };
-    }, [ref]);
+    return (
+        <button className="px-2" onClick={dispatch}>
+            {symbol}
+        </button>
+    );
 }
