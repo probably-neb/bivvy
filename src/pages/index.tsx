@@ -1,3 +1,15 @@
+import styles from "./table.module.css";
+
+import {
+    ComponentPropsWithoutRef,
+    MutableRefObject,
+    ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import Head from "next/head";
 import Link from "next/link";
 
@@ -10,34 +22,25 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-
-import styles from "./table.module.css";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 import {
     ColumnDef,
+    Header,
+    HeaderGroup,
     Row,
     flexRender,
     getCoreRowModel,
     getPaginationRowModel,
     useReactTable,
 } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
+
+import debounce from "lodash/debounce";
 
 import { api } from "@/utils/api";
 import { Person } from "@/server/api/mockData";
-import {
-    ComponentPropsWithoutRef,
-    MutableRefObject,
-    ReactNode,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
-
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 20;
 
@@ -87,44 +90,40 @@ export function DataTable<TData, TValue>({
     columns,
 }: DataTableProps<TData, TValue>) {
     const rowHeight = 53;
+
     const query = api.users.useInfiniteQuery(
         {},
         {
-            getNextPageParam: (prev): number | undefined =>
-                pageOfRow(prev.meta.totalRowCount) > prev.meta.page
-                    ? prev.meta.page + 1
-                    : undefined,
-            getPreviousPageParam: (prev): number | undefined =>
-                prev.meta.page > 0 ? prev.meta.page - 1 : undefined,
             initialCursor: 0,
         },
     );
     const numRows = useMemo(() => {
-        return query.data?.pages[0]?.meta.totalRowCount || 0;
+        const num = query.data?.pages[0]?.meta.totalRowCount || 0;
+        return num
     }, [query.data]);
 
     const data = useMemo(() => {
         if (!query.data) return [];
-        const rows: TData[] = new Array(numRows);
+        const rows = new Array<TData>(numRows);
         const numPages = pageOfRow(numRows);
-        const fetchedPages = new Set();
-        const chunks = query.data.pages;
-        for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i]!;
+        const fetchedPages = new Array<number>(numPages);
+        const pages = query.data.pages;
+        for (let i = 0; i < pages.length; i++) {
+            const chunk = pages[i]!;
             const page = chunk.meta.page;
             const start = page * PAGE_SIZE;
-            const end = start + chunk.data.length;
-            void rows.splice(start, end, ...(chunk.data as TData[]));
-            fetchedPages.add(page);
+            const removed = rows.splice(start, chunk.data.length, ...(chunk.data as TData[]));
+            console.assert(removed.length === PAGE_SIZE, "removed.length === PAGE_SIZE")
+            fetchedPages[i] = page;
         }
         for (let p = 0; p <= numPages; p++) {
-            if (fetchedPages.has(p)) continue;
+            if (fetchedPages.includes(p)) continue;
             const start = p * PAGE_SIZE;
             const end = start + PAGE_SIZE;
             rows.fill({ _skeleton: true } as unknown as TData, start, end);
         }
         return rows;
-    }, [query.data]);
+    }, [query.data?.pages]);
 
     const table = useReactTable({
         data,
@@ -146,88 +145,25 @@ export function DataTable<TData, TValue>({
         overscan: 10,
     });
 
-    const RowCell = useCallback(
-        ({ key, children }: { key: number | string; children: ReactNode }) => {
-            return <TableCell key={key}>{children}</TableCell>;
-        },
-        [table, rowHeight],
-    );
+    const pageQueue = usePageQueue([]);
 
-    function renderRow(row: Row<TData>) {
-        const visibleCells = row.getVisibleCells();
-        const renderedCells = new Array(visibleCells.length);
-        // @ts-ignore
-        if (row.original._skeleton) {
-            for (let i = 0; i < visibleCells.length; i++) {
-                const cell = visibleCells[i]!;
-                const context = cell.getContext();
-                const size = cell.column.getSize();
-                const key = cell.id;
-                renderedCells[i] = (
-                    <RowCell key={key}>
-                        <Skeleton
-                            className="w-9/12"
-                            style={{
-                                height: "1rem",
-                            }}
-                        />
-                    </RowCell>
-                );
-            }
-            return renderedCells;
-        }
-        for (let i = 0; i < visibleCells.length; i++) {
-            let cell = visibleCells[i]!;
-            const key = cell.id;
-
-            renderedCells[i] = (
-                <RowCell key={key}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </RowCell>
-            );
-        }
-        return renderedCells;
+    function onRenderSkeleton(rowIndex: number) {
+        const page = pageOfRow(rowIndex);
+        console.log("onRenderSkeleton", rowIndex, page);
+        pageQueue.push(page);
     }
 
-    function renderRows() {
-        console.log("rerendering rows");
-        if (!rows.length) {
-            return (
-                <TableRow>
-                    <TableCell
-                        colSpan={columns.length}
-                        className="h-24 text-center"
-                    >
-                        No results.
-                    </TableCell>
-                </TableRow>
-            );
-        }
+    useEffect(() => {
+        const range = virtualizer.calculateRange();
+        const next = pageQueue.peek();
+        const withinRange = !!range && !!next && next >= range.startIndex && next <= range.endIndex;
 
-        const vitems = virtualizer.getVirtualItems();
-        const vrows = new Array(vitems.length);
-
-        console.log("vitems", vitems.length, virtualizer.range);
-        for (let i = 0; i < vitems.length; i++) {
-            const vitem = vitems[i]!;
-            const row = rows[vitem.index]!;
-            vrows[i] = (
-                <TableRow
-                    key={vitem.key}
-                    data-state={row.getIsSelected() && "selected"}
-                    style={{
-                        height: `${vitem.size}px`,
-                        transform: `translateY(${
-                            vitem.start - i * vitem.size
-                        }px)`,
-                    }}
-                >
-                    {renderRow(row)}
-                </TableRow>
-            );
+        if (withinRange) {
+            query.fetchNextPage({pageParam: next, cancelRefetch: true});
+        } else if (next) {
+            query.fetchNextPage({pageParam: next, cancelRefetch: false});
         }
-        return vrows;
-    }
+    }, [pageQueue.data])
 
     return (
         <div
@@ -240,45 +176,156 @@ export function DataTable<TData, TValue>({
             >
                 <table className="w-full caption-bottom text-sm">
                     <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                            <TableRow key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => {
-                                    return (
-                                        <TableHead
-                                            key={header.id}
-                                            colSpan={header.colSpan}
-                                            style={{
-                                                width: header.getSize(),
-                                                position: "relative",
-                                            }}
-                                        >
-                                            {header.isPlaceholder
-                                                ? null
-                                                : flexRender(
-                                                      header.column.columnDef
-                                                          .header,
-                                                      header.getContext(),
-                                                  )}
-                                            <div
-                                                className={`${styles.resizer} ${
-                                                    header.column.getIsResizing()
-                                                        ? styles.isResizing
-                                                        : ""
-                                                }`}
-                                                onMouseDown={header.getResizeHandler()}
-                                                onTouchStart={header.getResizeHandler()}
-                                            ></div>
-                                        </TableHead>
-                                    );
-                                })}
-                            </TableRow>
-                        ))}
+                        <HeaderGroups groups={table.getHeaderGroups()} />
                     </TableHeader>
-                    <TableBody>{renderRows()}</TableBody>
+                    <TableBody>
+                        <TableRows
+                            virtualItems={virtualizer.getVirtualItems()}
+                            rows={rows}
+                            columnsLen={columns.length}
+                            onRenderSkeleton={onRenderSkeleton}
+                        />
+                    </TableBody>
                 </table>
             </div>
         </div>
     );
+}
+
+interface TableRowsProps<TData> {
+    virtualItems: VirtualItem[];
+    rows: Row<TData>[];
+    columnsLen: number;
+    onRenderSkeleton: (i: number) => void;
+}
+
+function TableRows<TData>({
+    virtualItems: vitems,
+    rows,
+    columnsLen,
+    onRenderSkeleton,
+}: TableRowsProps<TData>) {
+    if (!rows.length) {
+        return (
+            <TableRow>
+                <TableCell colSpan={columnsLen} className="h-24 text-center">
+                    No results.
+                </TableCell>
+            </TableRow>
+        );
+    }
+
+    const vrows = new Array(vitems.length);
+
+    for (let i = 0; i < vitems.length; i++) {
+        const vitem = vitems[i]!;
+        const row = rows[vitem.index]!;
+        vrows[i] = (
+            <TableRow
+                key={vitem.key}
+                data-state={row.getIsSelected() && "selected"}
+                style={{
+                    height: `${vitem.size}px`,
+                    transform: `translateY(${vitem.start - i * vitem.size}px)`,
+                }}
+            >
+                <RowCells row={row} onRenderSkeleton={onRenderSkeleton} />
+            </TableRow>
+        );
+    }
+    return vrows;
+}
+
+function HeaderGroups<TData>({ groups }: { groups: HeaderGroup<TData>[] }) {
+    const renderHeader = useCallback((header: Header<TData, unknown>) => {
+        return (
+            <TableHead
+                key={header.id}
+                colSpan={header.colSpan}
+                style={{
+                    width: header.getSize(),
+                    position: "relative",
+                }}
+            >
+                {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                      )}
+                <div
+                    className={`${styles.resizer} ${
+                        header.column.getIsResizing() ? styles.isResizing : ""
+                    }`}
+                    onMouseDown={header.getResizeHandler()}
+                    onTouchStart={header.getResizeHandler()}
+                ></div>
+            </TableHead>
+        );
+    }, []);
+    const renderedGroups = new Array(groups.length);
+    for (let g = 0; g < groups.length; g++) {
+        const group = groups[g]!;
+        const len = group.headers.length;
+        const renderedHeaders = new Array(len);
+        for (let h = 0; h < len; h++) {
+            const header = group.headers[h]!;
+            renderedHeaders[h] = renderHeader(header);
+        }
+        renderedGroups[g] = (
+            <TableRow key={group.id}>{renderedHeaders}</TableRow>
+        );
+    }
+    return renderedGroups;
+}
+interface RowCellsProps<TData> {
+    row: Row<TData>;
+    onRenderSkeleton: (i: number) => void;
+}
+function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
+    const visibleCells = row.getVisibleCells();
+    const renderedCells = new Array(visibleCells.length);
+
+    // @ts-ignore
+    const isSkeleton = row.original._skeleton;
+
+    useEffect(() => {
+        const isFirstRowOfPage = row.index % PAGE_SIZE === 0;
+        const isLastRowOfPage = (row.index + 1) % PAGE_SIZE === 0;
+        if (isSkeleton && (isFirstRowOfPage || isLastRowOfPage)) {
+        // only notify of skeleton render if it's the first or last row of a page
+            onRenderSkeleton(row.index);
+        }
+    }, [row])
+
+    if (isSkeleton) {
+        for (let i = 0; i < visibleCells.length; i++) {
+            const cell = visibleCells[i]!;
+            const key = cell.id;
+            renderedCells[i] = (
+                <TableCell key={key}>
+                    <Skeleton
+                        className="w-9/12"
+                        style={{
+                            height: "1rem",
+                        }}
+                    />
+                </TableCell>
+            );
+        }
+        return renderedCells;
+    }
+    for (let i = 0; i < visibleCells.length; i++) {
+        let cell = visibleCells[i]!;
+        const key = cell.id;
+
+        renderedCells[i] = (
+            <TableCell key={key}>
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+        );
+    }
+    return renderedCells;
 }
 
 function usePageQueue(initial: number[]) {
@@ -286,20 +333,28 @@ function usePageQueue(initial: number[]) {
 
     const push = useCallback(
         (_pages: number | number[]) => {
+
             const pages = Array.isArray(_pages) ? _pages : [_pages];
-            const updated = data.filter((p) => !pages.includes(p));
-            updated.push(...pages);
-            set(updated);
+            set((data) => {
+                const updated = data.filter((p) => !pages.includes(p));
+                updated.push(...pages);
+                console.log("enqueing", ...pages)
+                return updated;
+            });
         },
         [data],
     );
 
     const pop = useCallback(
-        (value: number) => {
+        (value?: number) => {
+            if (!value) {
+                value = data.at(-1)
+                if (!value) return;
+            }
             const nextIdx = data.lastIndexOf(value);
             if (nextIdx === -1) return;
             const next = data[nextIdx];
-            set(data.filter((_, i) => i !== nextIdx));
+            set((data) => data.filter((_, i) => i !== nextIdx));
             return next;
         },
         [data],
@@ -311,12 +366,15 @@ function usePageQueue(initial: number[]) {
 
     const peek = useCallback(() => data.at(-1), [data]);
 
+    const has = useCallback((value: number) => data.includes(value), [data])
+
     return {
         push,
         pop,
         clear,
         peek,
         data,
+        has
     };
 }
 
@@ -325,11 +383,7 @@ function pageOfRow(row: number) {
         return 0;
     }
     const page = Math.floor(row / PAGE_SIZE);
-
-    if (row % PAGE_SIZE === 0) {
-        return page - 1;
-    }
-    return page;
+    return page
 }
 
 function OnVisibleCallbackSkeleton(
