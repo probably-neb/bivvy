@@ -1,8 +1,11 @@
 import styles from "./table.module.css";
 
-import {
+import type {
     Dispatch,
+    ReactNode,
     SetStateAction,
+} from "react"
+import {
     useCallback,
     useEffect,
     useMemo,
@@ -22,26 +25,27 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import {
+import type {
     ColumnDef,
-    ColumnSort,
     Header,
     HeaderGroup,
     Row,
     SortingState,
+} from "@tanstack/react-table";
+import {
     flexRender,
     getCoreRowModel,
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table";
 import {
-    Virtualizer,
+    type Virtualizer,
     notUndefined,
     useVirtualizer,
 } from "@tanstack/react-virtual";
 
 import { api } from "@/utils/api";
-import { Person } from "@/server/api/mockData";
+import type { Person } from "@/server/api/mockData";
 
 const PAGE_SIZE = 20;
 
@@ -101,7 +105,7 @@ export function DataTable<TData, TValue>({
         },
     );
     const numRows = useMemo(() => {
-        const num = query.data?.pages[0]?.meta.totalRowCount || 0;
+        const num = query.data?.pages[0]?.meta.totalRowCount ?? 0;
         return num;
     }, [query.data]);
 
@@ -133,7 +137,7 @@ export function DataTable<TData, TValue>({
             rows.fill({ _skeleton: true } as unknown as TData, start, end);
         }
         return rows;
-    }, [query.data?.pages]);
+    }, [query.data, numRows]);
 
     const table = useReactTable({
         data,
@@ -175,11 +179,11 @@ export function DataTable<TData, TValue>({
             next <= range.endIndex;
 
         if (withinRange) {
-            query.fetchNextPage({ pageParam: next, cancelRefetch: true });
+            void query.fetchNextPage({ pageParam: next, cancelRefetch: true });
         } else if (next) {
-            query.fetchNextPage({ pageParam: next, cancelRefetch: false });
+            void query.fetchNextPage({ pageParam: next, cancelRefetch: false });
         }
-    }, [pageQueue.data]);
+    }, [pageQueue.data, pageQueue, virtualizer, query]);
 
     return (
         <div
@@ -327,8 +331,8 @@ function HeaderGroups<TData>({
                 ></div>
             </TableHead>
         );
-    }, []);
-    const renderedGroups = new Array(groups.length);
+    }, [setSorting]);
+    const renderedGroups = new Array<ReactNode>(groups.length);
     for (let g = 0; g < groups.length; g++) {
         const group = groups[g]!;
         const len = group.headers.length;
@@ -349,10 +353,9 @@ interface RowCellsProps<TData> {
 }
 function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
     const visibleCells = row.getVisibleCells();
-    const renderedCells = new Array(visibleCells.length);
+    const renderedCells = new Array<ReactNode>(visibleCells.length);
 
-    // @ts-ignore
-    const isSkeleton = row.original._skeleton;
+    const isSkeleton = (row.original as unknown as {_skeleton?: boolean})._skeleton;
 
     useEffect(() => {
         const isFirstRowOfPage = row.index % PAGE_SIZE === 0;
@@ -361,7 +364,7 @@ function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
             // only notify of skeleton render if it's the first or last row of a page
             onRenderSkeleton(row.index);
         }
-    }, [row]);
+    }, [row, isSkeleton, onRenderSkeleton]);
 
     if (isSkeleton) {
         for (let i = 0; i < visibleCells.length; i++) {
@@ -381,7 +384,7 @@ function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
         return renderedCells;
     }
     for (let i = 0; i < visibleCells.length; i++) {
-        let cell = visibleCells[i]!;
+        const cell = visibleCells[i]!;
         const key = cell.id;
 
         renderedCells[i] = (
@@ -406,7 +409,7 @@ function usePageQueue(initial: number[]) {
                 return updated;
             });
         },
-        [data],
+        [],
     );
 
     const pop = useCallback(
@@ -426,7 +429,7 @@ function usePageQueue(initial: number[]) {
 
     const clear = useCallback(() => {
         set([]);
-    }, [data]);
+    }, []);
 
     const peek = useCallback(() => data.at(-1), [data]);
 
@@ -478,10 +481,10 @@ function HeaderSortIcon({
         return stateMap[state].next
     }, "none");
 
-    let symbol = useMemo(() => stateMap[state].symbol, [state]);
+    const symbol = useMemo(() => stateMap[state].symbol, [state, stateMap]);
     useEffect(() => {
         setDesc(stateMap[state].desc)
-    }, [state])
+    }, [state, stateMap, setDesc])
 
     return (
         <button className="px-2" onClick={dispatch}>

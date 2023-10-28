@@ -1,5 +1,5 @@
 import { faker } from "@faker-js/faker";
-import { ColumnSort, SortingState } from "@tanstack/react-table";
+import type { SortingState } from "@tanstack/react-table";
 
 
 const organizations = ["Northwestern", "Michigan", "MIT", "Stanford"] as const
@@ -71,7 +71,7 @@ export const fetchData = (page: number, sorting: SortingState) => {
     const size = PAGE_SIZE;
     const dbData = [...data];
     if (sorting.length) {
-        const sort = sorting[0] as ColumnSort;
+        const sort = sorting[0]!;
         const { id, desc } = sort as { id: keyof Person; desc: boolean };
         dbData.sort((a, b) => {
             if (desc) {
