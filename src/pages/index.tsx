@@ -35,7 +35,12 @@ import {
     getPaginationRowModel,
     useReactTable,
 } from "@tanstack/react-table";
-import { VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
+import {
+    VirtualItem,
+    Virtualizer,
+    notUndefined,
+    useVirtualizer,
+} from "@tanstack/react-virtual";
 
 import debounce from "lodash/debounce";
 
@@ -99,7 +104,7 @@ export function DataTable<TData, TValue>({
     );
     const numRows = useMemo(() => {
         const num = query.data?.pages[0]?.meta.totalRowCount || 0;
-        return num
+        return num;
     }, [query.data]);
 
     const data = useMemo(() => {
@@ -112,8 +117,15 @@ export function DataTable<TData, TValue>({
             const chunk = pages[i]!;
             const page = chunk.meta.page;
             const start = page * PAGE_SIZE;
-            const removed = rows.splice(start, chunk.data.length, ...(chunk.data as TData[]));
-            console.assert(removed.length === PAGE_SIZE, "removed.length === PAGE_SIZE")
+            const removed = rows.splice(
+                start,
+                chunk.data.length,
+                ...(chunk.data as TData[]),
+            );
+            console.assert(
+                removed.length === PAGE_SIZE,
+                "removed.length === PAGE_SIZE",
+            );
             fetchedPages[i] = page;
         }
         for (let p = 0; p <= numPages; p++) {
@@ -133,7 +145,7 @@ export function DataTable<TData, TValue>({
         getCoreRowModel: getCoreRowModel(),
     });
 
-    const bodyRef = useRef<HTMLTableSectionElement>(null);
+    const bodyRef = useRef<HTMLDivElement>(null);
 
     const { rows } = table.getRowModel();
 
@@ -156,51 +168,56 @@ export function DataTable<TData, TValue>({
     useEffect(() => {
         const range = virtualizer.calculateRange();
         const next = pageQueue.peek();
-        const withinRange = !!range && !!next && next >= range.startIndex && next <= range.endIndex;
+        const withinRange =
+            !!range &&
+            !!next &&
+            next >= range.startIndex &&
+            next <= range.endIndex;
 
         if (withinRange) {
-            query.fetchNextPage({pageParam: next, cancelRefetch: true});
+            query.fetchNextPage({ pageParam: next, cancelRefetch: true });
         } else if (next) {
-            query.fetchNextPage({pageParam: next, cancelRefetch: false});
+            query.fetchNextPage({ pageParam: next, cancelRefetch: false });
         }
-    }, [pageQueue.data])
+    }, [pageQueue.data]);
 
     return (
         <div
             ref={bodyRef}
             className="h-[500px] w-[800px] overflow-auto rounded-md border bg-white"
+            style={{overflowAnchor: "none"}}
         >
             <div
                 style={{ height: `${virtualizer.getTotalSize()}px` }}
                 className="relative"
             >
-                <table className="w-full caption-bottom text-sm">
-                    <TableHeader>
+                <Table>
+                    <TableHeader className="sticky top-0 z-[1] bg-white">
                         <HeaderGroups groups={table.getHeaderGroups()} />
                     </TableHeader>
                     <TableBody>
                         <TableRows
-                            virtualItems={virtualizer.getVirtualItems()}
+                            virtualizer={virtualizer}
                             rows={rows}
                             columnsLen={columns.length}
                             onRenderSkeleton={onRenderSkeleton}
                         />
                     </TableBody>
-                </table>
+                </Table>
             </div>
         </div>
     );
 }
 
 interface TableRowsProps<TData> {
-    virtualItems: VirtualItem[];
+    virtualizer: Virtualizer<HTMLDivElement, Element>;
     rows: Row<TData>[];
     columnsLen: number;
     onRenderSkeleton: (i: number) => void;
 }
 
 function TableRows<TData>({
-    virtualItems: vitems,
+    virtualizer,
     rows,
     columnsLen,
     onRenderSkeleton,
@@ -214,8 +231,19 @@ function TableRows<TData>({
             </TableRow>
         );
     }
-
+    const vitems = virtualizer.getVirtualItems();
     const vrows = new Array(vitems.length);
+
+    // https://github.com/TanStack/virtual/discussions/476
+    // https://codesandbox.io/s/virtual-simple-table-cdqqpg?file=/src/App.tsx
+    const [before, after] =
+        vitems.length > 0
+            ? [
+                  notUndefined(vitems[0]).start -
+                      virtualizer.options.scrollMargin,
+                  virtualizer.getTotalSize() - notUndefined(vitems.at(-1)).end,
+              ]
+            : [0, 0];
 
     for (let i = 0; i < vitems.length; i++) {
         const vitem = vitems[i]!;
@@ -224,16 +252,26 @@ function TableRows<TData>({
             <TableRow
                 key={vitem.key}
                 data-state={row.getIsSelected() && "selected"}
-                style={{
-                    height: `${vitem.size}px`,
-                    transform: `translateY(${vitem.start - i * vitem.size}px)`,
-                }}
             >
                 <RowCells row={row} onRenderSkeleton={onRenderSkeleton} />
             </TableRow>
         );
     }
-    return vrows;
+    return (
+        <>
+            {before > 0 && (
+                <tr>
+                    <td colSpan={columnsLen} style={{ height: before }} />
+                </tr>
+            )}
+            {vrows}
+            {after > 0 && (
+                <tr>
+                    <td colSpan={columnsLen} style={{ height: after }} />
+                </tr>
+            )}
+        </>
+    );
 }
 
 function HeaderGroups<TData>({ groups }: { groups: HeaderGroup<TData>[] }) {
@@ -293,10 +331,10 @@ function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
         const isFirstRowOfPage = row.index % PAGE_SIZE === 0;
         const isLastRowOfPage = (row.index + 1) % PAGE_SIZE === 0;
         if (isSkeleton && (isFirstRowOfPage || isLastRowOfPage)) {
-        // only notify of skeleton render if it's the first or last row of a page
+            // only notify of skeleton render if it's the first or last row of a page
             onRenderSkeleton(row.index);
         }
-    }, [row])
+    }, [row]);
 
     if (isSkeleton) {
         for (let i = 0; i < visibleCells.length; i++) {
@@ -333,12 +371,11 @@ function usePageQueue(initial: number[]) {
 
     const push = useCallback(
         (_pages: number | number[]) => {
-
             const pages = Array.isArray(_pages) ? _pages : [_pages];
             set((data) => {
                 const updated = data.filter((p) => !pages.includes(p));
                 updated.push(...pages);
-                console.log("enqueing", ...pages)
+                console.log("enqueing", ...pages);
                 return updated;
             });
         },
@@ -348,7 +385,7 @@ function usePageQueue(initial: number[]) {
     const pop = useCallback(
         (value?: number) => {
             if (!value) {
-                value = data.at(-1)
+                value = data.at(-1);
                 if (!value) return;
             }
             const nextIdx = data.lastIndexOf(value);
@@ -366,7 +403,7 @@ function usePageQueue(initial: number[]) {
 
     const peek = useCallback(() => data.at(-1), [data]);
 
-    const has = useCallback((value: number) => data.includes(value), [data])
+    const has = useCallback((value: number) => data.includes(value), [data]);
 
     return {
         push,
@@ -374,7 +411,7 @@ function usePageQueue(initial: number[]) {
         clear,
         peek,
         data,
-        has
+        has,
     };
 }
 
@@ -383,7 +420,7 @@ function pageOfRow(row: number) {
         return 0;
     }
     const page = Math.floor(row / PAGE_SIZE);
-    return page
+    return page;
 }
 
 function OnVisibleCallbackSkeleton(
