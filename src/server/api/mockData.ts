@@ -73,11 +73,14 @@ export const fetchData = (page: number, sorting: SortingState) => {
     if (sorting.length) {
         const sort = sorting[0]!;
         const { id, desc } = sort as { id: keyof Person; desc: boolean };
-        dbData.sort((a, b) => {
+        dbData.sort((a_, b_) => {
+            const a = a_[id], b = b_[id];
+            if (a === b) return 0;
+            let dir = a > b ? 1 : -1;
             if (desc) {
-                return a[id] < b[id] ? 1 : -1;
+                dir *= -1;
             }
-            return a[id] > b[id] ? 1 : -1;
+            return dir
         });
     }
 

@@ -1,10 +1,6 @@
 import styles from "./table.module.css";
 
-import type {
-    Dispatch,
-    ReactNode,
-    SetStateAction,
-} from "react"
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
     useCallback,
     useEffect,
@@ -30,6 +26,8 @@ import type {
     Header,
     HeaderGroup,
     Row,
+    RowData,
+    SortDirection,
     SortingState,
 } from "@tanstack/react-table";
 import {
@@ -49,7 +47,24 @@ import type { Person } from "@/server/api/mockData";
 
 const PAGE_SIZE = 20;
 
+declare module "@tanstack/react-table" {
+    interface ColumnMeta<TData extends RowData, TValue> {
+        noSkeleton?: boolean;
+    }
+    interface Row<TData extends RowData> {
+        original: TData & { _skeleton?: boolean };
+    }
+}
+
 const columns: ColumnDef<Person>[] = [
+    {
+        cell: ({ row }) => row.index,
+        accessorKey: "#",
+        meta: {
+            noSkeleton: true,
+        },
+        enableSorting: false,
+    },
     {
         accessorKey: "firstName",
         header: "First Name",
@@ -97,24 +112,35 @@ export function DataTable<TData, TValue>({
     columns,
 }: DataTableProps<TData, TValue>) {
     const rowHeight = 53;
+    const fetchingPage = useRef<number | null>(0);
+    const [sorting, setSorting] = useState<SortingState>([]);
 
     const query = api.users.useInfiniteQuery(
-        {},
+        {
+            sorting,
+        },
         {
             initialCursor: 0,
         },
     );
     const numRows = useMemo(() => {
+        console.log("updating numRows")
         const num = query.data?.pages[0]?.meta.totalRowCount ?? 0;
         return num;
     }, [query.data]);
 
-    const data = useMemo(() => {
-        if (!query.data) return [];
+    const pageQueue = usePageQueue([]);
+
+    const [data, fetchedPages] = useMemo(() => {
+        console.log("updating data")
+        if (!query.data) return [[], []];
+
         const rows = new Array<TData>(numRows);
+
         const numPages = pageOfRow(numRows);
-        const fetchedPages = new Array<number>(numPages);
         const pages = query.data.pages;
+        const fetchedPages = new Array<number>(pages.length);
+
         for (let i = 0; i < pages.length; i++) {
             const chunk = pages[i]!;
             const page = chunk.meta.page;
@@ -136,17 +162,40 @@ export function DataTable<TData, TValue>({
             const end = start + PAGE_SIZE;
             rows.fill({ _skeleton: true } as unknown as TData, start, end);
         }
-        return rows;
-    }, [query.data, numRows]);
+        for (const fetchedPage of fetchedPages) {
+            void pageQueue.remove(fetchedPage);
+        }
+        const next = pageQueue.pop();
+        if (next) {
+            void query.fetchNextPage({ pageParam: next, cancelRefetch: false });
+            fetchingPage.current = next;
+        } else {
+            fetchingPage.current = null;
+        }
+        return [rows, fetchedPages];
+    }, [query.data?.pages]);
 
     const table = useReactTable({
         data,
         columns,
+        state: {
+            sorting,
+        },
         enableColumnResizing: true,
-        enableSorting: true,
+        manualSorting: true,
+        onSortingChange: (sorting) => {
+            console.log("sorting changed", {
+                sorting,
+                pageQueue: pageQueue.data,
+                fetchedPages,
+            });
+            void pageQueue.clear();
+            virtualizer.scrollToIndex(0);
+            setSorting(sorting);
+        },
         columnResizeMode: "onChange",
         getCoreRowModel: getCoreRowModel(),
-        getSortedRowModel: getSortedRowModel()
+        getSortedRowModel: getSortedRowModel(),
     });
 
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -161,29 +210,47 @@ export function DataTable<TData, TValue>({
         overscan: 10,
     });
 
-    const pageQueue = usePageQueue([]);
+    const [pagesToFetch, pagesToFetchChanged] = useChanged(
+        () => [virtualizer.scrollOffset],
+        () => {
+            const range = virtualizer.calculateRange();
+            if (!range) {
+                // happens somewhat frequently, don't know why
+                // returning empty array doesn't cause problems
+                return [];
+            }
+            const visiblePages = new Array<number>();
+            // TODO: add overscan but don't prioritize previous rows
+            // i.e. start at current start and add leading overscan to end
+            for (let i = range.startIndex; i <= range.endIndex; i++) {
+                const page = pageOfRow(i);
+                if (visiblePages.includes(page)) continue;
+                visiblePages.push(page);
+            }
+            const pagesToFetch = visiblePages.filter(
+                (p) =>
+                    !fetchedPages.includes(p) &&
+                    !pageQueue.has(p) &&
+                    p !== fetchingPage.current,
+            );
+            return pagesToFetch;
+        },
+    );
 
-    function onRenderSkeleton(rowIndex: number) {
-        const page = pageOfRow(rowIndex);
-        console.log("onRenderSkeleton", rowIndex, page);
-        pageQueue.push(page);
-    }
-
-    useEffect(() => {
-        const range = virtualizer.calculateRange();
-        const next = pageQueue.peek();
-        const withinRange =
-            !!range &&
-            !!next &&
-            next >= range.startIndex &&
-            next <= range.endIndex;
-
-        if (withinRange) {
-            void query.fetchNextPage({ pageParam: next, cancelRefetch: true });
-        } else if (next) {
-            void query.fetchNextPage({ pageParam: next, cancelRefetch: false });
+    if (pagesToFetchChanged && pagesToFetch.length > 0) {
+        console.log("pages to fetch", pagesToFetch);
+        const [pageToFetch, ...pagesToQueue] = pagesToFetch as [
+            number,
+            ...number[],
+        ];
+        if (pagesToQueue.length > 0) {
+            pageQueue.push(pagesToQueue);
         }
-    }, [pageQueue.data, pageQueue, virtualizer, query]);
+        void query.fetchNextPage({
+            pageParam: pageToFetch,
+            cancelRefetch: true,
+        });
+    }
 
     return (
         <div
@@ -197,17 +264,13 @@ export function DataTable<TData, TValue>({
             >
                 <Table>
                     <TableHeader className="sticky top-0 z-[1] bg-white">
-                        <HeaderGroups
-                            groups={table.getHeaderGroups()}
-                            setSorting={table.setSorting}
-                        />
+                        <HeaderGroups groups={table.getHeaderGroups()} />
                     </TableHeader>
                     <TableBody>
                         <TableRows
                             virtualizer={virtualizer}
                             rows={rows}
                             columnsLen={columns.length}
-                            onRenderSkeleton={onRenderSkeleton}
                         />
                     </TableBody>
                 </Table>
@@ -220,14 +283,12 @@ interface TableRowsProps<TData> {
     virtualizer: Virtualizer<HTMLDivElement, Element>;
     rows: Row<TData>[];
     columnsLen: number;
-    onRenderSkeleton: (i: number) => void;
 }
 
 function TableRows<TData>({
     virtualizer,
     rows,
     columnsLen,
-    onRenderSkeleton,
 }: TableRowsProps<TData>) {
     if (!rows.length) {
         return (
@@ -260,7 +321,7 @@ function TableRows<TData>({
                 key={vitem.key}
                 data-state={row.getIsSelected() && "selected"}
             >
-                <RowCells row={row} onRenderSkeleton={onRenderSkeleton} />
+                <RowCells row={row} />
             </TableRow>
         );
     }
@@ -281,95 +342,20 @@ function TableRows<TData>({
     );
 }
 
-function HeaderGroups<TData>({
-    groups,
-    setSorting,
-}: {
-    groups: HeaderGroup<TData>[];
-    setSorting: Setter<SortingState>;
-}) {
-    const renderHeader = useCallback((header: Header<TData, unknown>) => {
-        function setDesc(desc: boolean | null) {
-            const columnId = header.column.id;
-            const filterThisCol = (sorting: SortingState) =>
-                sorting.filter((sort) => sort.id !== columnId);
-            if (desc === null) {
-                console.log("clearing sorting", header.column.columnDef.header)
-                setSorting(filterThisCol);
-                return;
-            }
-            console.log("setting sorting", desc ? "desc" : "asc" , header.column.columnDef.header)
-            setSorting((sorting) => ( [
-                ...filterThisCol(sorting),
-                { id: columnId, desc },
-            ] ));
-        }
-        return (
-            <TableHead
-                key={header.id}
-                colSpan={header.colSpan}
-                style={{
-                    width: header.getSize(),
-                    position: "relative",
-                }}
-            >
-                {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                      )}
-                {header.column.getCanSort() ? (
-                    <HeaderSortIcon setDesc={setDesc} />
-                ) : null}
-                <div
-                    className={`${styles.resizer} ${
-                        header.column.getIsResizing() ? styles.isResizing : ""
-                    }`}
-                    onMouseDown={header.getResizeHandler()}
-                    onTouchStart={header.getResizeHandler()}
-                ></div>
-            </TableHead>
-        );
-    }, [setSorting]);
-    const renderedGroups = new Array<ReactNode>(groups.length);
-    for (let g = 0; g < groups.length; g++) {
-        const group = groups[g]!;
-        const len = group.headers.length;
-        const renderedHeaders = new Array(len);
-        for (let h = 0; h < len; h++) {
-            const header = group.headers[h]!;
-            renderedHeaders[h] = renderHeader(header);
-        }
-        renderedGroups[g] = (
-            <TableRow key={group.id}>{renderedHeaders}</TableRow>
-        );
-    }
-    return renderedGroups;
-}
 interface RowCellsProps<TData> {
     row: Row<TData>;
-    onRenderSkeleton: (i: number) => void;
 }
-function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
+
+function RowCells<TData>({ row }: RowCellsProps<TData>) {
     const visibleCells = row.getVisibleCells();
     const renderedCells = new Array<ReactNode>(visibleCells.length);
 
-    const isSkeleton = (row.original as unknown as {_skeleton?: boolean})._skeleton;
+    const isSkeleton = row.original._skeleton;
 
-    useEffect(() => {
-        const isFirstRowOfPage = row.index % PAGE_SIZE === 0;
-        const isLastRowOfPage = (row.index + 1) % PAGE_SIZE === 0;
-        if (isSkeleton && (isFirstRowOfPage || isLastRowOfPage)) {
-            // only notify of skeleton render if it's the first or last row of a page
-            onRenderSkeleton(row.index);
-        }
-    }, [row, isSkeleton, onRenderSkeleton]);
-
-    if (isSkeleton) {
-        for (let i = 0; i < visibleCells.length; i++) {
-            const cell = visibleCells[i]!;
-            const key = cell.id;
+    for (let i = 0; i < visibleCells.length; i++) {
+        const cell = visibleCells[i]!;
+        const key = cell.id;
+        if (isSkeleton && !cell.column.columnDef.meta?.noSkeleton) {
             renderedCells[i] = (
                 <TableCell key={key}>
                     <Skeleton
@@ -380,13 +366,8 @@ function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
                     />
                 </TableCell>
             );
+            continue;
         }
-        return renderedCells;
-    }
-    for (let i = 0; i < visibleCells.length; i++) {
-        const cell = visibleCells[i]!;
-        const key = cell.id;
-
         renderedCells[i] = (
             <TableCell key={key}>
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -396,52 +377,126 @@ function RowCells<TData>({ row, onRenderSkeleton }: RowCellsProps<TData>) {
     return renderedCells;
 }
 
-function usePageQueue(initial: number[]) {
-    const [data, set] = useState<number[]>(initial);
+function HeaderGroups<TData>({ groups }: { groups: HeaderGroup<TData>[] }) {
+    const renderedGroups = new Array<ReactNode>(groups.length);
+    for (let g = 0; g < groups.length; g++) {
+        const group = groups[g]!;
+        const len = group.headers.length;
+        const renderedHeaders = new Array<ReactNode>(len);
+        for (let h = 0; h < len; h++) {
+            const header = group.headers[h]!;
+            renderedHeaders[h] = (
+                <IndividualHeader key={header.column.id} header={header} />
+            );
+        }
+        renderedGroups[g] = (
+            <TableRow key={group.id}>{renderedHeaders}</TableRow>
+        );
+    }
+    return renderedGroups;
+}
 
-    const push = useCallback(
-        (_pages: number | number[]) => {
-            const pages = Array.isArray(_pages) ? _pages : [_pages];
-            set((data) => {
-                const updated = data.filter((p) => !pages.includes(p));
-                updated.push(...pages);
-                console.log("enqueing", ...pages);
-                return updated;
-            });
-        },
-        [],
-    );
-
-    const pop = useCallback(
-        (value?: number) => {
-            if (!value) {
-                value = data.at(-1);
-                if (!value) return;
+function IndividualHeader<TData>({
+    header,
+}: {
+    header: Header<TData, unknown>;
+}) {
+    const setSort = useCallback(
+        (newSort: SortDirection | false) => {
+            const column = header.column;
+            const curSort = column.getIsSorted();
+            const unchanged =
+                (!curSort && newSort === null) || curSort === newSort;
+            if (unchanged) {
+                console.warn("uneccessary set sorting");
+                return;
             }
-            const nextIdx = data.lastIndexOf(value);
-            if (nextIdx === -1) return;
-            const next = data[nextIdx];
-            set((data) => data.filter((_, i) => i !== nextIdx));
-            return next;
+
+            if (newSort === null) {
+                console.log("clearing sorting", header.column.columnDef.header);
+                column.clearSorting();
+                return;
+            }
+            console.log(
+                "setting sorting",
+                newSort,
+                header.column.columnDef.header,
+            );
+            const desc = newSort === "desc";
+            column.toggleSorting(desc);
         },
-        [data],
+        [header],
     );
+    return (
+        <TableHead
+            key={header.id}
+            colSpan={header.colSpan}
+            style={{
+                width: header.getSize(),
+                position: "relative",
+            }}
+        >
+            {header.isPlaceholder
+                ? null
+                : flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                  )}
+            {header.column.getCanSort() ? (
+                <HeaderSortIcon setSort={setSort} />
+            ) : null}
+            <div
+                className={`${styles.resizer} ${
+                    header.column.getIsResizing() ? styles.isResizing : ""
+                }`}
+                onMouseDown={header.getResizeHandler()}
+                onTouchStart={header.getResizeHandler()}
+            ></div>
+        </TableHead>
+    );
+}
 
-    const clear = useCallback(() => {
-        set([]);
-    }, []);
+function usePageQueue(initial: number[]) {
+    const data = useRef<number[]>(initial);
+    const push = (_pages: number | number[]) => {
+        const pages = Array.isArray(_pages) ? _pages : [_pages];
+        if (!pages.length) return;
+        let pagesAlreadyNextInQueue = true;
+        for (let i = -1; i >= -pages.length; i--) {
+            if (data.current.at(i) !== pages.at(i)) {
+                pagesAlreadyNextInQueue = false;
+                break;
+            }
+        }
+        console.log({ data, pages, alreadyNext: pagesAlreadyNextInQueue });
+        if (pagesAlreadyNextInQueue) return;
+        data.current = data.current.filter((p) => !pages.includes(p));
+        data.current.push(...pages);
+        console.log("enqueuing", ...pages);
+    };
+    const pop = () => data.current.pop();
 
-    const peek = useCallback(() => data.at(-1), [data]);
+    const remove = (value: number) => {
+        if (!data.current.includes(value)) return false;
+        data.current = data.current.filter((x) => x !== value);
+        return true;
+    };
+    const clear = () => {
+        data.current = [];
+    };
 
-    const has = useCallback((value: number) => data.includes(value), [data]);
+    const peek = () => data.current.at(-1);
+
+    const has = (value: number) => data.current.includes(value);
 
     return {
         push,
         pop,
         clear,
         peek,
-        data,
+        data: data.current as readonly number[],
         has,
+        remove,
     };
 }
 
@@ -455,40 +510,119 @@ function pageOfRow(row: number) {
 
 type HeaderSort = "none" | "asc" | "desc";
 
+const stateMap = {
+    none: {
+        next: "asc",
+        symbol: "o",
+        sort: false,
+    },
+    asc: {
+        next: "desc",
+        symbol: "^",
+        sort: "asc",
+    },
+    desc: {
+        next: "none",
+        symbol: "v",
+        sort: "desc",
+    },
+} as const;
+
 function HeaderSortIcon({
-    setDesc,
+    setSort,
 }: {
-    setDesc: (sort: boolean | null) => void;
+    setSort: (sort: SortDirection | false) => void;
 }) {
-    const stateMap = useMemo(() => ({
-        none: {
-            next: "asc",
-            symbol: "o",
-            desc: null
-        },
-        asc: {
-            next: "desc",
-            symbol: "^",
-            desc: false
-        },
-        desc: {
-            next: "none",
-            symbol: "v",
-            desc: true
-        }
-    } as const), [])
     const [state, dispatch] = useReducer((state: HeaderSort) => {
-        return stateMap[state].next
+        return stateMap[state].next;
     }, "none");
 
-    const symbol = useMemo(() => stateMap[state].symbol, [state, stateMap]);
-    useEffect(() => {
-        setDesc(stateMap[state].desc)
-    }, [state, stateMap, setDesc])
+    const onClick = useCallback(() => {
+        dispatch();
+        setSort(stateMap[stateMap[state].next].sort);
+    }, [state, setSort]);
 
     return (
-        <button className="px-2" onClick={dispatch}>
-            {symbol}
+        <button className="px-2" onClick={onClick}>
+            {stateMap[state].symbol}
         </button>
     );
+}
+
+export type NoInfer<T> = [T][T extends any ? 0 : never];
+
+import isEqualDeep from "lodash/isEqual";
+
+// TODO: add changedFlag opt to have depsChanged work with a boolean flag
+// i.e. the result of a previous onChanged call
+export function useChanged<TDeps extends readonly any[], TResult>(
+    getDeps: () => [...TDeps],
+    fn: (args: NoInfer<[...TDeps]>, prev: NoInfer<[...TDeps]>) => TResult,
+    opts: {
+        key?: any;
+        debug?: boolean;
+        time?: boolean;
+    } = {},
+): readonly [TResult, boolean] {
+    const deps = useRef<any[]>([]);
+    const result = useRef<TResult | undefined>();
+    let depTime: number;
+    if (opts.time) depTime = Date.now();
+
+    const newDeps = getDeps();
+
+    const depsChanged =
+        newDeps.length !== deps.current.length ||
+        newDeps.some((dep: any, index: number) => deps.current[index] !== dep);
+
+    if (!depsChanged) {
+        return [result.current!, false];
+    }
+
+    let resultTime: number;
+    if (opts.time) resultTime = Date.now();
+    const newResult = fn(newDeps, deps as any);
+    const resChanged = !isEqualDeep(result.current, newResult);
+    if (opts.debug) {
+        console.log({
+            depsChanged,
+            oldDeps: deps.current,
+            newDeps,
+            resChanged,
+            result: result.current,
+            newResult,
+        });
+    }
+    if (resChanged) {
+        result.current = newResult;
+    }
+    deps.current = newDeps;
+
+    if (opts.time) {
+        const depEndTime = Math.round((Date.now() - depTime!) * 100) / 100;
+        const resultEndTime =
+            Math.round((Date.now() - resultTime!) * 100) / 100;
+        const resultFpsPercentage = resultEndTime / 16;
+
+        const pad = (str: number | string, num: number) => {
+            str = String(str);
+            while (str.length < num) {
+                str = " " + str;
+            }
+            return str;
+        };
+
+        console.info(
+            `%c⏱ ${pad(resultEndTime, 5)} /${pad(depEndTime, 5)} ms`,
+            `
+            font-size: .6rem;
+            font-weight: bold;
+            color: hsl(${Math.max(
+                0,
+                Math.min(120 - 120 * resultFpsPercentage, 120),
+            )}deg 100% 31%);`,
+            opts?.key,
+        );
+    }
+    return [result.current!, resChanged] as const;
 }

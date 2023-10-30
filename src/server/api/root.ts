@@ -2,6 +2,7 @@ import { postRouter } from "@/server/api/routers/post";
 import { t } from "@/server/api/trpc";
 import {z} from "zod"
 import {fetchData} from "./mockData"
+import { type SortingState } from "@tanstack/react-table";
 
 /**
  * This is the primary router for your server.
@@ -12,10 +13,11 @@ export const appRouter = t.router({
     post: postRouter,
     users: t.procedure
     .input(z.object({
-        cursor: z.number()
+        cursor: z.number(),
+        sorting: z.custom<SortingState>().default([])
     }))
-    .query((opts) => {
-        return fetchData(opts.input.cursor, [])
+    .query(({input: {cursor, sorting}}) => {
+        return fetchData(cursor, sorting)
     })
 });
 
