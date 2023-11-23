@@ -1,8 +1,13 @@
-export * as Todo from "./todo";
+export * as Todos from "./todo";
 import { z } from "zod";
 import crypto from "crypto";
 
 import { event } from "./event";
+
+export type Todo = {
+    id: string;
+    title: string;
+}
 
 export const Events = {
   Created: event("todo.created", {
