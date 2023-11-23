@@ -1,0 +1,14 @@
+{
+    "name": "@paypals/db",
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "drizzle-orm": "^0.29.0"
+    },
+    "devDependencies": {
+        "drizzle-kit": "^0.20.4"
+    }
+}
