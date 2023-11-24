@@ -13,8 +13,14 @@ export function API({ stack }: StackContext) {
                 bind: [bus],
             },
         },
+        cors: {
+            allowOrigins: ["*"],
+            allowMethods: ["ANY"],
+        },
         routes: {
             "GET /": "packages/functions/src/lambda.handler",
+            "GET /trpc/{proxy+}": "packages/functions/src/api.handler",
+            "POST /trpc/{proxy+}": "packages/functions/src/api.handler",
             "GET /todo": "packages/functions/src/todo.list",
             "POST /todo": "packages/functions/src/todo.create",
         },

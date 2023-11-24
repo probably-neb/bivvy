@@ -1,4 +1,4 @@
-import {StackContext, StaticSite, use} from "sst/constructs"
+import {StackContext, StaticSite, use } from "sst/constructs"
 import {API} from "./Api"
 
 export function Site({stack, app}: StackContext) {
@@ -10,6 +10,7 @@ export function Site({stack, app}: StackContext) {
         environment: {
             VITE_API_URL: api.url,
             VITE_REGION: app.region,
+            VITE_IS_LOCAL: String(app.local)
         }
     })
     stack.addOutputs({

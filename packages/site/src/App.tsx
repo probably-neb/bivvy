@@ -1,29 +1,13 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import reactLogo from "./assets/react.svg";
 import viteLogo from "/vite.svg";
-import {type Todo} from "@paypals/core/src/todo"
 import "./App.css";
+import { api } from "./api";
 
 function App() {
     const [count, setCount] = useState(0);
 
-    const [todos, setTodos] = useState<Todo[]>([]);
-    const [created, setCreated] = useState(0);
-    useEffect(() => {
-        async function fetchTodos() {
-            const todos = await fetch(`${import.meta.env.VITE_API_URL}/todo`)
-                .then((response) => response.json())
-            setTodos(todos);
-        }
-        fetchTodos();
-    }, [created])
-
-    async function createTodo() {
-        await fetch(`${import.meta.env.VITE_API_URL}/todo`, {
-            method: 'POST'
-        })
-        setCreated((created) => created + 1);
-    }
+    const todos = api.todos.list.useQuery();
 
     return (
         <>
@@ -49,12 +33,13 @@ function App() {
                 </p>
             </div>
             <div className="card">
-                <button onClick={() => createTodo()}>
-                    Create Todo
-                </button>
-                {todos.map((todo) => (
-                    <div key={todo.id}>{todo.title}</div>
-                ))}
+                {todos.data ? (
+                    todos.data.map((todo) => (
+                        <div key={todo.id}>{todo.title}</div>
+                    ))
+                ) : (
+                    <p>Loading...</p>
+                )}
             </div>
             <p className="read-the-docs">
                 Click on the Vite and React logos to learn more
