@@ -20,7 +20,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-        "@paypals/core/*": ["../core/src/*"]
+        "@paypals/core/*": ["../core/src/*"],
+        "@/*": ["./src/*"]
     }
   },
   "include": ["src"],
