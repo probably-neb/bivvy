@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sso": "aws sso login --sso-session=paypals",
     "dev": "sst dev",
     "build": "sst build",
     "deploy": "sst deploy",
     "remove": "sst remove",
     "console": "sst console",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "sso": "aws sso login --sso-session=paypals",
+    "update:.env.local": "npm sst secrets list env > .env.local"
   },
   "devDependencies": {
     "sst": "^2.36.2",

@@ -1,4 +1,4 @@
-import { StackContext, Api, EventBus } from "sst/constructs";
+import { StackContext, Api, EventBus, Config } from "sst/constructs";
 
 export function API({ stack }: StackContext) {
     const bus = new EventBus(stack, "bus", {
@@ -7,10 +7,12 @@ export function API({ stack }: StackContext) {
         },
     });
 
+    const DB_URL = new Config.Secret(stack, "DB_URL")
+
     const api = new Api(stack, "api", {
         defaults: {
             function: {
-                bind: [bus],
+                bind: [bus, DB_URL]
             },
         },
         cors: {

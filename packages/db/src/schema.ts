@@ -5,20 +5,27 @@ import {
     timestamp,
     int,
     decimal,
-    boolean,
 } from "drizzle-orm/mysql-core";
 
+function uint(name: string) {
+    return int(name, { unsigned: true });
+}
+
 function id(name: string) {
-    return int(name, { unsigned: true }).autoincrement().primaryKey();
+    return uint(name).autoincrement().primaryKey();
 }
 
 // the amount in cents
-function amount() {
-    return int("amount").notNull();
+function cents(name: string) {
+    return uint(name);
 }
 
-function percentage() {
-    return decimal("percentage", { precision: 2, scale: 2 }).notNull();
+function percentage(name: string) {
+    return decimal(name, { precision: 12, scale: 10 }).notNull();
+}
+
+function idRef(name: string) {
+    return uint(name);
 }
 
 export const users = table("users", {
@@ -28,8 +35,8 @@ export const users = table("users", {
 });
 
 export const users_to_group = table("users_to_group", {
-    user_id: int("user_id").notNull(),
-    group_id: int("group_id").notNull(),
+    user_id: idRef("user_id").notNull(),
+    group_id: idRef("group_id").notNull(),
 });
 
 export const usersToGroupRelations = relations(users_to_group, ({ one }) => ({
@@ -49,8 +56,8 @@ export const groups = table("groups", {
 });
 
 export const expenses_to_group = table("expenses_to_group", {
-    expense_id: int("expense_id").notNull(),
-    group_id: int("group_id").notNull(),
+    expense_id: idRef("expense_id").notNull(),
+    group_id: idRef("group_id").notNull(),
 });
 
 export const expensesToGroupRelations = relations(
@@ -71,15 +78,15 @@ export const expenses = table("expenses", {
     id: id("id"),
     created_at: timestamp("created_at").defaultNow(),
     paid_on: timestamp("paid_on"),
-    paid_by: int("paid_by").notNull(),
-    amount: amount(),
+    paid_by_user_id: idRef("paid_by_user_id").notNull(),
+    amount: cents("amount").notNull(),
     reimbursed_at: timestamp("reimbursed_at"),
-    split_id: int("split_id").notNull(),
+    split_id: idRef("split_id").notNull(),
 });
 
 export const expenseRelations = relations(expenses, ({ one }) => ({
     paid_by: one(users, {
-        fields: [expenses.paid_by],
+        fields: [expenses.paid_by_user_id],
         references: [users.id],
     }),
     split: one(splits, {
@@ -91,7 +98,7 @@ export const expenseRelations = relations(expenses, ({ one }) => ({
 export const splits = table("splits", {
     id: id("id"),
     name: varchar("name", { length: 255 }).notNull(),
-    group_id: int("group_id").notNull(),
+    group_id: idRef("group_id").notNull(),
 });
 
 export const splitRelations = relations(splits, ({ one }) => ({
@@ -102,9 +109,9 @@ export const splitRelations = relations(splits, ({ one }) => ({
 }));
 
 export const split_portion_def = table("split_portion_def", {
-    split_id: int("split_id").notNull(),
-    percentage: int("percentage", { unsigned: true }),
-    user_id: int("user_id"),
+    split_id: idRef("split_id").notNull(),
+    percentage: percentage("percentage"),
+    user_id: idRef("user_id"),
 });
 
 export const splitPortionDefRelations = relations(
@@ -122,10 +129,11 @@ export const splitPortionDefRelations = relations(
 );
 
 export const split_portion = table("split_portion", {
-    split_id: varchar("split_id", { length: 255 }).notNull(),
-    expense_id: varchar("expense_id", { length: 255 }).notNull(),
-    user_id: varchar("user_id", { length: 255 }).notNull(),
-    amount: amount(),
+    split_id: idRef("split_id").notNull(),
+    expense_id: idRef("expense_id").notNull(),
+    user_id: idRef("user_id").notNull(),
+    total_amount: cents("total_amount").notNull(),
+    reimbursed_amount: cents("reimbursed_amount").default(0),
     reimbursed_at: timestamp("reimbursed_at"),
 });
 
@@ -143,3 +151,34 @@ export const splitPortionRelations = relations(split_portion, ({ one }) => ({
         references: [expenses.id],
     }),
 }));
+
+export const payments = table("payments", {
+    id: id("id"),
+    timestamp: timestamp("timestamp").defaultNow(),
+    from_user_id: idRef("from_user_id").notNull(),
+    to_user_id: idRef("to_user_id").notNull(),
+    group_id: idRef("group_id").notNull(),
+    amount: cents("amount").notNull(),
+});
+
+export const paymentRelations = relations(payments, ({ one }) => ({
+    from_user: one(users, {
+        fields: [payments.from_user_id],
+        references: [users.id],
+    }),
+    to_user: one(users, {
+        fields: [payments.to_user_id],
+        references: [users.id],
+    }),
+    group: one(groups, {
+        fields: [payments.group_id],
+        references: [groups.id],
+    }),
+}));
+
+export const payment_splits = table("payment_splits", {
+    id: id("id"),
+    payment_id: idRef("payment_id").notNull(),
+    split_portion_id: idRef("split_portion_id").notNull(),
+    amount: cents("amount").notNull(),
+});
