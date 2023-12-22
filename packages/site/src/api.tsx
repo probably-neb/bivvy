@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, loggerLink } from "@trpc/client";
 import React, { useState } from "react";
 import { createTRPCReact } from "@trpc/react-query";
-import type { Router } from "@paypals/core/api";
+import type { Router } from "@paypals/functions/api";
 
 const trpc = createTRPCReact<Router>();
 
@@ -18,10 +18,9 @@ export const ApiProvider: React.FC<React.PropsWithChildren> = ({
         trpc.createClient({
             links: [
                 loggerLink({
-                    enabled: (op) => 
-                        import.meta.env.VITE_IS_LOCAL === "true" || (op.direction === "down" &&
-                        op.result instanceof Error),
-
+                    enabled: (op) =>
+                        import.meta.env.VITE_IS_LOCAL === "true" ||
+                        (op.direction === "down" && op.result instanceof Error),
                 }),
                 httpBatchLink({
                     url: API_URL,

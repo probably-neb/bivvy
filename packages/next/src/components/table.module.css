@@ -1,0 +1,18 @@
+.resizer {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 40%;
+    width: 2px;
+    background: rgba(0, 0, 0, 0.2);
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+    horizantal-align: middle;
+}
+
+.resizer.isResizing {
+    background: rgba(0, 0, 0, 0.4);
+    opacity: 1;
+}

@@ -1,16 +1,12 @@
-import {StackContext, StaticSite, use } from "sst/constructs"
-import {API} from "./Api"
+import {Config, NextjsSite, StackContext } from "sst/constructs"
 
 export function Site({stack, app}: StackContext) {
-    const {api} = use(API)
-    const site = new StaticSite(stack, "Site", {
-        path: "packages/site",
-        buildCommand: "pnpm run build",
-        buildOutput: "dist",
+    const DB_URL = new Config.Secret(stack, "DB_URL")
+    const site = new NextjsSite(stack, "Site", {
+        path: "packages/next",
+        bind: [DB_URL],
         environment: {
-            VITE_API_URL: api.url,
-            VITE_REGION: app.region,
-            VITE_IS_LOCAL: String(app.local)
+            NEXT_PUBLIC_IS_LOCAL: String(app.local)
         }
     })
     stack.addOutputs({

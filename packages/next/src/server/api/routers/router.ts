@@ -4,8 +4,6 @@ import {
 } from "@trpc/server/adapters/aws-lambda";
 
 import { initTRPC } from "@trpc/server";
-import { CreateAWSLambdaContextOptions } from "@trpc/server/adapters/aws-lambda";
-import { APIGatewayProxyEventV2 } from "aws-lambda";
 
 import { Groups } from "@paypals/core/groups";
 

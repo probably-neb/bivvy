@@ -76,7 +76,7 @@ export const expensesToGroupRelations = relations(
 
 export const expenses = table("expenses", {
     id: id("id"),
-    created_at: timestamp("created_at").defaultNow(),
+    created_at: timestamp("created_at").defaultNow().notNull(),
     paid_on: timestamp("paid_on"),
     paid_by_user_id: idRef("paid_by_user_id").notNull(),
     amount: cents("amount").notNull(),

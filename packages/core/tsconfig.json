@@ -2,6 +2,9 @@
   "extends": "@tsconfig/node18/tsconfig.json",
   "compilerOptions": {
     "module": "esnext",
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "paths": {
+        "@paypals/db": ["../db/src/index.ts"]
+    }
   }
 }

@@ -21,6 +21,7 @@
     "noFallthroughCasesInSwitch": true,
     "paths": {
         "@paypals/core/*": ["../core/src/*"],
+        "@paypals/functions/*": ["../functions/src/*"],
         "@/*": ["./src/*"]
     }
   },
