@@ -1,11 +1,9 @@
 {
-  "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "new-york",
-  "rsc": false,
-  "tsx": true,
+  "$schema": "https://shadcn-solid.vercel.app/schema.json",
+  "style": "default",
   "tailwind": {
-    "config": "tailwind.config.ts",
-    "css": "src/globals.css",
+    "config": "tailwind.config.js",
+    "css": "src/index.css",
     "baseColor": "slate",
     "cssVariables": true
   },
