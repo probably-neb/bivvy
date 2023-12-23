@@ -10,7 +10,6 @@ import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import { ExpenseInput, ExpenseInputSchema, addExpense } from "@/lib/rep";
 import { For } from "solid-js";
-import z from "zod";
 
 export function AddExpenseCard() {
     const form = createForm<ExpenseInput, typeof zodValidator>(() => ({
@@ -25,12 +24,13 @@ export function AddExpenseCard() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Add Transaction</CardTitle>
+                <CardTitle>New Expense</CardTitle>
             </CardHeader>
             <CardContent>
                 <form.Provider>
                     <form
                         class="flex flex-col gap-4"
+                        lang="en"
                         onSubmit={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -44,15 +44,54 @@ export function AddExpenseCard() {
                             validator={ExpenseInputSchema.shape.payer}
                             type="text"
                         />
-                        <Field
-                            form={form}
-                            label="Amount"
+                        {/* HACK: copying generated html until kobalte fixes it's inputs handling of floats */}
+                        <form.Field
                             name="amount"
-                            validator={ExpenseInputSchema.shape.amount}
-                            type="number"
-                            step="0.01"
-                            parse={parseFloat}
-                        />
+                            validators={{
+                                onChange: ExpenseInputSchema.shape.amount,
+                            }}
+                        >
+                            {(field) => (
+                                <div role="group" id="textfield-cl-18">
+                                    <label
+                                        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                        id="textfield-cl-18-label"
+                                        for="textfield-cl-18-input"
+                                    >
+                                        Amount
+                                    </label>
+                                    <input
+                                        id="textfield-cl-18-input"
+                                        name="textfield-cl-18"
+                                        type="number"
+                                        step="any"
+                                        min="0"
+                                        inputmode="decimal"
+                                        placeholder="10.00"
+                                        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                        aria-labelledby="textfield-cl-18-label"
+                                        aria-invalid="true"
+                                        aria-describedby="textfield-cl-18-error-message"
+                                        onChange={(e) =>
+                                            isNaN(e.target.valueAsNumber)
+                                                ? field().handleChange(
+                                                      undefined as any,
+                                                  )
+                                                : field().handleChange(
+                                                      e.target.valueAsNumber,
+                                                  )
+                                        }
+                                    />
+                                    <For each={[field().state.meta.errors]}>
+                                        {(error) => (
+                                            <div class="text-red-500">
+                                                {error}
+                                            </div>
+                                        )}
+                                    </For>
+                                </div>
+                            )}
+                        </form.Field>
                         <Button type="submit" disabled={!form.state.canSubmit}>
                             Add
                         </Button>
@@ -68,13 +107,11 @@ type FieldProps = {
     name: keyof ExpenseInput;
     label: string;
     type: "text" | "number" | "password" | "email" | "tel";
-    parse?: (x: string) => any;
     form: FormApi<ExpenseInput, typeof zodValidator>;
-    step?: string;
 };
+
 function Field(props: FieldProps) {
-    const { validator, name, label, type, form, step } = props;
-    const parse = props.parse ?? ((x) => x);
+    const { validator, name, label, type, form } = props;
     return (
         <form.Field
             name={name}
@@ -92,11 +129,11 @@ function Field(props: FieldProps) {
                 >
                     <TextFieldLabel>{label}</TextFieldLabel>
                     <TextFieldInput
+                        as="input"
                         type={type}
-                        step={step}
                         placeholder={label}
                         onChange={(e) =>
-                            field().handleChange(parse(e.target.value))
+                            field().handleChange(e.target.valueAsNumber)
                         }
                     />
                     <TextFieldErrorMessage>

@@ -8,7 +8,7 @@ import z from "zod";
 export const ExpenseSchema = z.object({
     id: z.string(),
     payer: z.string().min(3),
-    amount: z.number(),
+    amount: z.number().min(0),
     status: z.enum(["paid", "unpaid"]),
 })
 
@@ -43,14 +43,19 @@ export function useExpenses() {
     return expenses;
 }
 
+export function useExpense(id: string) {
+    const expense = use(async (tx) => await tx.get<Expense>(`expense/${id}`));
+    return expense;
+}
+
 export async function addExpense(expense: ExpenseInput) {
     const id = nanoid();
     const e = {expense, id}
     console.log("adding expense", e);
     await rep.mutate.addExpense(e);
-
 }
 
+/// Helper function that wraps a Replicache query subscription in a SolidJS signal
 export function use<R>(getter: (tx: ReadTransaction) => Promise<R>) {
     const value: Accessor<R | undefined> = from((set) => {
         console.log("subscribing");
@@ -58,8 +63,7 @@ export function use<R>(getter: (tx: ReadTransaction) => Promise<R>) {
             getter,
             (val) => {
                 console.log("got value", val);
-                // @ts-ignore
-                set(val);
+                set(val as Exclude<R, Function>);
             },
         )
     })
