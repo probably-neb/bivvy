@@ -14,6 +14,12 @@ export function API({ stack }: StackContext) {
             allowMethods: ["ANY"],
         },
         routes: {
+            "POST /push": {
+                function: {
+                    handler: "packages/functions/lambdas/push.go",
+                    runtime: "go"
+                }
+            },
             "GET /": "packages/functions/src/lambda.handler",
             "GET /trpc/{proxy+}": "packages/functions/src/api.handler",
             "POST /trpc/{proxy+}": "packages/functions/src/api.handler",
