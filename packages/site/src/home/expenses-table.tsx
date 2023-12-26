@@ -7,15 +7,17 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { SetAsideCardMode } from "@/App";
+import { ViewExpense } from "@/home/home";
 import { useExpenses, type Expense } from "@/lib/rep";
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
+import {
+    DateRenderer,
+    MoneyRenderer,
+    UserRenderer,
+} from "@/components/renderers";
 
-export function ExpensesTable({setAsideCardMode}: {setAsideCardMode: SetAsideCardMode}) {
+export function ExpensesTable({ viewExpense }: { viewExpense: ViewExpense }) {
     const expenses = useExpenses();
-    const viewExpense = (expenseId: Expense["id"]) => {
-        setAsideCardMode({mode: "view", id: expenseId});
-    }
     return (
         <Card class="mt-6">
             <CardHeader>
@@ -25,14 +27,22 @@ export function ExpensesTable({setAsideCardMode}: {setAsideCardMode: SetAsideCar
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Name</TableHead>
+                            <TableHead>Paid By</TableHead>
                             <TableHead>Amount</TableHead>
+                            <TableHead>Description</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Paid On</TableHead>
+                            <TableHead>Added On</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <For each={expenses()}>
-                            {(expense) => <ExpenseRow expense={expense} viewExpense={viewExpense}/>}
+                            {(expense) => (
+                                <ExpenseRow
+                                    expense={expense}
+                                    viewExpense={viewExpense}
+                                />
+                            )}
                         </For>
                     </TableBody>
                 </Table>
@@ -41,12 +51,31 @@ export function ExpensesTable({setAsideCardMode}: {setAsideCardMode: SetAsideCar
     );
 }
 
-function ExpenseRow({ expense, viewExpense}: { expense: Expense, viewExpense: (expenseId: Expense["id"]) => void}) {
+function ExpenseRow({
+    expense,
+    viewExpense,
+}: {
+    expense: Expense;
+    viewExpense: (expenseId: Expense["id"]) => void;
+}) {
     return (
         <TableRow onClick={[viewExpense, expense.id]}>
-            <TableCell>{expense.payer}</TableCell>
-            <TableCell>{expense.amount}</TableCell>
+            <TableCell>
+                <UserRenderer userId={expense.paidBy} />
+            </TableCell>
+            <TableCell>
+                <MoneyRenderer amount={expense.amount} />
+            </TableCell>
+            <TableCell>{expense.description}</TableCell>
             <TableCell class="uppercase">{expense.status}</TableCell>
+            <TableCell>
+                <Show when={expense.paidOn} fallback={<span class="flex justify-center">-</span>}>
+                    {(paidOn) => <DateRenderer dateStr={paidOn()} />}
+                </Show>
+            </TableCell>
+            <TableCell>
+                <DateRenderer dateStr={expense.createdAt} />
+            </TableCell>
         </TableRow>
     );
 }

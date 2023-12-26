@@ -1,27 +1,82 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {TiUserOutline} from "solid-icons/ti";
-import { Expense, useExpense } from "@/lib/rep";
+import { TiTrash } from "solid-icons/ti";
+import { Expense, useExpense, deleteExpense } from "@/lib/rep";
+import { ParentProps, Show } from "solid-js";
+import { Button } from "@/components/ui/button";
+import { setAsideCardMode } from "@/home/home";
+import {
+    DateRenderer,
+    MoneyRenderer,
+    Render,
+    UserRenderer,
+} from "@/components/renderers";
 
-export function ViewExpenseCard({expenseId}: {expenseId: Expense["id"]}) {
+export function ViewExpenseCard({ expenseId }: { expenseId: Expense["id"] }) {
     const expense = useExpense(expenseId);
-    console.log(expense());
+
+    const onClickDelete = async () => {
+        // TODO: show confirmation dialog
+        await deleteExpense(expenseId);
+        setAsideCardMode({ mode: "add" });
+    };
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Expense Details</CardTitle>
+                <div class="flex justify-between items-center">
+                    <CardTitle>Expense Details</CardTitle>
+                    <Button onClick={onClickDelete}>
+                        <TiTrash class="bg-red" />
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
-                <div class="flex items-center space-x-4">
-                    <TiUserOutline />
-                    <div>
-                        <div class="font-bold text-lg">{expense()?.payer}</div>
-                        <div class="text-gray-500">Amount: ${expense()?.amount}</div>
-                        <div class="text-gray-500">Status: {expense()?.status}</div>
-                    </div>
+                <div class="grid grid-cols-2">
+                    <KV k="Paid By">
+                        <Show when={expense()?.paidBy}>
+                            {(paidBy) => <UserRenderer userId={paidBy()} />}
+                        </Show>
+                    </KV>
+                    <KV k="Amount">
+                        <Show when={expense()?.amount}>
+                            {(amount) => <MoneyRenderer amount={amount()} />}
+                        </Show>
+                    </KV>
+                    <KV k="Status">
+                        <Show when={expense()?.status}>
+                            {(status) => (
+                                <span class="uppercase">{status()}</span>
+                            )}
+                        </Show>
+                    </KV>
+                    <KV k="Description">
+                        <Show when={expense()?.description}>
+                            {(description) => <span>{description()}</span>}
+                        </Show>
+                    </KV>
+                    <KV k="Paid On">
+                        <Show when={expense()?.paidOn}>
+                            {(paidOn) => <DateRenderer dateStr={paidOn()} />}
+                        </Show>
+                    </KV>
+                    <KV k="Added On">
+                        <Show when={expense()?.createdAt}>
+                            {(createdAt) => (
+                                <DateRenderer dateStr={createdAt()} />
+                            )}
+                        </Show>
+                    </KV>
                 </div>
             </CardContent>
         </Card>
     );
 }
 
+function KV({ k, children }: ParentProps<{ k: string }>) {
+    return (
+        <>
+            <div class="text-gray-600">{k}</div>
+            <div>{children}</div>
+        </>
+    );
+}

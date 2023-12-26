@@ -22,7 +22,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": "./",
     "paths": {
-        "@/*": ["./src/*"]
+        "@/*": ["./src/*"],
+        "@kobalte/core": ["../kobalte/packages/core/dist/"]
     }
   },
   "include": ["src"],
