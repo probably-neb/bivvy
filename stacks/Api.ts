@@ -14,9 +14,15 @@ export function API({ stack }: StackContext) {
             allowMethods: ["ANY"],
         },
         routes: {
+            "POST /pull": {
+                function: {
+                    handler: "packages/functions/lambdas/pull/pull.go",
+                    runtime: "go"
+                }
+            },
             "POST /push": {
                 function: {
-                    handler: "packages/functions/lambdas/push.go",
+                    handler: "packages/functions/lambdas/push/push.go",
                     runtime: "go"
                 }
             },
