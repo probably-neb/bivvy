@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { createStore } from "solid-js/store";
 
 export const USERS = [
     {
@@ -20,5 +21,15 @@ export const USERS = [
 ];
 
 export type User = (typeof USERS)[number];
+
+export type Session = {
+    user: User;
+    currentGroupId: string | null;
+}
+
+export const [session, setSession] = createStore<Session>({
+    user: USERS[0],
+    currentGroupId: "______dev_group______",
+});
 
 export const [currentUser, setCurrentUser] = createSignal<User>(USERS[0]);
