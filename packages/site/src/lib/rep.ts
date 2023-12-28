@@ -1,4 +1,4 @@
-import { Accessor, from } from "solid-js";
+import { Accessor, from, untrack } from "solid-js";
 import { ReadTransaction, Replicache, WriteTransaction } from "replicache";
 import { nanoid } from "nanoid";
 
@@ -34,11 +34,13 @@ export type ExpenseInput = z.infer<typeof expenseInputSchema>;
 export const userSchema = z.object({
     id: idSchema,
     name: z.string(),
+    owed: z.number().default(0),
 });
 
 export type User = z.infer<typeof userSchema>;
 
 const P = {
+    // return session group id but don't track changes to it
     gid: () => unwrap(session).currentGroupId,
     group: {
         prefix: `group/`,
@@ -103,6 +105,54 @@ const mutators = {
             await tx.del(P.user.id(userId));
         }
     },
+    recomputeOwed: async (tx: WriteTransaction) => {
+        const owe = {
+            // Total amount owed to/by current user
+            // +/- => owed to/by current user
+            total: 0,
+            // Map of user id to amount owed to/by to that user
+            // +/- => owed to/by current user
+            to: {} as { [id: User["id"]]: number },
+        };
+        // TODO: use clientId isntead of currentUser()
+        const users = await tx
+            .scan<User>({ prefix: P.user.prefix() })
+            .values()
+            .toArray();
+
+        const curUserId = untrack(() => currentUser().id);
+        let [[curUser], otherUsers] = filterSplit(
+            users,
+            (u) => u.id === curUserId,
+        );
+
+        for (const u of otherUsers) {
+            owe.to[u.id] = 0;
+        }
+
+        for await (const expense of tx
+            .scan<Expense>({ prefix: P.expense.prefix() })
+            .values()) {
+            // TODO: implement splits
+            const split = expense.amount / otherUsers.length;
+            if (expense.paidBy === curUserId) {
+                owe.total += expense.amount;
+                for (const user of otherUsers) {
+                    owe.to[user.id] = owe.to[user.id] + split;
+                }
+            } else {
+                owe.total -= split;
+                owe.to[expense.paidBy] = owe.to[expense.paidBy] - split;
+            }
+        }
+        console.log("recomputeOwed", owe);
+        curUser = { ...curUser, owed: owe.total };
+        await tx.set(P.user.id(curUserId), curUser);
+        for (let user of otherUsers) {
+            user = { ...user, owed: owe.to[user.id] };
+            await tx.set(P.user.id(user.id), user);
+        }
+    },
 };
 
 const licenseKey = import.meta.env.VITE_REPLICACHE_LICENSE_KEY;
@@ -134,11 +184,12 @@ export function useExpense(id: Expense["id"]) {
 
 export async function deleteExpense(id: Expense["id"]) {
     await rep.mutate.deleteExpense(id);
+    await rep.mutate.recomputeOwed();
 }
 
 export async function addExpense(expense: ExpenseInput) {
     const id = nanoid();
-    const currentUserId = currentUser().id;
+    const currentUserId = untrack(() => currentUser().id);
     let e: Expense = {
         // copy because replicache responses are Readonly
         ...expense,
@@ -149,6 +200,7 @@ export async function addExpense(expense: ExpenseInput) {
         id,
     };
     await rep.mutate.addExpense(e);
+    await rep.mutate.recomputeOwed();
 }
 
 export async function addUser(user: User) {
@@ -173,52 +225,50 @@ export function useUserExpenses(id: User["id"]) {
 }
 
 export function useOtherUsers() {
-    const users = use(async (tx) =>
-        (
+    const users = use(async (tx) => {
+        const cuid = untrack(() => currentUser().id);
+        return (
             await tx.scan<User>({ prefix: P.user.prefix() }).values().toArray()
-        ).filter((u) => u.id !== currentUser().id),
-    );
+        ).filter((u) => u.id !== cuid);
+    });
     return users;
 }
 
+type Owed = {
+    total: number;
+    to: { [id: User["id"]]: number };
+};
+
+function filterSplit<T>(a: T[], fn: (t: T) => boolean) {
+    const yes: T[] = [];
+    const no: T[] = [];
+    for (const t of a) {
+        if (fn(t)) {
+            yes.push(t);
+        } else {
+            no.push(t);
+        }
+    }
+    return [yes, no];
+}
+
 export function useOwed() {
-    // TODO: make this a stored value not computed (allow for server computation)
     const info = use(async (tx) => {
-        const owe = {
-            // Total amount owed to/by current user
-            // +/- => owed to/by current user
+        const owed: Owed = {
             total: 0,
-            // Map of user id to amount owed to/by to that user
-            // +/- => owed to/by current user
-            to: new Map<string, number>(),
+            to: {},
         };
-        // TODO: use clientId isntead of currentUser()
-        const curUserId = currentUser().id;
-        const otherUsers = (
-            await tx.scan<User>({ prefix: P.user.prefix() }).values().toArray()
-        ).filter((u) => u.id !== curUserId);
-        for (const u of otherUsers) {
-            owe.to.set(u.id, 0);
-        }
-        for await (const expense of tx
-            .scan<Expense>({ prefix: P.expense.prefix() })
+        const cuid = untrack(() => currentUser().id);
+        for await (const user of tx
+            .scan<User>({ prefix: P.user.prefix() })
             .values()) {
-            // TODO: implement splits
-            const split = expense.amount / otherUsers.length;
-            if (expense.paidBy === curUserId) {
-                owe.total += expense.amount;
-                for (const user of otherUsers) {
-                    owe.to.set(user.id, (owe.to.get(user.id) ?? 0) + split);
-                }
-            } else {
-                owe.total -= split;
-                owe.to.set(
-                    expense.paidBy,
-                    (owe.to.get(expense.paidBy) ?? 0) - split,
-                );
+            if (user.id === cuid) {
+                owed.total = user.owed ?? 0;
+                continue;
             }
+            owed.to[user.id] = user.owed ?? 0;
         }
-        return owe;
+        return owed;
     });
     return info;
 }
