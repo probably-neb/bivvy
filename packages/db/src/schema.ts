@@ -11,9 +11,18 @@ function uint(name: string) {
     return int(name, { unsigned: true });
 }
 
-function id(name: string) {
-    return uint(name).autoincrement().primaryKey();
+function _id(name: string) {
+    return varchar(name, {length: 21})
 }
+
+function id(name: string) {
+    return _id(name).primaryKey();
+}
+
+function idRef(name: string) {
+    return _id(name);
+}
+
 
 // the amount in cents
 function cents(name: string) {
@@ -22,10 +31,6 @@ function cents(name: string) {
 
 function percentage(name: string) {
     return decimal(name, { precision: 12, scale: 10 }).notNull();
-}
-
-function idRef(name: string) {
-    return uint(name);
 }
 
 export const users = table("users", {
