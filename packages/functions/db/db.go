@@ -1,8 +1,16 @@
 package db
 
+import (
+	"database/sql"
+	"fmt"
+
+	_ "github.com/go-sql-driver/mysql"
+)
+
 type User struct {
     Id   string `json:"id"`
     Name string `json:"name"`
+    Owed float64 `json:"owed"`
 }
 
 type Expense struct {
@@ -15,25 +23,35 @@ type Expense struct {
     CreatedAt   string `json:"createdAt"`
 }
 
-func GetUsers() []User {
-    return []User{
-    {
-        Id: "Alice_fjIqVhRO63mS0mu",
-        Name: "Alice",
-    },
-    {
-        Id: "Bob_oTfjIqVhRO63mS0mv",
-        Name: "Bob",
-    },
-    {
-        Id: "Charlie_123456789ABCD",
-        Name: "Charlie",
-    },
-    {
-        Id: "David_123456789ABCDEF",
-        Name: "David",
-    },
+func getConn() *sql.DB {
+    dsn, err := GetSecret("DSN")
+    if err != nil {
+        panic(fmt.Errorf("Could not get DSN secret: %v", err))
     }
+    db, err := sql.Open("mysql", dsn)
+    if err != nil {
+        panic(fmt.Errorf("Could not connect to db: %v", err))
+    }
+    return db
+}
+
+var conn = getConn();
+
+func GetUsers(groupId string) ([]User, error) {
+    rows, err := conn.Query("SELECT u.id, u.name FROM users_to_group AS ug LEFT JOIN users AS u ON u.id = ug.user_id WHERE ug.group_id = ?", groupId)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    users := make([]User, 0)
+
+    for rows.Next() {
+        user := User{Owed: 0.00}
+        rows.Scan(&user.Id, &user.Name)
+        users = append(users, user)
+    }
+    return users, nil
 }
 
 func GetExpenses() []Expense {

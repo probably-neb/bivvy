@@ -138,7 +138,8 @@ const (
 )
 
 type PatchOperation interface {
-    SetOp() PatchOperation
+    // dummy function for interface
+    GetOp() PatchOp
 }
 
 type PatchPutOperation struct {
@@ -146,27 +147,42 @@ type PatchPutOperation struct {
     Key string `json:"key"`
     Value interface{} `json:"value"`
 }
-func (p PatchPutOperation) SetOp() PatchOperation {
-    p.Op = Put
-    return p
+func (p PatchPutOperation) GetOp() PatchOp {
+    return Put
+}
+func NewPutOp(key string, value interface{}) PatchPutOperation {
+    return PatchPutOperation{
+        Op: Put,
+        Key: key,
+        Value: value,
+    }
 }
 
 type PatchDelOperation struct {
     Op PatchOp `json:"op"`
     Key string `json:"key"`
 }
-func (p PatchDelOperation) SetOp() PatchOperation {
-    p.Op = Del
-    return p
+func (p PatchDelOperation) GetOp() PatchOp {
+    return Del
+}
+func NewDelOp(key string) PatchDelOperation {
+    return PatchDelOperation{
+        Op: Del,
+        Key: key,
+    }
 }
 
 
 type PatchClearOperation struct {
     Op PatchOp `json:"op"`
 }
-func (p PatchClearOperation) SetOp() PatchOperation  {
-    p.Op = Clear
-    return p
+func (p PatchClearOperation) GetOp() PatchOp  {
+    return Clear
+}
+func NewClearOp() PatchClearOperation {
+    return PatchClearOperation{
+        Op: Clear,
+    }
 }
 
 
@@ -191,7 +207,39 @@ func parse(body string) (PullRequest, error) {
     return pr, nil
 }
 
+func custructPatches() []PatchOperation {
+    var devGroupId = "______dev_group______"
 
+    users, err := db.GetUsers(devGroupId)
+    if err != nil {
+        // TODO: handle error
+        panic(fmt.Errorf("Could not get users: %v", err))
+    }
+    expenses := db.GetExpenses()
+    patches := make([]PatchOperation, 1 + len(users) + len(expenses))
+
+    // reset strategy
+    patches[0] = NewClearOp()
+    i := 1;
+
+    for ui := 0; ui < len(users); ui++ {
+        u := users[ui]
+        patches[ui + i] = NewPutOp(
+            userKey(devGroupId, u.Id),
+            u,
+        )
+    }
+    i = i + len(users)
+
+    for ei := 0; ei < len(expenses); ei++ {
+        e := expenses[ei]
+        patches[i + ei] = NewPutOp(
+            expenseKey(devGroupId, e.Id),
+            e,
+        )
+    }
+    return patches
+}
 
 func pull(ctx context.Context, event Request) (*Response, error) {
     var req, err = parse(event.Body)
@@ -201,26 +249,13 @@ func pull(ctx context.Context, event Request) (*Response, error) {
     var res PullResponse
     // TODO: check versions
     // TODO: check client state
-    patches := []PatchOperation{PatchClearOperation{}}
+    // TODO: validate client group id
+    // - this can be done by including the cgid,cid in the user session
+    // and verifying they are the same
+    // although this may cause problems depending on how replicache assigns ids
 
-    var devGroupId = "______dev_group______"
-    for _, u := range db.GetUsers() {
-        patch := PatchPutOperation{
-            Key: userKey(devGroupId, u.Id),
-            Value: u,
-        }
-        patches = append(patches, patch)
-    }
-    for _, e := range db.GetExpenses() {
-        patch := PatchPutOperation{
-            Key: expenseKey(devGroupId, e.Id),
-            Value: e,
-        }
-        patches = append(patches, patch)
-    }
-    for i, patch := range patches {
-        patches[i] = patch.SetOp()
-    }
+    patches := custructPatches()
+
     res = PullResponseOk{
         Cookie: req.Cookie + 1,
         LastMutationIDChanges: map[string]int{
@@ -229,7 +264,9 @@ func pull(ctx context.Context, event Request) (*Response, error) {
         },
         Patch: patches,
     }
-    log.Printf("res: %+v", res)
+    for _, p := range patches {
+        log.Printf("patch: %+v", p)
+    }
     return res.ToResponse()
 }
 
