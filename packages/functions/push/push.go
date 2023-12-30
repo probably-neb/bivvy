@@ -28,14 +28,24 @@ type PushEvent struct {
 }
 
 func parse(body string) (PushEvent, error) {
-    var push PushEvent
-
-    if err := json.Unmarshal([]byte(body), &push); err != nil {
-        log.Println("error unmarshalling push event", err)
-        return push, err
+    type MutDecode struct {
+        Mutation
+        Args json.RawMessage `json:"args"`
     }
+    type PushDecode struct {
+        PushEvent
+        Mutations []MutDecode `json:"mutations"`
+    }
+    var pushd PushDecode
+    if err := json.Unmarshal([]byte(body), &pushd); err != nil {
+        log.Println("error unmarshalling push event", err)
+        return PushEvent{}, err
+    }
+    push := pushd.PushEvent
+    push.Mutations = make([]Mutation, len(pushd.Mutations))
 
-    for i, mutation := range push.Mutations {
+    for i, mutation := range pushd.Mutations {
+        push.Mutations[i] = mutation.Mutation
         push.Mutations[i].Args = ParseArgs(mutation.Name, mutation.Args)
     }
     sort.Slice(push.Mutations, func(i, j int) bool {
@@ -66,6 +76,15 @@ func doMutations(push PushEvent) error {
         if !clientExists {
             log.Println("creating new client", m.ClientId)
             cg.AddClient(m.ClientId)
+        }
+        ok, err := handle(m)
+        if err != nil {
+            log.Println("error handling mutation", err)
+            break
+        }
+        if ok {
+            log.Println("marking mutation processed", m)
+            cg.Clients[m.ClientId].MarkMutationProcessed(m.Id)
         }
         // log.Println("mutation", m)
     }

@@ -1,9 +1,11 @@
 package push
 
 import (
-    "fmt"
+	"encoding/json"
+	"log"
+	"time"
 
-    "github.com/probably-neb/paypals-api/db"
+	"github.com/probably-neb/paypals-api/db"
 )
 
 type InvalidReason int
@@ -22,17 +24,18 @@ func Invalid(r InvalidReason) InvalidMutation {
 }
 
 
-func ParseArgs(mutation string, args any) any {
-    var tryParse = func(fn (func(a any) (any, error))) any {
+func ParseArgs(mutation string, args json.RawMessage) any {
+    var tryParse = func(fn (func(a json.RawMessage) (any, error))) any {
         newArgs, err := fn(args)
         if err != nil {
+            log.Println("error parsing args", err)
             return Invalid(InvalidReasonArgs)
         }
         return newArgs
     }
     switch mutation {
     case "addUser":
-        return tryParse(parseAddUser)
+        return Invalid(InvalidReasonIgnore)
     case "addExpense":
         return tryParse(parseAddExpense)
     default:
@@ -40,49 +43,17 @@ func ParseArgs(mutation string, args any) any {
     }
 }
 
-func parseAddUser(args any) (any, error) {
-    return Invalid(InvalidReasonIgnore), nil
-}
-
-func parseAddExpense(args any) (any, error) {
+func parseAddExpense(args json.RawMessage) (any, error) {
     var expense db.Expense
-    var ok = false
-    var argsMap map[string]any
-    if argsMap, ok = args.(map[string]any); !ok {
-        return nil, fmt.Errorf("error unmarshalling addExpense args: %v", args)
+    if err := json.Unmarshal(args, &expense); err != nil {
+        return nil, err
     }
-    expense.Id, ok = argsMap["id"].(string)
-    if !ok {
-        return nil, fmt.Errorf("error unmarshalling addExpense id: %v", argsMap["id"])
-    }
-    expense.PaidBy, ok = argsMap["paidBy"].(string)
-    if !ok {
-        return nil, fmt.Errorf("error unmarshalling addExpense paidBy: %v", argsMap["paidBy"])
-    }
-    expense.Amount, ok = argsMap["amount"].(float64)
-    if !ok {
-        return nil, fmt.Errorf("error unmarshalling addExpense amount: %v", argsMap["amount"])
-    }
-    expense.Description, ok = argsMap["description"].(string)
-    if !ok {
-        return nil, fmt.Errorf("error unmarshalling addExpense description: %v", argsMap["description"])
-    }
-    expense.Status, ok = argsMap["status"].(string)
-    if !ok {
-        return nil, fmt.Errorf("error unmarshalling addExpense status: %v", argsMap["status"])
-    }
-    paidOn, hasPaidOn := argsMap["paidOn"]
-    if hasPaidOn {
-        var tmp string
-        tmp, ok = paidOn.(string)
-        if !ok {
-            return nil, fmt.Errorf("error unmarshalling addExpense paidOn: %v", argsMap["paidOn"])
-        }
+    // NOTE: / 1000 because js gives unix in ms not s
+    expense.CreatedAt = time.Unix(expense.CreatedAtUnix / 1000, 0)
+    if expense.PaidOnUnix > 0 {
+        tmp := time.Unix(expense.PaidOnUnix / 1000, 0)
         expense.PaidOn = &tmp
     }
-    expense.CreatedAt, ok = argsMap["createdAt"].(string)
-    if !ok {
-        return nil, fmt.Errorf("error unmarshalling addExpense createdAt: %v", argsMap["createdAt"])
-    }
+    log.Println("parsed expense", expense)
     return expense, nil
 }

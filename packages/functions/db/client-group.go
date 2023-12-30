@@ -78,14 +78,14 @@ func (c *Client) MarkMutationProcessed(mid int) {
 type ClientGroup struct {
     Id string
     UserId string
-    Clients map[string]Client
+    Clients map[string]*Client
 }
 
 func NewClientGroup(cgid string, userId string) ClientGroup {
     return ClientGroup{
         Id: cgid,
         UserId: userId,
-        Clients: make(map[string]Client),
+        Clients: make(map[string]*Client),
     }
 }
 
@@ -96,7 +96,7 @@ func (cg *ClientGroup) AddClient(id string) {
         changed: true,
         new: true,
     }
-    cg.Clients[id] = c
+    cg.Clients[id] = &c
 }
 
 // internal method for adding client, used to construct client
@@ -109,7 +109,7 @@ func (cg *ClientGroup) addClient(id string, lastMutationId int) {
         changed: false,
         new: false,
     }
-    cg.Clients[id] = c
+    cg.Clients[id] = &c
 } 
 
 
@@ -176,7 +176,7 @@ func (c *ClientGroupTable) GetClientGroup(clientGroupId string) (ClientGroup, er
     return parseClientGroup(resp.Items)
 }
 
-func (ct *ClientGroupTable) updateClient(cg ClientGroup, c Client) error {
+func (ct *ClientGroupTable) updateClient(cg ClientGroup, c *Client) error {
     // TODO: update ttl timestamp
     values := map[string]dt.AttributeValue{
         "ClientGroupId": dyS(cg.Id),
@@ -198,7 +198,7 @@ func (ct *ClientGroupTable) updateClient(cg ClientGroup, c Client) error {
     return nil
 }
 
-func (ct *ClientGroupTable) putClient(cg ClientGroup, c Client) error {
+func (ct *ClientGroupTable) putClient(cg ClientGroup, c *Client) error {
     values := map[string]dt.AttributeValue{
         "ClientGroupId": dyS(cg.Id),
         "ClientId": dyS(c.Id),
@@ -221,12 +221,16 @@ func (ct *ClientGroupTable) putClient(cg ClientGroup, c Client) error {
 func (ct *ClientGroupTable) PutClientGroup(cg ClientGroup) error {
     log.Println("putting client group", cg.Id)
     for _, c := range cg.Clients {
+        if c == nil {
+            log.Printf("client = nil ???", c.Id)
+            continue
+        }
         if !c.changed {
-            log.Printf("client %v unchanged", c.Id)
+            // log.Printf("client %v unchanged", c.Id)
             continue
         }
         if c.new {
-            log.Println("creating new client %v", c.Id)
+            // log.Println("creating new client %v", c.Id)
             err := ct.putClient(cg, c)
             if err != nil {
                 log.Printf("error creating client: %v", err)
