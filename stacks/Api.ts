@@ -1,4 +1,4 @@
-import { StackContext, Api, Config, Table } from "sst/constructs";
+import { StackContext, Api, Config, Table, Auth } from "sst/constructs";
 
 export function API({ stack }: StackContext) {
 
@@ -58,8 +58,15 @@ export function API({ stack }: StackContext) {
         },
     });
 
+    const auth = new Auth(stack, "auth", {
+        authenticator: "packages/functions/src/auth.handler"
+    })
+
+    auth.attach(stack, {api})
+
     stack.addOutputs({
         ApiEndpoint: api.url,
+        ApiEndpoints: "\n     " + api.routes.join("\n     ")
     });
     return { api }
 }
