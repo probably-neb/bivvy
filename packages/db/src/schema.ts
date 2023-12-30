@@ -5,6 +5,7 @@ import {
     timestamp,
     int,
     decimal,
+    text,
 } from "drizzle-orm/mysql-core";
 
 function uint(name: string) {
@@ -81,6 +82,7 @@ export const expensesToGroupRelations = relations(
 
 export const expenses = table("expenses", {
     id: id("id"),
+    description: text("description").notNull(),
     created_at: timestamp("created_at").defaultNow().notNull(),
     paid_on: timestamp("paid_on"),
     paid_by_user_id: idRef("paid_by_user_id").notNull(),
