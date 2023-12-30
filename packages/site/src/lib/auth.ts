@@ -1,5 +1,7 @@
-import { createMemo, createSignal } from "solid-js";
+import { createMemo } from "solid-js";
 import { createStore } from "solid-js/store";
+import { z } from "zod";
+import {Rep, initReplicache} from "@/lib/rep"
 
 export const USERS = [
     {
@@ -20,36 +22,47 @@ export const USERS = [
     },
 ];
 
-const DEV_GROUP = "______dev_group______"
 
 export type User = (typeof USERS)[number];
 
 export type Session = {
-    valid: boolean;
-    token: string | null;
-    userId: string | null;
+    valid: true;
+    token: string;
+    userId: string;
     // TODO: make this a url param / component var not session var
-    currentGroupId: string | null;
-}
-
-const [session, setSession] = createStore<Session>({
+    currentGroupId: string;
+    rep: Rep
+} | {
     valid: false,
-    token: null,
-    userId: null,
-    currentGroupId: null,
-});
+    token?: undefined,
+    userId?: undefined,
+    currentGroupId?: undefined,
+    rep?: undefined,
+};
 
-export const hasSession = createMemo(() => {
-    console.log("hasSession", session.valid)
-    return session.valid
-});
+const [session, setSession] = createStore<Session>({valid: false as const});
+export {session}
 
-export function initSession(userId: string, token: string) {
-    const up = {
-        valid: true,
-        token,
-        userId
-    }
+// TODO: on load check for token cookie in browser, make request to serer to validate and 
+// get user id, then init session
+//
+export const initSessionSchema = z.object({
+    userId: z.string(),
+    token: z.string(),
+})
+
+export type InitSession = z.infer<typeof initSessionSchema>
+
+export function initSession(init: InitSession) {
+    const up = Object.assign({}, init, {
+        valid: true as const,
+        rep: initReplicache(init)
+    })
     console.log("initSession", up)
     setSession(up)
 }
+
+export const hasSession = () => {
+    console.log("hasSession", session.valid)
+    return session.valid
+};

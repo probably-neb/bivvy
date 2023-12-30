@@ -1,9 +1,10 @@
-import { Accessor, from, untrack } from "solid-js";
+import { Accessor, createMemo, from, untrack } from "solid-js";
 import { ReadTransaction, Replicache, WriteTransaction } from "replicache";
 import { nanoid } from "nanoid";
 
 import z from "zod";
-import { currentUser, session } from "./auth";
+import { InitSession, session } from "@/lib/auth";
+import { useMatch } from "@solidjs/router";
 import { unwrap } from "solid-js/store";
 
 const NANOID_ID_LENGTH = 21;
@@ -17,7 +18,8 @@ export const expenseSchema = z.object({
     amount: z.number().gt(0),
     status: z.enum(["paid", "unpaid"]),
     paidOn: z.number().optional(),
-    createdAt: z.number()
+    createdAt: z.number(),
+    groupId: z.string(),
 });
 
 export type Expense = z.infer<typeof expenseSchema>;
@@ -39,9 +41,18 @@ export const userSchema = z.object({
 
 export type User = z.infer<typeof userSchema>;
 
+function useGid() {
+    console.log("currentGroupId");
+    try {
+        const groupMatch = useMatch(() => "group/:id/*");
+        return groupMatch()?.params.id;
+    } catch (e) {
+        // ignored
+    }
+}
+
 const P = {
     // return session group id but don't track changes to it
-    gid: () => unwrap(session).currentGroupId,
     group: {
         prefix: `group/`,
         id(id: string) {
@@ -49,40 +60,18 @@ const P = {
         },
     },
     expense: {
-        prefix(groupId?: string) {
-            const gid = groupId ?? P.gid();
-            if (!gid) {
-                throw new Error("No current groupId for expense path");
-            }
-            return `group-${gid}/expense/`;
+        prefix(groupId: string) {
+            return `group-${groupId}/expense/`;
         },
-        id(groupId: string, expenseId?: Expense["id"]) {
-            if (!expenseId) {
-                expenseId = groupId;
-                groupId = P.gid()!;
-            }
-            if (!groupId) {
-                throw new Error("No current groupId for expense path");
-            }
+        id(groupId: string, expenseId: Expense["id"]) {
             return `${P.expense.prefix(groupId)}${expenseId}`;
         },
     },
     user: {
-        prefix(groupId?: string) {
-            const gid = groupId ?? P.gid();
-            if (!gid) {
-                throw new Error("No current groupId for user path");
-            }
-            return `group-${gid}/user/`;
+        prefix(groupId: string) {
+            return `group-${groupId}/user/`;
         },
-        id(groupId: string, userId?: User["id"]) {
-            if (!userId) {
-                userId = groupId;
-                groupId = P.gid()!;
-            }
-            if (!groupId) {
-                throw new Error("No current groupId for user path");
-            }
+        id(groupId: string, userId: User["id"]) {
             return `${P.user.prefix(groupId)}${userId}`;
         },
     },
@@ -90,9 +79,12 @@ const P = {
 
 const mutators = {
     addExpense: async (tx: WriteTransaction, expense: Expense) => {
-        await tx.set(P.expense.id(expense.id), expense);
-        const curUserId = untrack(() => currentUser().id);
-        const users = await tx.scan<User>({ prefix: P.user.prefix() }).values().toArray();
+        await tx.set(P.expense.id(expense.groupId, expense.id), expense);
+        const curUserId = unwrap(session).userId;
+        const users = await tx
+            .scan<User>({ prefix: P.user.prefix(expense.groupId) })
+            .values()
+            .toArray();
         let numUsers = users.length - 1;
         if (numUsers === 0) {
             numUsers = 1;
@@ -102,11 +94,14 @@ const mutators = {
         if (expense.paidBy === curUserId) {
             const user = users.find((u) => u.id === expense.paidBy)!;
             if (!user) {
-                return
+                return;
             }
             const owed = (user?.owed ?? 0) + expense.amount;
-            await tx.set(P.user.id(user.id), {...user, owed});
-            return
+            await tx.set(P.user.id(expense.groupId, user.id), {
+                ...user,
+                owed,
+            });
+            return;
         }
         for (const user of users) {
             let owed = user.owed;
@@ -115,11 +110,17 @@ const mutators = {
             } else {
                 owed = (owed ?? 0) - portion;
             }
-            await tx.set(P.user.id(user.id), {...user, owed});
+            await tx.set(P.user.id(expense.groupId, user.id), {
+                ...user,
+                owed,
+            });
         }
     },
-    deleteExpense: async (tx: WriteTransaction, id: Expense["id"]) => {
-        await tx.del(P.expense.id(id));
+    deleteExpense: async (
+        tx: WriteTransaction,
+        { groupId, id }: { groupId: Expense["groupId"]; id: Expense["id"] },
+    ) => {
+        await tx.del(P.expense.id(groupId, id));
         // FIXME: handle
         // FIXME: update owed
     },
@@ -175,32 +176,31 @@ const mutators = {
     // },
 };
 
-const licenseKey = import.meta.env.VITE_REPLICACHE_LICENSE_KEY;
-
 // FIXME: move to a state store and create on login
-// also create 
-export const rep = new Replicache({
-    name: "nebcache",
-    licenseKey,
-    mutators,
-    pushURL: import.meta.env.VITE_API_URL + "/push",
-    pullURL: import.meta.env.VITE_API_URL + "/pull",
-    // TODO: client id + auth (will involve waiting to create Replicache or recreating it on login)
-});
+// also create
 
-export async function forcePush() {
-    try {
-        await rep.push({now: true})
-    } catch {
-        console.log("push failed")
-    }
+export function initReplicache(s: InitSession) {
+    const licenseKey = import.meta.env.VITE_REPLICACHE_LICENSE_KEY;
+
+    const rep = new Replicache({
+        name: s.userId,
+        auth: s.token,
+        licenseKey,
+        mutators,
+        pushURL: import.meta.env.VITE_API_URL + "/push",
+        pullURL: import.meta.env.VITE_API_URL + "/pull",
+        // TODO: client id + auth (will involve waiting to create Replicache or recreating it on login)
+    });
+    return rep;
 }
+
+export type Rep = ReturnType<typeof initReplicache>;
 
 export function useExpenses() {
     const expenses = use(
-        async (tx) =>
+        async (tx, {groupId}) =>
             await tx
-                .scan<Expense>({ prefix: P.expense.prefix() })
+                .scan<Expense>({ prefix: P.expense.prefix(groupId) })
                 .values()
                 .toArray(),
     );
@@ -208,36 +208,49 @@ export function useExpenses() {
 }
 
 export function useExpense(id: Expense["id"]) {
-    const expense = use(async (tx) => await tx.get<Expense>(P.expense.id(id)));
+    const expense = use(async (tx, {groupId}) => await tx.get<Expense>(P.expense.id(groupId, id)));
     return expense;
 }
 
 export async function deleteExpense(id: Expense["id"]) {
-    await rep.mutate.deleteExpense(id);
+    const groupId = useGid();
+    const rep = unwrap(session).rep;
+    if (!groupId || !rep) return;
+    await rep.mutate.deleteExpense({groupId, id});
 }
 
 export async function addExpense(expense: ExpenseInput) {
+    console.log("addExpense", expense)
+    const s = unwrap(session);
+    if (!s.valid) {
+        console.log("not logged in");
+        return
+    };
     const id = nanoid();
-    const currentUserId = untrack(() => currentUser().id);
-    console.log("paidOn", expense.paidOn, typeof expense.paidOn)
+    const curUserId = s.userId;
+    if (!curUserId) {
+        throw new Error("Not logged in");
+    }
+    console.log("paidOn", expense.paidOn, typeof expense.paidOn);
     let e: Expense = {
         // copy because replicache responses are Readonly
         ...expense,
         createdAt: new Date().getTime(),
         paidOn: expense.paidOn ?? -1,
         status: "unpaid" as const,
-        paidBy: currentUserId,
+        paidBy: curUserId,
         id,
     };
-    await rep.mutate.addExpense(e);
+    console.log("addExpense", e);
+    await s.rep.mutate.addExpense(e);
 }
 
 export function useUserExpenses(id: User["id"]) {
     // PERF: compare against filterAsyncIterator in Replicache (requires custom toArray impl)
-    const expenses = use(async (tx) =>
+    const expenses = use(async (tx, {groupId}) =>
         (
             await tx
-                .scan<Expense>({ prefix: P.expense.prefix() })
+                .scan<Expense>({ prefix: P.expense.prefix(groupId) })
                 .values()
                 .toArray()
         ).filter((e) => e.paidBy === id),
@@ -246,11 +259,10 @@ export function useUserExpenses(id: User["id"]) {
 }
 
 export function useOtherUsers() {
-    const users = use(async (tx) => {
-        const cuid = untrack(() => currentUser().id);
+    const users = use(async (tx, {groupId, userId}) => {
         return (
-            await tx.scan<User>({ prefix: P.user.prefix() }).values().toArray()
-        ).filter((u) => u.id !== cuid);
+            await tx.scan<User>({ prefix: P.user.prefix(groupId) }).values().toArray()
+        ).filter((u) => u.id !== userId);
     });
     return users;
 }
@@ -274,14 +286,14 @@ function filterSplit<T>(a: T[], fn: (t: T) => boolean) {
 }
 
 export function useOwed() {
-    const info = use(async (tx) => {
+    const info = use(async (tx, { groupId }) => {
         const owed: Owed = {
             total: 0,
             to: {},
         };
-        const cuid = untrack(() => currentUser().id);
+        const cuid = unwrap(session).userId;
         for await (const user of tx
-            .scan<User>({ prefix: P.user.prefix() })
+            .scan<User>({ prefix: P.user.prefix(groupId) })
             .values()) {
             if (user.id === cuid) {
                 owed.total = user.owed ?? 0;
@@ -295,23 +307,43 @@ export function useOwed() {
 }
 
 export function useUsers() {
-    const users = use((tx) =>
-        tx.scan<User>({ prefix: P.user.prefix() }).values().toArray(),
-    );
+    const users = use((tx, { groupId }) => {
+        const us = tx
+            .scan<User>({ prefix: P.user.prefix(groupId) })
+            .values()
+            .toArray();
+        console.log("users", us);
+        return us;
+    });
     return users;
 }
 
 export function useUser(id: User["id"]) {
-    const user = use(async (tx) => await tx.get<User>(P.user.id(id)));
+    const user = use(
+        async (tx, { groupId }) => await tx.get<User>(P.user.id(groupId, id)),
+    );
     return user;
 }
 
 /// Helper function that wraps a Replicache query subscription in a SolidJS signal
-export function use<R>(getter: (tx: ReadTransaction) => Promise<R>) {
+type Getter<R> = (
+    tx: ReadTransaction,
+    opts: { groupId: Expense["groupId"]; rep: Rep; userId: User["id"] },
+) => Promise<R>;
+
+export function use<R>(getter: Getter<R>) {
     const value: Accessor<R | undefined> = from((set) => {
-        return rep.subscribe(getter, (val) => {
-            set(val as Exclude<R, Function>);
-        });
+        const userId = session.userId;
+        const rep = session.rep;
+        const groupId = useGid();
+        if (!rep || !groupId || !userId) return () => {};
+        console.log("use", { groupId, userId})
+        return rep.subscribe(
+            async (tx) => getter(tx, { groupId, rep, userId }),
+            (val) => {
+                set(val as Exclude<R, Function>);
+            },
+        );
     });
     return value;
 }

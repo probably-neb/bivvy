@@ -15,6 +15,7 @@ export function AddExpenseCard() {
     const form = createForm<ExpenseInput, typeof zodValidator>(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
+            console.log("submit", value);
             await addExpense(value);
         },
         validatorAdapter: zodValidator,
@@ -40,10 +41,11 @@ export function AddExpenseCard() {
                     <form
                         class="flex flex-col gap-4"
                         lang="en"
-                        onSubmit={(e) => {
+                        onSubmit={async (e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            void form.handleSubmit();
+                            console.log("submit")
+                            await form.handleSubmit();
                         }}
                     >
                         <Field

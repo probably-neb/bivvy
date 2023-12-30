@@ -7,7 +7,7 @@ import {
     ComboboxItem,
     ComboboxTrigger,
 } from "@/components/ui/combobox";
-import { USERS, User, hasSession, initSession } from "@/lib/auth";
+import { USERS, User, hasSession, initSession, initSessionSchema } from "@/lib/auth";
 import Layout from "@/lib/layout";
 import {
     createEffect,
@@ -17,16 +17,17 @@ import {
     on,
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { z } from "zod";
 
 export default function () {
     console.log("Login");
 
+    const DEV_GROUP = "______dev_group______"
     const navigate = useNavigate();
     createEffect(() => {
         if (hasSession()) {
             console.log("has session")
-            navigate("/")
+            // FIXME: navigate to home
+            navigate(`/group/${DEV_GROUP}`)
         }
     });
     return (
@@ -38,10 +39,6 @@ export default function () {
     );
 }
 
-const sessionSchema = z.object({
-    userId: z.string(),
-    token: z.string(),
-})
 
 function GroupMembers() {
     const users = createMemo(() => {
@@ -88,7 +85,7 @@ function GroupMembers() {
         if (!res.body) {
             throw new Error("Invalid response");
         }
-        const info = sessionSchema.safeParse(JSON.parse(res.body));
+        const info = initSessionSchema.safeParse(JSON.parse(res.body));
         if (!info.success) {
             throw new Error("Invalid response: " + info.error);
         }
@@ -99,7 +96,7 @@ function GroupMembers() {
         on(session, (s) => {
             if (!s) return;
             console.log("session", s)
-            initSession(s.userId, s.token);
+            initSession(s);
         }),
     );
 

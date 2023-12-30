@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
 import { Expense, useExpense, deleteExpense } from "@/lib/rep";
-import { ParentProps, Show } from "solid-js";
+import { ParentProps } from "solid-js";
+import {Show} from "solid-js"
 import { Button } from "@/components/ui/button";
 import { setAsideCardMode } from "@/home/home";
 import {
