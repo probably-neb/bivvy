@@ -1,17 +1,14 @@
 import { Button } from "@/components/ui/button";
 import {
-    createEffect,
     createMemo,
     createSignal,
-    on,
-    onCleanup,
-    onMount,
 } from "solid-js";
 import { OverviewCard } from "@/home/overview-card";
 import { ExpensesTable } from "@/home/expenses-table";
 import { AddExpenseCard } from "@/home/add-expense";
 import { ViewExpenseCard } from "@/home/view-expense";
-import { Expense, addUser, removeUsers, useUsers } from "@/lib/rep";
+import { Expense } from "@/lib/rep";
+import Layout from "@/lib/layout";
 
 type AsideCardView = { mode: "view"; id: Expense["id"] };
 // TODO:
@@ -29,7 +26,7 @@ export const [asideCardMode, setAsideCardMode] = createSignal<AsideCardMode>(
 
 export type ViewExpense = (expenseId: Expense["id"]) => void;
 
-export function HomePage() {
+export default function HomePage() {
     const AsideCard = createMemo(() => {
         const aside = asideCardMode();
         switch (aside.mode) {
@@ -47,7 +44,7 @@ export function HomePage() {
     };
 
     return (
-        <>
+        <Layout>
             <div class="flex flex-row justify-between items-center px-4 pt-4">
                 <div class="text-white">
                     <h1 class="text-4xl font-bold">Paypals</h1>
@@ -60,7 +57,6 @@ export function HomePage() {
                     >
                         Add Expense
                     </Button>
-                    <GroupMembers />
                 </div>
             </div>
             <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12 p-6">
@@ -72,79 +68,7 @@ export function HomePage() {
                     {AsideCard()}
                 </aside>
             </div>
-        </>
+        </Layout>
     );
 }
 
-import { createFilter } from "@kobalte/core";
-import type { ComboboxTriggerMode } from "@/components/ui/combobox";
-import {
-    Combobox,
-    ComboboxContent,
-    ComboboxInput,
-    ComboboxItem,
-    ComboboxTrigger,
-} from "@/components/ui/combobox";
-import { currentUser, setCurrentUser, USERS } from "@/lib/auth";
-
-function GroupMembers() {
-    onMount(() => {
-        for (const user of USERS) {
-            addUser(user);
-        }
-    });
-    onCleanup(() => {
-        removeUsers();
-    });
-    const _users = useUsers();
-    const users = createMemo(() => {
-        return _users()?.map((user) => user.name) ?? [];
-    });
-    const filter = createFilter({ sensitivity: "base" });
-    const [options, setOptions] = createSignal(users());
-    createEffect(
-        on(users, (users) => {
-            setOptions(users);
-        }),
-    );
-    const onOpenChange = (
-        isOpen: boolean,
-        triggerMode?: ComboboxTriggerMode,
-    ) => {
-        if (isOpen && triggerMode === "manual") {
-            setOptions(users());
-        }
-    };
-    const onInputChange = (value: string) => {
-        setOptions(users().filter((option) => filter.contains(option, value)));
-    };
-
-    const onChange = (value: string) => {
-        const user = USERS.find((user) => user.name === value);
-        if (user) {
-            setCurrentUser(user);
-            console.log({ currentUser: currentUser() });
-        }
-    };
-
-    return (
-        <Combobox
-            options={options()}
-            onInputChange={onInputChange}
-            onOpenChange={onOpenChange}
-            value={currentUser().name}
-            onChange={onChange}
-            placeholder="Member"
-            itemComponent={(props) => (
-                <ComboboxItem item={props.item}>
-                    {props.item.rawValue}
-                </ComboboxItem>
-            )}
-        >
-            <ComboboxTrigger class="bg-white">
-                <ComboboxInput />
-            </ComboboxTrigger>
-            <ComboboxContent />
-        </Combobox>
-    );
-}

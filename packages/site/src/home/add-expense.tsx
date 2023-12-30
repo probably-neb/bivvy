@@ -70,7 +70,7 @@ export function AddExpenseCard() {
                             placeholder="2021-01-01"
                             type="date"
                             validator={expenseInputSchema.shape.paidOn}
-                            parse={(value) => new Date(value)}
+                            parse={(value) => new Date(value).getTime()}
                             form={form}
                         />
                         <Button type="submit" disabled={!form.state.canSubmit}>
