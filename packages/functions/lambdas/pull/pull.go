@@ -106,17 +106,22 @@ const (
     SchemaVersion VersionType = "schema"
 )
 type PullResponseVersionNotSupported struct {
-    Error error `json:"error" default:"VersionNotSupported"`
+    Error error `json:"error"`
     VersionType VersionType `json:"versionType"`
 }
 func (p PullResponseVersionNotSupported) ToResponse() (*Response, error) {
+    p.Error = VersionNotSupported
     b, err := json.Marshal(p)
     if err != nil {
+        // TODO: do something else here!
         return nil, err
     }
     res := Response{
         StatusCode: 400,
         Body: string(b),
+        Headers: map[string]string{
+            "Content-Type": "application/json",
+        },
     }
     return &res, nil
 }
@@ -241,11 +246,32 @@ func custructPatches() []PatchOperation {
     return patches
 }
 
+func getLastMutations(cgid string, uid string) (map[string]int, error) {
+
+    var ct db.ClientGroupTable
+    err := ct.Init()
+    if err != nil {
+        return nil, err
+    }
+    cg, err := ct.GetClientGroup(cgid);
+    if err != nil {
+        return nil, err
+    }
+
+    updates := make(map[string]int)
+    for _, c := range cg.Clients {
+        updates[c.Id] = c.LastMutationId
+    }
+
+    return updates, nil
+}
+
 func pull(ctx context.Context, event Request) (*Response, error) {
     var req, err = parse(event.Body)
     if err != nil {
         return nil, err
     }
+
     var res PullResponse
     // TODO: check versions
     // TODO: check client state
@@ -256,17 +282,28 @@ func pull(ctx context.Context, event Request) (*Response, error) {
 
     patches := custructPatches()
 
+    // TODO: get
+    uid := "Alice_fjIqVhRO63mS0mu"
+    lastMutations, err := getLastMutations(req.ClientGroupID, uid)
+    if err != nil {
+        _, notFound := err.(db.ClientNotFoundError)
+        if notFound {
+            res = PullResponseClientStateNotFound{}
+            return res.ToResponse()
+        }
+        // TODO: how to handle error here? probably should return ClientStateNotFound anyway
+        log.Printf("error getting last mutations: %v", err)
+        lastMutations = make(map[string]int)
+    }
+
     res = PullResponseOk{
         Cookie: req.Cookie + 1,
-        LastMutationIDChanges: map[string]int{
-            // FIXME: use dynamo to store client id info
-            // and create cron to wipe old data when table gets big
-        },
+        LastMutationIDChanges: lastMutations,
         Patch: patches,
     }
-    for _, p := range patches {
-        log.Printf("patch: %+v", p)
-    }
+    // for _, p := range patches {
+    //     log.Printf("patch: %+v", p)
+    // }
     return res.ToResponse()
 }
 

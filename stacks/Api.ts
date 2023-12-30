@@ -10,8 +10,10 @@ export function API({ stack }: StackContext) {
         fields: {
             ClientGroupId: "string",
             ClientId: "string",
-            LastMutationId: "number"
+            LastMutationId: "number",
+            UserId: "string",
         },
+        // FIXME: ttl attribute
         primaryIndex: {
             partitionKey: "ClientGroupId",
             sortKey: "ClientId"
@@ -45,10 +47,11 @@ export function API({ stack }: StackContext) {
                 function: {
                     handler: "packages/functions/lambdas/push/push.go",
                     runtime: "go",
-                    bind: [clientTable],
+                    bind: [clientTable, DSN],
                     permissions: ["ssm"],
                     environment: {
-                        CLIENT_TABLE_NAME: clientTable.tableName
+                        CLIENT_TABLE_NAME: clientTable.tableName,
+                        SST_REGION: stack.region,
                     }
                 }
             },
