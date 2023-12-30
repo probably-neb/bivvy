@@ -1,4 +1,4 @@
-package main
+package push
 
 import (
     "fmt"
@@ -22,7 +22,7 @@ func Invalid(r InvalidReason) InvalidMutation {
 }
 
 
-func parseArgs(mutation string, args any) any {
+func ParseArgs(mutation string, args any) any {
     var tryParse = func(fn (func(a any) (any, error))) any {
         newArgs, err := fn(args)
         if err != nil {
