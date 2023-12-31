@@ -4,21 +4,16 @@ import {
     createContext,
     createEffect,
     createMemo,
-    createSignal,
     from,
     on,
-    onCleanup,
-    untrack,
-    useContext,
 } from "solid-js";
 import { ReadTransaction, Replicache, WriteTransaction } from "replicache";
 import { nanoid } from "nanoid";
 
 import z from "zod";
-import { InitSession, session } from "@/lib/auth";
+import { InitSession } from "@/lib/auth";
 import { useMatch } from "@solidjs/router";
-import { createStore, reconcile, unwrap } from "solid-js/store";
-import { ifError } from "assert";
+import { createStore, reconcile } from "solid-js/store";
 
 const NANOID_ID_LENGTH = 21;
 
@@ -30,7 +25,7 @@ export const expenseSchema = z.object({
     paidBy: z.string(),
     amount: z.number().gt(0),
     status: z.enum(["paid", "unpaid"]),
-    paidOn: z.number().optional(),
+    paidOn: z.number().nullable(),
     createdAt: z.number(),
     groupId: z.string(),
 });
@@ -222,7 +217,7 @@ export async function addExpense(expense: ExpenseInput) {
         // copy because replicache responses are Readonly
         ...expense,
         createdAt: new Date().getTime(),
-        paidOn: expense.paidOn ?? -1,
+        paidOn: expense.paidOn ?? null,
         status: "unpaid" as const,
         paidBy: ctx.userId,
         groupId: ctx.groupId,

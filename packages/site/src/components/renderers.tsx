@@ -1,10 +1,10 @@
 import { User } from "@/lib/auth";
 import { useUser } from "@/lib/rep";
 import { TiUserOutline } from "solid-icons/ti";
-import { JSX, Show } from "solid-js";
+import { JSX, Show, createMemo } from "solid-js";
 
-export function UserRenderer({ userId }: { userId: User["id"] }) {
-    const user = useUser(userId);
+export function UserRenderer(props: { userId: User["id"] }) {
+    const user = useUser(props.userId);
 
     return (
         <div class="flex gap-2 items-center">
@@ -28,49 +28,40 @@ type DateProps = {
 );
 
 export function DateRenderer(props: DateProps) {
-    const date = "date" in props ? props.date : new Date(props.dateStr);
-    let format: string;
-    props.format ??= "m/d/y";
-    switch (props.format) {
+    const format = createMemo(() => {
+        const date = "date" in props ? props.date : new Date(props.dateStr);
+        const format = props.format ?? "m/d/y";
+        switch (format) {
         case "m/d/y":
-            format = `${date.getMonth() + 1}/${date.getDate()}/${
+            return `${date.getMonth() + 1}/${date.getDate()}/${
                 date.getFullYear() - 2000
             }`;
-            break;
         case "m/y":
-            format = `${date.getMonth() + 1}/${date.getFullYear() - 2000}`;
-            break;
-    }
-    return <span>{format}</span>;
+            return `${date.getMonth() + 1}/${date.getFullYear() - 2000}`;
+        }
+    })
+    return <span>{format()}</span>;
 }
 
-export function MoneyRenderer({
-    amount,
-    showPlus,
-}: {
+export function MoneyRenderer(props: {
     amount: number;
     showPlus?: boolean;
 }) {
-    const sign = amount < 0 ? "-" : showPlus ? "+" : "";
+    const sign = createMemo(() => props.amount < 0 ? "-" : props.showPlus ? "+" : "");
     return (
         <span>
-            {sign}${(Math.abs(amount) * 1.0).toFixed(2)}
+            {sign()}${(Math.abs(props.amount) * 1.0).toFixed(2)}
         </span>
     );
 }
 
-export function Render<T, K extends string, V extends Record<K, T>>({
-    value,
-    c,
-    key,
-}: {
+export function Render<T, K extends string, V extends Record<K, T>>(props: {
     value: T | undefined;
     c: (props: V) => JSX.Element;
     key: K;
 }) {
-    console.log("render", key, value);
-    const Component = c;
-    return <Show when={value}>
-        <Component {...{ [key]: value! } as V} />
+    console.log("render", props.key, props.value);
+    return <Show when={props.value}>
+        <props.c {...{ [props.key]: props.value! } as V} />
     </Show>;
 }
