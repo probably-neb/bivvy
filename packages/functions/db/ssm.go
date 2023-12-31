@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/probably-neb/paypals-api/util"
 )
 
 func getPath(envVar string) string {
@@ -39,6 +41,7 @@ func getSecret(client *ssm.Client, path string) (string, error) {
 }
 
 func GetSecret(envVar string) (string, error) {
+    defer util.TimeMe(time.Now(), "GetSecret: " + envVar)
     // TODO: cache in top level var for requests in same lambda
     path := getPath(envVar)
     client, err := createClient()

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/probably-neb/paypals-api/db"
+	"github.com/probably-neb/paypals-api/util"
 )
 
 type Request = events.APIGatewayV2HTTPRequest
@@ -212,6 +214,7 @@ func parse(body string) (PullRequest, error) {
 }
 
 func custructPatches() []PatchOperation {
+    defer util.TimeMe(time.Now(), "custructPatches")
     var devGroupId = "______dev_group______"
 
     users, err := db.GetUsers(devGroupId)
@@ -250,7 +253,7 @@ func custructPatches() []PatchOperation {
 }
 
 func getLastMutations(cgid string, uid string) (map[string]int, error) {
-
+    defer util.TimeMe(time.Now(), "getLastMutations")
     var ct db.ClientGroupTable
     err := ct.Init()
     if err != nil {

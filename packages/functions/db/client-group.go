@@ -6,11 +6,12 @@ import (
 	"log"
 	"os"
 	"strconv"
-    "time"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dt "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/probably-neb/paypals-api/util"
 )
 
 // // A group of related ReplicacheClients. Typically there is one per browser
@@ -156,6 +157,7 @@ func parseClientGroup(items []map[string]dt.AttributeValue) (ClientGroup, error)
 }
 
 func (c *ClientGroupTable) GetClientGroup(clientGroupId string) (ClientGroup, error) {
+    defer util.TimeMe(time.Now(), "GetClientGroup")
     query := "ClientGroupId = :partitionKeyVal"
     values := map[string]dt.AttributeValue{
         ":partitionKeyVal": dyS(clientGroupId),
@@ -223,6 +225,7 @@ func (ct *ClientGroupTable) putClient(cg ClientGroup, c *Client) error {
 
 // FIXME: ttl attr
 func (ct *ClientGroupTable) PutClientGroup(cg ClientGroup) error {
+    defer util.TimeMe(time.Now(), "PutClientGroup")
     log.Println("putting client group", cg.Id)
     for _, c := range cg.Clients {
         if c == nil {
@@ -267,7 +270,7 @@ func dyTTL() *dt.AttributeValueMemberN {
 var TTL time.Duration = 3 * 24 * time.Hour // 3 days
 
 func ttl() int64 {
-    // unix seconds 
+    // unix seconds
     // https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/time-to-live-ttl-before-you-start.html
     return time.Now().Add(TTL).Unix()
 }

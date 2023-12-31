@@ -7,6 +7,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/probably-neb/paypals-api/util"
 )
 
 type User struct {
@@ -70,6 +71,7 @@ var conn = getConn();
 
 // FIXME: store owed in db per group
 func GetUsers(groupId string) ([]User, error) {
+    defer util.TimeMe(time.Now(), "GetUsers")
     q := `SELECT u.id, u.name
             FROM users_to_group AS ug
             LEFT JOIN users AS u ON u.id = ug.user_id
@@ -94,9 +96,11 @@ func GetUsers(groupId string) ([]User, error) {
 }
 
 func GetExpenses(groupId string) ([]Expense, error) {
+    defer util.TimeMe(time.Now(), "GetExpenses")
     q := `SELECT id, paid_by_user_id, amount, description, reimbursed_at, paid_on, created_at
             FROM expenses_to_group
-            LEFT JOIN expenses ON expense_id = id and group_id = ?`
+            LEFT JOIN expenses ON id = expense_id
+            WHERE group_id = ?`
     rows, err := conn.Query(q, groupId)
     if err != nil {
         return nil, err
@@ -122,6 +126,7 @@ func GetExpenses(groupId string) ([]Expense, error) {
 }
 
 func CreateExpense(e Expense) error {
+    defer util.TimeMe(time.Now(), "CreateExpense")
     // TODO: updated owed table
     // FIXME: split id (0 in values)
     eq := `INSERT INTO expenses (id, paid_by_user_id, amount, description, paid_on, created_at, split_id)
