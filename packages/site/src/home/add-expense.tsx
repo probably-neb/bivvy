@@ -8,8 +8,8 @@ import {
 } from "@/components/ui/textfield";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { ExpenseInput, expenseInputSchema, addExpense } from "@/lib/rep";
-import { For } from "solid-js";
+import { ExpenseInput, addExpense, expenseInputSchema } from "@/lib/rep";
+import { For, createEffect, useContext } from "solid-js";
 
 export function AddExpenseCard() {
     const form = createForm<ExpenseInput, typeof zodValidator>(() => ({
@@ -23,6 +23,7 @@ export function AddExpenseCard() {
             onSubmit: expenseInputSchema,
         },
     }));
+
 
     const parseAmount = (value: string) => {
         const v = parseFloat(value);
@@ -45,7 +46,9 @@ export function AddExpenseCard() {
                             e.preventDefault();
                             e.stopPropagation();
                             console.log("submit")
-                            await form.handleSubmit();
+                            void form.validate("submit");
+
+                            await addExpense(form.state.values);
                         }}
                     >
                         <Field

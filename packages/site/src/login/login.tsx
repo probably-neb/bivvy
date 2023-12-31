@@ -7,7 +7,7 @@ import {
     ComboboxItem,
     ComboboxTrigger,
 } from "@/components/ui/combobox";
-import { USERS, User, hasSession, initSession, initSessionSchema } from "@/lib/auth";
+import { USERS, User,  initSession, initSessionSchema, session } from "@/lib/auth";
 import Layout from "@/lib/layout";
 import {
     createEffect,
@@ -18,13 +18,15 @@ import {
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 
+// FIXME: hit `GET /auth` endpoint to get possible signin methods
+// (obv could just hard code them but this allows for having backend control whether local version shows)
 export default function () {
     console.log("Login");
 
     const DEV_GROUP = "______dev_group______"
     const navigate = useNavigate();
     createEffect(() => {
-        if (hasSession()) {
+        if (session().valid) {
             console.log("has session")
             // FIXME: navigate to home
             navigate(`/group/${DEV_GROUP}`)

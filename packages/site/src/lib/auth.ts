@@ -1,7 +1,5 @@
-import { createMemo } from "solid-js";
-import { createStore } from "solid-js/store";
+import { createSignal } from "solid-js";
 import { z } from "zod";
-import {Rep, initReplicache} from "@/lib/rep"
 
 export const USERS = [
     {
@@ -30,17 +28,13 @@ export type Session = {
     token: string;
     userId: string;
     // TODO: make this a url param / component var not session var
-    currentGroupId: string;
-    rep: Rep
 } | {
     valid: false,
     token?: undefined,
     userId?: undefined,
-    currentGroupId?: undefined,
-    rep?: undefined,
 };
 
-const [session, setSession] = createStore<Session>({valid: false as const});
+const [session, setSession] = createSignal<Session>({valid: false as const});
 export {session}
 
 // TODO: on load check for token cookie in browser, make request to serer to validate and 
@@ -54,15 +48,9 @@ export const initSessionSchema = z.object({
 export type InitSession = z.infer<typeof initSessionSchema>
 
 export function initSession(init: InitSession) {
-    const up = Object.assign({}, init, {
+    const up: Session = Object.assign({}, init, {
         valid: true as const,
-        rep: initReplicache(init)
     })
     console.log("initSession", up)
     setSession(up)
 }
-
-export const hasSession = () => {
-    console.log("hasSession", session.valid)
-    return session.valid
-};

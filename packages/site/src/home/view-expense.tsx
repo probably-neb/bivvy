@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
-import { Expense, useExpense, deleteExpense } from "@/lib/rep";
+import { Expense, useExpense } from "@/lib/rep";
 import { ParentProps } from "solid-js";
 import {Show} from "solid-js"
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,12 @@ import {
     UserRenderer,
 } from "@/components/renderers";
 
-export function ViewExpenseCard({ expenseId }: { expenseId: Expense["id"] }) {
-    const expense = useExpense(expenseId);
+export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
+    const expense = useExpense(props.expenseId);
 
     const onClickDelete = async () => {
         // TODO: show confirmation dialog
-        await deleteExpense(expenseId);
+        // await mutators.deleteExpense(props.expenseId);
         setAsideCardMode({ mode: "add" });
     };
 
