@@ -3,7 +3,6 @@ package push
 import (
 	"encoding/json"
 	"log"
-	"time"
 
 	"github.com/probably-neb/paypals-api/db"
 )
@@ -47,12 +46,6 @@ func parseAddExpense(args json.RawMessage) (any, error) {
     var expense db.Expense
     if err := json.Unmarshal(args, &expense); err != nil {
         return nil, err
-    }
-    // NOTE: / 1000 because js gives unix in ms not s
-    expense.CreatedAt = time.Unix(expense.CreatedAtUnix / 1000, 0)
-    if expense.PaidOnUnix > 0 {
-        tmp := time.Unix(expense.PaidOnUnix / 1000, 0)
-        expense.PaidOn = &tmp
     }
     log.Println("parsed expense", expense)
     return expense, nil

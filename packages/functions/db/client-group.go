@@ -218,6 +218,7 @@ func (ct *ClientGroupTable) putClient(cg ClientGroup, c *Client) error {
     return nil
 }
 
+// FIXME: ttl attr
 func (ct *ClientGroupTable) PutClientGroup(cg ClientGroup) error {
     log.Println("putting client group", cg.Id)
     for _, c := range cg.Clients {

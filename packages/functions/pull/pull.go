@@ -219,6 +219,7 @@ func custructPatches() []PatchOperation {
         // TODO: handle error
         log.Fatalf("Could not get users: %v", err)
     }
+    // FIXME: expenses not being returned
     expenses, err := db.GetExpenses(devGroupId)
     if err != nil {
         log.Fatalf("Could not get expenses: %v", err)
@@ -257,7 +258,10 @@ func getLastMutations(cgid string, uid string) (map[string]int, error) {
     }
     cg, err := ct.GetClientGroup(cgid);
     if err != nil {
-        return nil, err
+        _, notFound := err.(db.ClientNotFoundError)
+        if !notFound {
+            return nil, err
+        }
     }
 
     updates := make(map[string]int)
@@ -288,8 +292,9 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
     uid := "Alice_fjIqVhRO63mS0mu"
     lastMutations, err := getLastMutations(req.ClientGroupID, uid)
     if err != nil {
+        // FIXME: how to handle client will not be created until user pushes?
         _, notFound := err.(db.ClientNotFoundError)
-        if notFound {
+        if !notFound {
             res = PullResponseClientStateNotFound{}
             return res.ToResponse()
         }
