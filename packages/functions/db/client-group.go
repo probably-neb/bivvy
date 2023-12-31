@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+    "time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
@@ -182,13 +183,14 @@ func (ct *ClientGroupTable) updateClient(cg ClientGroup, c *Client) error {
         "ClientGroupId": dyS(cg.Id),
         "ClientId": dyS(c.Id),
     }
-    query := "SET LastMutationId = :lastMutationId";
+    query := "SET LastMutationId = :lastMutationId, TTL = :ttl";
     input := dynamodb.UpdateItemInput{
         TableName: &ct.tableName,
         Key: values,
         UpdateExpression: &query,
         ExpressionAttributeValues: map[string]dt.AttributeValue{
             ":lastMutationId": dyN(c.LastMutationId),
+            ":ttl": dyTTL(),
         },
     }
     _, err := ct.client.UpdateItem(context.Background(), &input)
@@ -204,6 +206,7 @@ func (ct *ClientGroupTable) putClient(cg ClientGroup, c *Client) error {
         "ClientId": dyS(c.Id),
         "LastMutationId": dyN(c.LastMutationId),
         "UserId": dyS(cg.UserId),
+        "TTL": dyTTL(),
     }
     log.Println("putting client", values)
     input := dynamodb.PutItemInput{
@@ -256,3 +259,15 @@ func dyN(n int) *dt.AttributeValueMemberN {
     return &dt.AttributeValueMemberN{Value: sn}
 }
 
+func dyTTL() *dt.AttributeValueMemberN {
+    return &dt.AttributeValueMemberN{Value: strconv.FormatInt(ttl(), 10)}
+}
+
+
+var TTL time.Duration = 3 * 24 * time.Hour // 3 days
+
+func ttl() int64 {
+    // unix seconds 
+    // https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/time-to-live-ttl-before-you-start.html
+    return time.Now().Add(TTL).Unix()
+}
