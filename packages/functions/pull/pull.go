@@ -32,7 +32,7 @@ type Cookie int;
 type PullRequest struct {
     PullVersion   int         `json:"pullVersion"`
     ClientGroupID string      `json:"clientGroupID"`
-    Cookie        Cookie         `json:"cookie"`
+    Cookie        Cookie      `json:"cookie"`
     ProfileID     string      `json:"profileID"`
     SchemaVersion string      `json:"schemaVersion"`
 }
@@ -204,6 +204,10 @@ func userKey(groupID string, userID string) string {
     return fmt.Sprintf("group-%s/user/%s", groupID, userID)
 }
 
+func splitKey(groupID string, splitID string) string {
+    return fmt.Sprintf("group-%s/split/%s", groupID, splitID)
+}
+
 func parse(body string) (PullRequest, error) {
     pr := PullRequest{}
     err := json.Unmarshal([]byte(body), &pr)
@@ -213,21 +217,26 @@ func parse(body string) (PullRequest, error) {
     return pr, nil
 }
 
-func custructPatches() []PatchOperation {
+func custructPatches(userId string) []PatchOperation {
     defer util.TimeMe(time.Now(), "custructPatches")
+    // FIXME: get all groups not just one
     var devGroupId = "______dev_group______"
 
-    users, err := db.GetUsers(devGroupId)
+    users, err := db.GetUsers(userId, devGroupId)
     if err != nil {
         // TODO: handle error
         log.Fatalf("Could not get users: %v", err)
     }
     // FIXME: expenses not being returned
-    expenses, err := db.GetExpenses(devGroupId)
+    expenses, err := db.GetExpenses(userId, devGroupId)
     if err != nil {
         log.Fatalf("Could not get expenses: %v", err)
     }
-    patches := make([]PatchOperation, 1 + len(users) + len(expenses))
+    splits, err := db.GetSplits(devGroupId)
+    if err != nil {
+        log.Fatalf("Could not get splits: %v", err)
+    }
+    patches := make([]PatchOperation, 1 + len(users) + len(expenses) + len(splits))
 
     // reset strategy
     patches[0] = NewClearOp()
@@ -249,6 +258,14 @@ func custructPatches() []PatchOperation {
             e,
         )
     }
+    i = i + len(expenses)
+    for si := 0; si < len(splits); si++ {
+        s := splits[si]
+        patches[i + si] = NewPutOp(
+            splitKey(devGroupId, s.Id),
+            s,
+        )
+    }
     return patches
 }
 
@@ -261,8 +278,8 @@ func getLastMutations(cgid string, uid string) (map[string]int, error) {
     }
     cg, err := ct.GetClientGroup(cgid);
     if err != nil {
-        _, notFound := err.(db.ClientNotFoundError)
-        if !notFound {
+        _, isNotFound := err.(db.ClientNotFoundError)
+        if !isNotFound {
             return nil, err
         }
     }
@@ -289,10 +306,11 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
     // and verifying they are the same
     // although this may cause problems depending on how replicache assigns ids
 
-    patches := custructPatches()
-
-    // TODO: get
+    // TODO: get using session token
     uid := "Alice_fjIqVhRO63mS0mu"
+
+    patches := custructPatches(uid)
+
     lastMutations, err := getLastMutations(req.ClientGroupID, uid)
     if err != nil {
         // FIXME: how to handle client will not be created until user pushes?
@@ -311,8 +329,5 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
         LastMutationIDChanges: lastMutations,
         Patch: patches,
     }
-    // for _, p := range patches {
-    //     log.Printf("patch: %+v", p)
-    // }
     return res.ToResponse()
 }

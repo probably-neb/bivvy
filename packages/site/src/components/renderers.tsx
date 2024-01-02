@@ -48,9 +48,16 @@ export function MoneyRenderer(props: {
     showPlus?: boolean;
 }) {
     const sign = createMemo(() => props.amount < 0 ? "-" : props.showPlus ? "+" : "");
+    const amount = createMemo(() => {
+        // show amount in dollars instead of cents
+        // also convert to float if it ins't already
+        const a = Math.abs(props.amount) / 100.0;
+        // don't show that many decimal places because who cares
+        return a.toFixed(2)
+    })
     return (
         <span>
-            {sign()}${(Math.abs(props.amount) * 1.0).toFixed(2)}
+            {sign()}${amount()}
         </span>
     );
 }

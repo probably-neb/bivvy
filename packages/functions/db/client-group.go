@@ -37,6 +37,7 @@ import (
 //   lastMutationID: number;
 // };
 
+// TODO: use tables in db instead of dynamo? would need to implement ttl myself
 func getDynamoClient() *dynamodb.Client {
     ctx := context.Background()
     cfg, err := config.LoadDefaultConfig(ctx)

@@ -51,14 +51,18 @@ export const users = table(
     }),
 );
 
-export const users_to_group = table("users_to_group", {
-    user_id: idRef("user_id").notNull(),
-    group_id: idRef("group_id").notNull(),
-}, (t) => ({
-    pk: primaryKey({columns: [t.user_id, t.group_id]}),
-    pk_idx: index("utg_idx").on(t.user_id, t.group_id),
-    gid_idx: index("gid_idx").on(t.group_id),
-}));
+export const users_to_group = table(
+    "users_to_group",
+    {
+        user_id: idRef("user_id").notNull(),
+        group_id: idRef("group_id").notNull(),
+    },
+    (t) => ({
+        pk: primaryKey({ columns: [t.user_id, t.group_id] }),
+        pk_idx: index("utg_idx").on(t.user_id, t.group_id),
+        gid_idx: index("gid_idx").on(t.group_id),
+    }),
+);
 
 export const usersToGroupRelations = relations(users_to_group, ({ one }) => ({
     user: one(users, {
@@ -102,48 +106,35 @@ export const owed = table(
     }),
 );
 
-export const groups = table("groups", {
-    id: id("id"),
-    name: varchar("name", { length: 255 }).notNull(),
-}, (t) => ({
-    pk_idx: index("pk_idx").on(t.id),
-}));
-
-export const expenses_to_group = table("expenses_to_group", {
-    expense_id: idRef("expense_id").notNull(),
-    group_id: idRef("group_id").notNull(),
-}, (t) => ({
-    pk: primaryKey({columns: [t.expense_id, t.group_id]}),
-    pk_idx: index("etg_idx").on(t.expense_id, t.group_id),
-    gid_idx: index("gid_idx").on(t.group_id),
-}));
-
-export const expensesToGroupRelations = relations(
-    expenses_to_group,
-    ({ one }) => ({
-        expense: one(expenses, {
-            fields: [expenses_to_group.expense_id],
-            references: [expenses.id],
-        }),
-        group: one(groups, {
-            fields: [expenses_to_group.group_id],
-            references: [groups.id],
-        }),
+export const groups = table(
+    "groups",
+    {
+        id: id("id"),
+        name: varchar("name", { length: 255 }).notNull(),
+    },
+    (t) => ({
+        pk_idx: index("pk_idx").on(t.id),
     }),
 );
 
-export const expenses = table("expenses", {
-    id: id("id"),
-    description: text("description").notNull(),
-    created_at: timestamp("created_at").defaultNow().notNull(),
-    paid_on: timestamp("paid_on"),
-    paid_by_user_id: idRef("paid_by_user_id").notNull(),
-    amount: ucents("amount").notNull(),
-    reimbursed_at: timestamp("reimbursed_at"),
-    split_id: idRef("split_id").notNull(),
-}, (t) => ({
-    pk_idx: index("pk_idx").on(t.id),
-}));
+export const expenses = table(
+    "expenses",
+    {
+        id: id("id"),
+        description: text("description").notNull(),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        paid_on: timestamp("paid_on"),
+        paid_by_user_id: idRef("paid_by_user_id").notNull(),
+        amount: ucents("amount").notNull(),
+        reimbursed_at: timestamp("reimbursed_at"),
+        split_id: idRef("split_id").notNull(),
+        group_id: idRef("group_id").notNull(),
+    },
+    (t) => ({
+        pk_idx: index("pk_idx").on(t.id),
+        group_idx: index("group_idx").on(t.group_id),
+    }),
+);
 
 export const expenseRelations = relations(expenses, ({ one }) => ({
     paid_by: one(users, {
@@ -156,11 +147,19 @@ export const expenseRelations = relations(expenses, ({ one }) => ({
     }),
 }));
 
-export const splits = table("splits", {
-    id: id("id"),
-    name: varchar("name", { length: 255 }).notNull(),
-    group_id: idRef("group_id").notNull(),
-});
+export const splits = table(
+    "splits",
+    {
+        id: id("id"),
+        name: varchar("name", { length: 255 }).notNull(),
+        group_id: idRef("group_id").notNull(),
+    },
+    (t) => ({
+        pk_idx: index("pk_idx").on(t.id),
+        group_idx: index("group_idx").on(t.group_id),
+        name_un: unique("name_un").on(t.name, t.group_id),
+    }),
+);
 
 export const splitRelations = relations(splits, ({ one }) => ({
     group: one(groups, {

@@ -7,6 +7,7 @@ import { OverviewCard } from "@/home/overview-card";
 import { ExpensesTable } from "@/home/expenses-table";
 import { AddExpenseCard } from "@/home/add-expense";
 import { ViewExpenseCard } from "@/home/view-expense";
+import {CreateSplit} from "@/home/create-split";
 import { Expense, ReplicacheContextProvider } from "@/lib/rep";
 import Layout from "@/lib/layout";
 import { session } from "@/lib/auth";
@@ -56,31 +57,32 @@ export default function HomePage() {
     // FIXME: move group ctx provider to group page in child route
     return (
         <ReplicacheContextProvider session={sessionInfo}>
-        <Layout>
-            <div class="flex flex-row justify-between items-center px-4 pt-4">
-                <div class="text-white">
-                    <h1 class="text-4xl font-bold">Paypals</h1>
+            <Layout>
+                <div class="flex flex-row justify-between items-center px-4 pt-4">
+                    <div class="text-white">
+                        <h1 class="text-4xl font-bold">Paypals</h1>
+                    </div>
+                    <div class="flex gap-3">
+                        <Button
+                            variant="outline"
+                            onClick={[setAsideCardMode, { mode: "add" }]}
+                            disabled={asideCardMode().mode == "add"}
+                        >
+                            Add Expense
+                        </Button>
+                    </div>
                 </div>
-                <div class="flex gap-3">
-                    <Button
-                        variant="outline"
-                        onClick={[setAsideCardMode, { mode: "add" }]}
-                        disabled={asideCardMode().mode == "add"}
-                    >
-                        Add Expense
-                    </Button>
+                <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12 p-6">
+                    <section class="w-full lg:w-2/3">
+                        <CreateSplit />
+                        <ExpensesTable viewExpense={viewExpense} />
+                    </section>
+                    <aside class="w-full lg:w-1/3 flex flex-col justify-start gap-6 pt-6">
+                        <OverviewCard />
+                        {AsideCard()}
+                    </aside>
                 </div>
-            </div>
-            <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12 p-6">
-                <section class="w-full lg:w-2/3">
-                    <ExpensesTable viewExpense={viewExpense} />
-                </section>
-                <aside class="w-full lg:w-1/3 flex flex-col justify-start gap-6 pt-6">
-                    <OverviewCard />
-                    {AsideCard()}
-                </aside>
-            </div>
-        </Layout>
+            </Layout>
         </ReplicacheContextProvider>
     );
 }

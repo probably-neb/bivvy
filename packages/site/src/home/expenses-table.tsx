@@ -18,6 +18,7 @@ import {
 
 export function ExpensesTable({ viewExpense }: { viewExpense: ViewExpense }) {
     const expenses = useExpenses();
+    // FIXME: move add expense button here
     return (
         <Card class="mt-6">
             <CardHeader>

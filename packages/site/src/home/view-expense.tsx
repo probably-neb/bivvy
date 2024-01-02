@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
-import { Expense, useExpense } from "@/lib/rep";
+import { Expense, deleteExpense, useExpense } from "@/lib/rep";
 import { ParentProps } from "solid-js";
 import {Show} from "solid-js"
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
 
     const onClickDelete = async () => {
         // TODO: show confirmation dialog
-        // await mutators.deleteExpense(props.expenseId);
+        await deleteExpense(props.expenseId);
         setAsideCardMode({ mode: "add" });
     };
 

@@ -79,7 +79,7 @@ func doMutations(push PushEvent) error {
         }
         ok, err := handle(m)
         if err != nil {
-            log.Println("error handling mutation", err)
+            log.Println("error handling mutation [",m.Name,"]", err)
             break
         }
         if ok {

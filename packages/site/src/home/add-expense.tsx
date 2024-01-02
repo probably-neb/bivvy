@@ -9,29 +9,29 @@ import {
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import { ExpenseInput, addExpense, expenseInputSchema } from "@/lib/rep";
-import { For, createEffect, useContext } from "solid-js";
+import { For } from "solid-js";
 
 export function AddExpenseCard() {
     const form = createForm<ExpenseInput, typeof zodValidator>(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
-            await addExpense(value);
+            try {
+                await addExpense(value);
+            } catch (e) {
+                console.error(e)
+            }
         },
         validatorAdapter: zodValidator,
+        onSubmitInvalid: (e) => {
+            console.log("invalid", e.formApi.state.errors)
+        },
         validators: {
             onSubmit: expenseInputSchema,
         },
     }));
 
 
-    const parseAmount = (value: string) => {
-        const v = parseFloat(value);
-        if (isNaN(v)) {
-            return undefined;
-        }
-        return v;
-    }
     return (
         <Card>
             <CardHeader>
@@ -45,10 +45,10 @@ export function AddExpenseCard() {
                         onSubmit={async (e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log("submit")
-                            void form.validate("submit");
-
-                            await addExpense(form.state.values);
+                            // console.log("submit", form.state.values)
+                            await form.handleSubmit().then(() => console.log("submitted"));
+                            // void form.validate("submit");
+                            // await addExpense(form.state.values);
                         }}
                     >
                         <Field
@@ -75,7 +75,7 @@ export function AddExpenseCard() {
                             placeholder="2021-01-01"
                             type="date"
                             validator={expenseInputSchema.shape.paidOn}
-                            parse={(value) => new Date(value).getTime()}
+                            parse={parseDate}
                             form={form}
                         />
                         <Button type="submit" disabled={!form.state.canSubmit}>
@@ -86,6 +86,21 @@ export function AddExpenseCard() {
             </CardContent>
         </Card>
     );
+}
+
+function parseAmount (value: string) {
+    const v = parseFloat(value);
+    if (isNaN(v)) {
+        return undefined;
+    }
+    // convert to cents, since thats what we store everywhere else
+    return v * 100;
+}
+
+function parseDate(value: string) {
+    console.log("parse date", value)
+    const date = new Date(value);
+    return date.getTime();
 }
 
 type FieldProps = {
@@ -99,7 +114,8 @@ type FieldProps = {
     step?: string;
 };
 
-function Field(props: FieldProps) {
+// TODO: move to components
+export function Field(props: FieldProps) {
     const { validator, name, label, type, form, step, placeholder} = props;
     return (
         <form.Field
