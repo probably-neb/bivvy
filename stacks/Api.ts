@@ -12,14 +12,14 @@ export function API({ stack }: StackContext) {
             ClientId: "string",
             LastMutationId: "number",
             UserId: "string",
-            TTL: "number",
+            ExpireAt: "number",
         },
         // FIXME: ttl attribute
         primaryIndex: {
             partitionKey: "ClientGroupId",
             sortKey: "ClientId"
         },
-        timeToLiveAttribute: "TTL",
+        timeToLiveAttribute: "ExpireAt",
     });
 
     const api = new Api(stack, "api", {

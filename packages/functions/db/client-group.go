@@ -185,7 +185,7 @@ func (ct *ClientGroupTable) updateClient(cg ClientGroup, c *Client) error {
         "ClientGroupId": dyS(cg.Id),
         "ClientId": dyS(c.Id),
     }
-    query := "SET LastMutationId = :lastMutationId, TTL = :ttl";
+    query := "SET LastMutationId = :lastMutationId, ExpireAt = :ttl";
     input := dynamodb.UpdateItemInput{
         TableName: &ct.tableName,
         Key: values,
@@ -208,7 +208,7 @@ func (ct *ClientGroupTable) putClient(cg ClientGroup, c *Client) error {
         "ClientId": dyS(c.Id),
         "LastMutationId": dyN(c.LastMutationId),
         "UserId": dyS(cg.UserId),
-        "TTL": dyTTL(),
+        "ExpireAt": dyTTL(),
     }
     log.Println("putting client", values)
     input := dynamodb.PutItemInput{
