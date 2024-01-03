@@ -9,11 +9,19 @@ import {
 import { SplitInput, createSplit, splitInputSchema, useUsers } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { For, createMemo } from "solid-js";
+import { For, createMemo, onMount } from "solid-js";
 import z from "zod";
 import { createEffect, on } from "solid-js";
 import { UserRenderer } from "@/components/renderers";
-
+import { BlockPicker, ColorResult } from "solid-color";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
 
@@ -22,7 +30,7 @@ export function CreateSplit() {
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
-            await createSplit(value)
+            await createSplit(value);
         },
         validatorAdapter: zodValidator,
         onSubmitInvalid: (e) => {
@@ -33,7 +41,7 @@ export function CreateSplit() {
         },
         defaultState: {
             canSubmit: false,
-        }
+        },
     }));
 
     return (
@@ -49,17 +57,21 @@ export function CreateSplit() {
                         onSubmit={async (e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            console.log("values", splitInputSchema.safeParse(form.state.values))
                             await form.handleSubmit();
                         }}
                     >
-                        <Field
-                            name="name"
-                            label="Name"
-                            placeholder="Utilities"
-                            validator={splitInputSchema.shape.name}
-                            type="text"
-                            form={form}
-                        />
+                        <div class="flex flex-row gap-4 items-end">
+                            <Field
+                                name="name"
+                                label="Name"
+                                placeholder="Utilities"
+                                validator={splitInputSchema.shape.name}
+                                type="text"
+                                form={form}
+                            />
+                            <SplitColorPick form={form} />
+                        </div>
                         <UserPortions form={form} />
                         <Button type="submit" disabled={!form.state.canSubmit}>
                             Create
@@ -71,14 +83,74 @@ export function CreateSplit() {
     );
 }
 
+const colors = [
+        '#D9E3F0',
+        '#F47373',
+        '#697689',
+        '#37D67A',
+        '#2CCCE4',
+        '#555555',
+        '#dce775',
+        '#ff8a65',
+        '#ba68c8',
+]
+
+function randomHexColor() {
+    return `#${colors[Math.floor(Math.random() * colors.length)]}`;
+}
+
+function SplitColorPick(props: { form: SplitForm }) {
+    return (
+        <props.form.Field name="color">
+            {(field) => {
+                const color = createMemo(
+                    () => field().state.value || randomHexColor(),
+                );
+                onMount(
+                    on(color, (color) => {
+                        console.log("color", color);
+                        field().setValue(color, { touch: false });
+                    }),
+                );
+                const onChange = (color: ColorResult) => {
+                    field().setValue(color.hex, { touch: true });
+                };
+
+                return (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger>
+                            <div
+                                class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
+                                style={{ background: color() }}
+                            ></div>
+                        <For each={field().state.meta.errors}>
+                            {(error) => <div class="text-red-500">{error}</div>}
+                        </For>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <BlockPicker
+                                colors={colors}
+                                color={color()}
+                                onChangeComplete={onChange}
+                            />
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                );
+            }}
+        </props.form.Field>
+    );
+}
+
 function UserPortions(props: { form: SplitForm }) {
     const users = useUsers();
-    const numUsers = createMemo(on(users, (users) => {
-        if (!users || users.length === 0) {
-            return 1
-        }
-        return users.length
-    }))
+    const numUsers = createMemo(
+        on(users, (users) => {
+            if (!users || users.length === 0) {
+                return 1;
+            }
+            return users.length;
+        }),
+    );
     const portion = createMemo(() => 1.0 / numUsers());
     const portionPercent = createMemo(() => `${portion() * 100}%`);
 
@@ -88,15 +160,22 @@ function UserPortions(props: { form: SplitForm }) {
                 {(user) => (
                     <props.form.Field
                         name={`portions.${user.id}`}
-                        validators={{onChange: splitInputSchema.shape.portions.element}}
+                        validators={{
+                            onChange: splitInputSchema.shape.portions.element,
+                        }}
                     >
                         {(field) => {
-                            createEffect(on(portion, (p) => {
-                                field().setValue(p, {touch: false});
-                            }))
+                            createEffect(
+                                on(portion, (p) => {
+                                    field().setValue(p, { touch: false });
+                                }),
+                            );
                             return (
-                                <><UserRenderer userId={user.id} /> <span>{portionPercent()}</span></>
-                            )
+                                <>
+                                    <UserRenderer userId={user.id} />{" "}
+                                    <span>{portionPercent()}</span>
+                                </>
+                            );
                         }}
                     </props.form.Field>
                 )}

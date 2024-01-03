@@ -1,8 +1,9 @@
 import { cn } from "@/lib/utils"
 import { Combobox as ComboboxPrimitive } from "@kobalte/core"
 import { TbCheck, TbSelector } from "solid-icons/tb"
-import type { VoidComponent } from "solid-js"
-import { splitProps, type ParentComponent } from "solid-js"
+import type { JSX, ParentProps, VoidComponent } from "solid-js"
+import { splitProps, type ParentComponent, For } from "solid-js"
+import { Dynamic } from "solid-js/web"
 
 export const Combobox = ComboboxPrimitive.Root
 export const ComboboxDescription = ComboboxPrimitive.Description
@@ -24,6 +25,31 @@ export const ComboboxInput: VoidComponent<
 			{...rest}
 		/>
 	)
+}
+
+export function ComboboxControl<T>(props: Omit<ComboboxPrimitive.ComboboxTriggerProps, "children"> & {children: (item: T) => JSX.Element}) {
+    const [local, rest] = splitProps(props, ["children"])
+       return (<ComboboxPrimitive.Control<T>>
+          {state => {
+            console.log("selectedOptions", state.selectedOptions())
+            return (
+            <>
+              <ComboboxPrimitive.Trigger
+                    class="flex h-9 w-full items-center justify-between rounded-md border border-input shadow-sm px-3"
+                        {...rest}
+                    >
+              <div>
+                    <For each={state.selectedOptions()}>
+                        {item => local.children(item)}
+                    </For>
+              </div>
+				<ComboboxPrimitive.Icon class="flex h-3.5 w-3.5 items-center justify-center">
+					<TbSelector class="h-4 w-4 opacity-50" />
+				</ComboboxPrimitive.Icon>
+              </ComboboxPrimitive.Trigger>
+            </>
+          ) }}
+        </ComboboxPrimitive.Control>)
 }
 
 export const ComboboxTrigger: ParentComponent<

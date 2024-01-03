@@ -35,6 +35,7 @@ type Split struct {
     Name string `json:"name"`
     GroupId string `json:"groupId"`
     Portions map[string]float64 `json:"portions"`
+    Color *string `json:"color"`
 }
 
 type unixTimestamp time.Time
@@ -381,10 +382,10 @@ func CreateSplit(split Split) error {
         return err
     }
     sq := `INSERT INTO splits
-    (id, name, group_id)
+    (id, name, group_id, color)
     VALUES
-    (?, ?, ?)`
-    _, err = tx.Exec(sq, split.Id, split.Name, split.GroupId)
+    (?, ?, ?, ?)`
+    _, err = tx.Exec(sq, split.Id, split.Name, split.GroupId, split.Color)
     if err != nil {
         tx.Rollback()
         return err

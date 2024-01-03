@@ -1,4 +1,4 @@
-import { For, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,11 +15,18 @@ import {
     ComboboxInput,
     ComboboxTriggerMode,
     ComboboxDescription,
-} from "@/components/ui/combobox"
-import { createFilter } from "@kobalte/core"
+    ComboboxControl,
+} from "@/components/ui/combobox";
+import { createFilter } from "@kobalte/core";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { ExpenseInput, addExpense, expenseInputSchema, useSplits } from "@/lib/rep";
+import {
+    ExpenseInput,
+    addExpense,
+    expenseInputSchema,
+    useSplits,
+} from "@/lib/rep";
+import { SplitRenderer } from "@/components/renderers";
 
 type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
@@ -31,18 +38,17 @@ export function AddExpenseCard() {
             try {
                 await addExpense(value);
             } catch (e) {
-                console.error(e)
+                console.error(e);
             }
         },
         validatorAdapter: zodValidator,
         onSubmitInvalid: (e) => {
-            console.log("invalid", e.formApi.state.errors)
+            console.log("invalid", e.formApi.state.errors);
         },
         validators: {
             onSubmit: expenseInputSchema,
         },
     }));
-
 
     return (
         <Card>
@@ -58,7 +64,9 @@ export function AddExpenseCard() {
                             e.preventDefault();
                             e.stopPropagation();
                             // console.log("submit", form.state.values)
-                            await form.handleSubmit().then(() => console.log("submitted"));
+                            await form
+                                .handleSubmit()
+                                .then(() => console.log("submitted"));
                             // void form.validate("submit");
                             // await addExpense(form.state.values);
                         }}
@@ -91,7 +99,7 @@ export function AddExpenseCard() {
                             parse={parseDate}
                             form={form}
                         />
-                        
+
                         <Button type="submit" disabled={!form.state.canSubmit}>
                             Add
                         </Button>
@@ -102,55 +110,77 @@ export function AddExpenseCard() {
     );
 }
 
-function SplitSelect(props: {form: Form}) {
+function SplitSelect(props: { form: Form }) {
     const splits = useSplits();
-    const allOptions = createMemo(() => (splits() ?? []).map((split) => split.name));
+    const allOptions = createMemo(() =>
+        (splits() ?? []).map((split) => ({name: split.name, id: split.id, element: () => <SplitRenderer splitId={split.id} />} )),
+    );
+    type Option = typeof allOptions extends () => Array<infer O> ? O : never;
 
-    const [value, setValue] = createSignal("")
-    const filter = createFilter({ sensitivity: "base" })
+    const [value, setValue] = createSignal("");
+    const filter = createFilter({ sensitivity: "base" });
     const options = createMemo(() => {
         if (value() === "") {
-            return allOptions()
+            return allOptions();
         }
-        return allOptions().filter((option) => filter.contains(option, value()))
-    })
-    const onInputChange = (value: string) => {
-        setValue(value)
-    }
-    const onChange= (value: string) => {
-        const split = splits()?.find((split) => split.name === value)
-        if (!split) return;
-        props.form.setFieldValue("splitId", split.id)
-    }
+        return allOptions().filter((option) =>
+            filter.contains(option.name, value()),
+        );
+    });
+    const [selected, setSelected] = createSignal<Option | undefined>();
+    const onChange = (value: Option | null) => {
+        if (!value) {
+            console.log("removing field")
+            return
+        }
+        console.log("setting field", value)
+        setSelected(value)
+        props.form.setFieldValue("splitId", value.id);
+    };
 
     const onOpenChange = (
         isOpen: boolean,
         triggerMode?: ComboboxTriggerMode,
     ) => {
         if (isOpen && triggerMode === "manual") {
-            setValue("")
+            setValue("");
         }
     };
-    return ( <Combobox
-        options={options()}
-        onInputChange={onInputChange}
-        onChange={onChange}
-        onOpenChange={onOpenChange}
-        itemComponent={(props) => (
-            <ComboboxItem item={props.item}>{props.item.rawValue}</ComboboxItem>
-        )}
-    >
-        <TextFieldLabel>
-            Split
-        </TextFieldLabel>
-        <ComboboxTrigger>
-            <ComboboxInput />
-        </ComboboxTrigger>
-        <ComboboxContent />
-    </Combobox> )
+    return (
+        <Combobox<Option>
+            value={selected()}
+            options={options()}
+            onInputChange={(value) => setValue(value)}
+            onChange={onChange}
+            onOpenChange={onOpenChange}
+            optionTextValue="name"
+            optionValue="id"
+            optionLabel="name"
+            itemComponent={(props) => {
+                console.log(props)
+                return <ComboboxItem item={props.item}>
+                    <props.item.rawValue.element />
+                </ComboboxItem>
+            }}
+        >
+            <TextFieldLabel>Split</TextFieldLabel>
+                <ComboboxTrigger>
+                {/*
+                    FIXME: this looks ok but basically just makes it a select. Need to figure out how to
+                           restore combobox functionality (search by typing)
+                */}
+                <Show when={selected()} fallback={<div class="w-full"></div>}>
+                    {selected()!.element()}
+                </Show>
+                {/* selected()?.element() ?? <div class="w-full"></div> */}
+                <ComboboxInput hidden />
+                </ComboboxTrigger>
+            <ComboboxContent />
+        </Combobox>
+    );
 }
 
-function parseAmount (value: string) {
+function parseAmount(value: string) {
     const v = parseFloat(value);
     if (isNaN(v)) {
         return undefined;
@@ -160,7 +190,7 @@ function parseAmount (value: string) {
 }
 
 function parseDate(value: string) {
-    console.log("parse date", value)
+    console.log("parse date", value);
     const date = new Date(value);
     return date.getTime();
 }
@@ -178,7 +208,7 @@ type FieldProps = {
 
 // TODO: move to components
 export function Field(props: FieldProps) {
-    const { validator, name, label, type, form, step, placeholder} = props;
+    const { validator, name, label, type, form, step, placeholder } = props;
     return (
         <form.Field
             name={name}
@@ -200,7 +230,9 @@ export function Field(props: FieldProps) {
                         placeholder={placeholder}
                         step={step}
                         onChange={(e) =>
-                            field().handleChange(props.parse?.(e.target.value) ?? e.target.value)
+                            field().handleChange(
+                                props.parse?.(e.target.value) ?? e.target.value,
+                            )
                         }
                     />
                     <TextFieldErrorMessage>

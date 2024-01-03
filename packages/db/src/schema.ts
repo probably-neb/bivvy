@@ -153,6 +153,7 @@ export const splits = table(
         id: id("id"),
         name: varchar("name", { length: 255 }).notNull(),
         group_id: idRef("group_id").notNull(),
+        color: varchar("color", { length: 6 }),
     },
     (t) => ({
         pk_idx: index("pk_idx").on(t.id),

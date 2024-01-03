@@ -70,13 +70,11 @@ const NANOID_ID_LENGTH = 21;
 // TODO: replace *Schema with z* for brevity
 const idSchema = z.string().length(NANOID_ID_LENGTH);
 
-
 export const groupSchema = z.object({
     name: z.string(),
     id: idSchema,
 });
 export type Group = z.infer<typeof groupSchema>;
-
 
 export const userSchema = z.object({
     id: idSchema,
@@ -96,7 +94,7 @@ export const expenseSchema = z.object({
     paidOn: unixTimeSchema.nullable().default(null),
     createdAt: unixTimeSchema,
     groupId: groupSchema.shape.id,
-    splitId: idSchema
+    splitId: idSchema,
 });
 export type Expense = z.infer<typeof expenseSchema>;
 
@@ -104,12 +102,16 @@ export const expenseInputSchema = expenseSchema.pick({
     description: true,
     amount: true,
     paidOn: true,
-    splitId: true
+    splitId: true,
 });
 export type ExpenseInput = z.infer<typeof expenseInputSchema>;
 
-
 const percentSchema = z.number().gte(0.0).lte(1.0);
+
+const zHexString = z
+    .string()
+    .length(7)
+    .regex(/^#[\da-fA-F]{6}/);
 
 export const splitSchema = z.object({
     name: z.string(),
@@ -117,12 +119,14 @@ export const splitSchema = z.object({
     portions: z.record(userSchema.shape.id, percentSchema),
     createdAt: unixTimeSchema,
     groupId: groupSchema.shape.id,
-})
+    color: zHexString.nullable(),
+});
 export type Split = z.infer<typeof splitSchema>;
 
-export const splitInputSchema = z.object({
-    name: z.string(),
-    portions: z.record(z.string(), z.number().gte(0.0).lte(1.0)),
+export const splitInputSchema = splitSchema.pick({
+    name: true,
+    portions: true,
+    color: true,
 });
 
 export type SplitInput = z.infer<typeof splitInputSchema>;
@@ -157,8 +161,8 @@ const P = {
         },
         id(groupId: Group["id"], splitId: Split["id"]) {
             return `${P.split.prefix(groupId)}${splitId}`;
-        }
-    }
+        },
+    },
 };
 
 // NOTE: wrappers around these mutators are required because the mutators will be run by the server
@@ -200,12 +204,9 @@ const mutators = {
         // FIXME: handle
         // FIXME: update owed
     },
-    createSplit: async (
-        tx: WriteTransaction,
-        split: Split
-    ) => {
-        await tx.set(P.split.id(split.groupId, split.id), split)
-    }
+    createSplit: async (tx: WriteTransaction, split: Split) => {
+        await tx.set(P.split.id(split.groupId, split.id), split);
+    },
 };
 
 type Mutators = typeof mutators;
@@ -255,7 +256,6 @@ export async function addExpense(expense: ExpenseInput) {
     const id = nanoid();
     console.log("paidOn", expense.paidOn, typeof expense.paidOn);
     // FIXME: use passed split id
-    const evenlyId = "H05mUnfdhpIdJVbXFFGd7"
     let e: Expense = {
         // copy because replicache responses are Readonly
         ...expense,
@@ -265,8 +265,6 @@ export async function addExpense(expense: ExpenseInput) {
         paidBy: ctx.userId,
         groupId: ctx.groupId,
         id,
-        // TODO: use given split id
-        splitId: evenlyId
     };
     console.log("addExpense", e);
     await ctx.rep.mutate.addExpense(expenseSchema.parse(e));
@@ -286,9 +284,9 @@ export async function createSplit(splitInput: SplitInput) {
             id: nanoid(),
             createdAt: new Date().getTime(),
         },
-        splitInput
-    )
-    await ctx.rep.mutate.createSplit(splitSchema.parse(split))
+        splitInput,
+    );
+    await ctx.rep.mutate.createSplit(splitSchema.parse(split));
 }
 
 export function useExpenses() {
@@ -365,20 +363,16 @@ export function useUsers() {
             .scan<User>({ prefix: P.user.prefix(groupId) })
             .values()
             .toArray();
-        console.log("users", us);
         return us;
     });
     return users;
 }
 
 export function useUser(id: User["id"]) {
-    const user = use(
-        async (tx, { groupId }) => {
-            const u = await tx.get<User>(P.user.id(groupId, id))
-            console.log("user", u)
-            return u;
-        },
-    );
+    const user = use(async (tx, { groupId }) => {
+        const u = await tx.get<User>(P.user.id(groupId, id));
+        return u;
+    });
     return user;
 }
 
@@ -392,6 +386,13 @@ export function useSplits() {
     return splits;
 }
 
+export function useSplit(id: Split["id"]) {
+    const split = use(async (tx, { groupId }) => {
+        return await tx.get<Split>(P.split.id(groupId, id));
+    });
+    return split;
+}
+
 /// Helper function that wraps a Replicache query subscription in a SolidJS signal
 type Getter<R> = (
     tx: ReadTransaction,
@@ -400,7 +401,6 @@ type Getter<R> = (
 
 export function use<R>(getter: Getter<R>) {
     const ctxVals = createMemo(() => {
-        console.log("ctxVals", ctx);
         if (!ctx.isInit) {
             return {
                 isInit: false,
@@ -414,25 +414,27 @@ export function use<R>(getter: Getter<R>) {
         } as const;
     });
 
-    const [value, setValue] = createStore<{value: R | undefined}>({value: undefined});
+    const [value, setValue] = createStore<{ value: R | undefined }>({
+        value: undefined,
+    });
 
     createEffect(
         on(ctxVals, (ctx) => {
-            const {isInit, groupId, userId, rep} = ctx;
+            const { isInit, groupId, userId, rep } = ctx;
             if (!isInit || !groupId) {
-                console.log("not init")
-                return
+                console.log("not init");
+                return;
             }
-            console.log("valMemo", ctx)
 
             const valSignal: Accessor<R | undefined> = from(() => {
                 const opts = { groupId, userId };
-                console.log("use", opts);
                 const unsub = rep.subscribe(
                     async (tx) => getter(tx, opts),
                     (val) => {
-                        console.log("vals", val)
-                        setValue("value", reconcile(val as Exclude<R, Function>));
+                        setValue(
+                            "value",
+                            reconcile(val as Exclude<R, Function>),
+                        );
                     },
                 );
                 return unsub;
