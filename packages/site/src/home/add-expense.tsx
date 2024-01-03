@@ -1,3 +1,4 @@
+import { For, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -6,13 +7,24 @@ import {
     TextFieldInput,
     TextFieldLabel,
 } from "@/components/ui/textfield";
+import {
+    Combobox,
+    ComboboxItem,
+    ComboboxTrigger,
+    ComboboxContent,
+    ComboboxInput,
+    ComboboxTriggerMode,
+    ComboboxDescription,
+} from "@/components/ui/combobox"
+import { createFilter } from "@kobalte/core"
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { ExpenseInput, addExpense, expenseInputSchema } from "@/lib/rep";
-import { For } from "solid-js";
+import { ExpenseInput, addExpense, expenseInputSchema, useSplits } from "@/lib/rep";
+
+type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
 export function AddExpenseCard() {
-    const form = createForm<ExpenseInput, typeof zodValidator>(() => ({
+    const form: Form = createForm(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
@@ -69,6 +81,7 @@ export function AddExpenseCard() {
                             parse={parseAmount}
                             form={form}
                         />
+                        <SplitSelect form={form} />
                         <Field
                             name="paidOn"
                             label="Paid On"
@@ -78,6 +91,7 @@ export function AddExpenseCard() {
                             parse={parseDate}
                             form={form}
                         />
+                        
                         <Button type="submit" disabled={!form.state.canSubmit}>
                             Add
                         </Button>
@@ -86,6 +100,54 @@ export function AddExpenseCard() {
             </CardContent>
         </Card>
     );
+}
+
+function SplitSelect(props: {form: Form}) {
+    const splits = useSplits();
+    const allOptions = createMemo(() => (splits() ?? []).map((split) => split.name));
+
+    const [value, setValue] = createSignal("")
+    const filter = createFilter({ sensitivity: "base" })
+    const options = createMemo(() => {
+        if (value() === "") {
+            return allOptions()
+        }
+        return allOptions().filter((option) => filter.contains(option, value()))
+    })
+    const onInputChange = (value: string) => {
+        setValue(value)
+    }
+    const onChange= (value: string) => {
+        const split = splits()?.find((split) => split.name === value)
+        if (!split) return;
+        props.form.setFieldValue("splitId", split.id)
+    }
+
+    const onOpenChange = (
+        isOpen: boolean,
+        triggerMode?: ComboboxTriggerMode,
+    ) => {
+        if (isOpen && triggerMode === "manual") {
+            setValue("")
+        }
+    };
+    return ( <Combobox
+        options={options()}
+        onInputChange={onInputChange}
+        onChange={onChange}
+        onOpenChange={onOpenChange}
+        itemComponent={(props) => (
+            <ComboboxItem item={props.item}>{props.item.rawValue}</ComboboxItem>
+        )}
+    >
+        <TextFieldLabel>
+            Split
+        </TextFieldLabel>
+        <ComboboxTrigger>
+            <ComboboxInput />
+        </ComboboxTrigger>
+        <ComboboxContent />
+    </Combobox> )
 }
 
 function parseAmount (value: string) {
@@ -109,7 +171,7 @@ type FieldProps = {
     label: string;
     placeholder: string;
     type: "text" | "number" | "password" | "email" | "tel" | "date";
-    form: FormApi<ExpenseInput, typeof zodValidator>;
+    form: Form;
     parse?: (value: string) => any;
     step?: string;
 };
@@ -142,7 +204,7 @@ export function Field(props: FieldProps) {
                         }
                     />
                     <TextFieldErrorMessage>
-                        <For each={[field().state.meta.errors]}>
+                        <For each={field().state.meta.errors}>
                             {(error) => <div class="text-red-500">{error}</div>}
                         </For>
                     </TextFieldErrorMessage>

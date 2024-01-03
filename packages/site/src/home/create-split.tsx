@@ -9,7 +9,7 @@ import {
 import { SplitInput, createSplit, splitInputSchema, useUsers } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { For, createMemo, createSignal } from "solid-js";
+import { For, createMemo } from "solid-js";
 import z from "zod";
 import { createEffect, on } from "solid-js";
 import { UserRenderer } from "@/components/renderers";

@@ -104,6 +104,7 @@ export const expenseInputSchema = expenseSchema.pick({
     description: true,
     amount: true,
     paidOn: true,
+    splitId: true
 });
 export type ExpenseInput = z.infer<typeof expenseInputSchema>;
 
@@ -379,6 +380,16 @@ export function useUser(id: User["id"]) {
         },
     );
     return user;
+}
+
+export function useSplits() {
+    const splits = use(async (tx, { groupId }) => {
+        return await tx
+            .scan<Split>({ prefix: P.split.prefix(groupId) })
+            .values()
+            .toArray();
+    });
+    return splits;
 }
 
 /// Helper function that wraps a Replicache query subscription in a SolidJS signal
