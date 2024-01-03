@@ -54,9 +54,8 @@ func parse(body string) (PushEvent, error) {
     return push, nil
 }
 
-func doMutations(push PushEvent) error {
+func doMutations(push PushEvent, session db.UserSession) error {
     // TODO: get
-    uid := "Alice_fjIqVhRO63mS0mu"
     ms := push.Mutations
     ct := db.ClientGroupTable{}
     // TODO: handle error
@@ -69,7 +68,7 @@ func doMutations(push PushEvent) error {
             return err
         }
         log.Println("creating new client group")
-        cg = db.NewClientGroup(push.ClientGroupId, uid)
+        cg = db.NewClientGroup(push.ClientGroupId, session.UserId)
     }
     for _, m := range ms {
         _, clientExists := cg.Clients[m.ClientId]
@@ -97,6 +96,14 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
     if err != nil {
         return nil, err
     }
-    err = doMutations(push)
+    _session, err := db.GetSessionFromHeaders(event.Headers)
+    if (err != nil) {
+        return nil, err
+    }
+    session, ok := _session.(db.UserSession)
+    if !ok {
+        log.Fatalf("session was not a user session: %v", session)
+    }
+    err = doMutations(push, session)
     return nil, err
 }

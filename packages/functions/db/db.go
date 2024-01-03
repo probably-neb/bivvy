@@ -60,8 +60,6 @@ func (ut *unixTimestamp) UnmarshalJSON(dat []byte) error {
     return nil
 }
 
-// FIXME: create indexes
-
 func getConn() *sql.DB {
     dsn, err := GetSecret("DSN")
     if err != nil {

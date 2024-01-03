@@ -298,6 +298,16 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
         return nil, err
     }
 
+    _session, err := db.GetSessionFromHeaders(event.Headers)
+    if (err != nil) {
+        return nil, err
+    }
+    session, ok := _session.(db.UserSession)
+    if !ok {
+        log.Fatalf("session was not a user session: %v", session)
+    }
+    log.Println("session", session)
+
     var res PullResponse
     // TODO: check versions
     // TODO: check client state
@@ -306,12 +316,9 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
     // and verifying they are the same
     // although this may cause problems depending on how replicache assigns ids
 
-    // TODO: get using session token
-    uid := "Alice_fjIqVhRO63mS0mu"
+    patches := custructPatches(session.UserId)
 
-    patches := custructPatches(uid)
-
-    lastMutations, err := getLastMutations(req.ClientGroupID, uid)
+    lastMutations, err := getLastMutations(req.ClientGroupID, session.UserId)
     if err != nil {
         // FIXME: how to handle client will not be created until user pushes?
         _, notFound := err.(db.ClientNotFoundError)

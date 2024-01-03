@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -11,22 +12,25 @@ import (
 	"github.com/probably-neb/paypals-api/util"
 )
 
-func getPath(envVar string) string {
-    // TODO: error handling: invalid path results in non descriptive error
-    prefix := os.Getenv("SST_SSM_PREFIX")
-    return fmt.Sprintf("%sSecret/%s/value",prefix, envVar)
-}
-
-func createClient() (*ssm.Client, error) {
+func createClient() *ssm.Client {
     ctx := context.Background()
     cfg, err := config.LoadDefaultConfig(ctx)
     if err != nil {
-        return nil, err
+        log.Fatalf("Could not load config: %v", err)
     }
-    return ssm.NewFromConfig(cfg), nil
+    return ssm.NewFromConfig(cfg)
 }
 
-func getSecret(client *ssm.Client, path string) (string, error) {
+var client *ssm.Client = createClient();
+var sstPrefix = os.Getenv("SST_SSM_PREFIX")
+
+func getPath(envVar string) string {
+    // TODO: error handling: invalid path results in non descriptive error
+    return fmt.Sprintf("%sSecret/%s/value",sstPrefix, envVar)
+}
+
+
+func getSecret(path string) (string, error) {
     wd := true
     ctx := context.Background()
     input := &ssm.GetParameterInput{
@@ -44,9 +48,10 @@ func GetSecret(envVar string) (string, error) {
     defer util.TimeMe(time.Now(), "GetSecret: " + envVar)
     // TODO: cache in top level var for requests in same lambda
     path := getPath(envVar)
-    client, err := createClient()
-    if err != nil {
-        return "", err
-    }
-    return getSecret(client, path)
+    return getSecret(path)
+}
+
+func GetJWTPublicKey() (string, error) {
+    path := sstPrefix + "Auth/auth/publicKey"
+    return getSecret(path)
 }
