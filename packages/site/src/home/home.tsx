@@ -54,7 +54,9 @@ export type ViewExpense = (expenseId: Expense["id"]) => void;
 function AddExpenseButton() {
     const device = useQueries()
     const disabled = createMemo(() => {
-        if (!expenseCardOpen() && device.isSm()) {
+        // if the expense card will be shown in a modal,
+        // don't disable the button when the modal isn't open
+        if (!expenseCardOpen() && !device.isAtLeastLg()) {
             return false
         }
         return expenseCardMode().mode == "add"
@@ -99,14 +101,9 @@ export default function HomePage() {
 
 function ExpenseCardWrapper() {
     const device = useQueries()
-    const isSm = createMemo(() => {
-        const isSm = device.isSm()
-        console.log("isSm", isSm)
-        return isSm
-    })
 
-    return <Show when={isSm()} fallback={<ExpenseCard />}>
-        <ExpenseCardModal />
+    return <Show when={device.isAtLeastLg()} fallback={<ExpenseCardModal />}>
+        <ExpenseCard />
     </Show>
 }
 
