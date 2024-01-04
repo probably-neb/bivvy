@@ -1,7 +1,7 @@
 import { User } from "@/lib/session";
 import { Split, useSplit, useUser } from "@/lib/rep";
 import { TiUserOutline } from "solid-icons/ti";
-import { JSX, Show, createEffect, createMemo } from "solid-js";
+import { JSX, Show, createMemo } from "solid-js";
 import { Badge } from "./ui/badge";
 
 // TODO: make renderers take a value instead of an id,
@@ -19,20 +19,16 @@ export function UserRenderer(props: { userId: User["id"] }) {
 
 type Format = "m/d/y" | "m/y";
 
+type IntoDate = ConstructorParameters<typeof Date>[0]
+
 type DateProps = {
     format?: Format;
-} & (
-    | {
-          date: Date;
-      }
-    | {
-          dateStr: string;
-      }
-);
+    date: IntoDate;
+};
 
 export function DateRenderer(props: DateProps) {
     const format = createMemo(() => {
-        const date = "date" in props ? props.date : new Date(props.dateStr);
+        const date = new Date(props.date);
         const format = props.format ?? "m/d/y";
         switch (format) {
         case "m/d/y":

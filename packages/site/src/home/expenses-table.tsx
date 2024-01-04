@@ -52,30 +52,27 @@ export function ExpensesTable(props: { viewExpense: ViewExpense }) {
     );
 }
 
-function ExpenseRow({
-    expense,
-    viewExpense,
-}: {
+function ExpenseRow(props: {
     expense: Expense;
     viewExpense: (expenseId: Expense["id"]) => void;
 }) {
     return (
-        <TableRow onClick={[viewExpense, expense.id]}>
+        <TableRow onClick={[props.viewExpense, props.expense.id]}>
             <TableCell>
-                <UserRenderer userId={expense.paidBy} />
+                <UserRenderer userId={props.expense.paidBy} />
             </TableCell>
             <TableCell>
-                <MoneyRenderer amount={expense.amount} />
+                <MoneyRenderer amount={props.expense.amount} />
             </TableCell>
-            <TableCell>{expense.description}</TableCell>
-            <TableCell class="uppercase">{expense.status}</TableCell>
+            <TableCell>{props.expense.description}</TableCell>
+            <TableCell class="uppercase">{props.expense.status}</TableCell>
             <TableCell>
-                <Show when={expense.paidOn} fallback={<span class="flex justify-center">-</span>}>
-                    {(paidOn) => <DateRenderer dateStr={paidOn()} />}
+                <Show when={props.expense.paidOn}>
+                    {(paidOn) => <DateRenderer date={paidOn()} />}
                 </Show>
             </TableCell>
             <TableCell>
-                <DateRenderer dateStr={expense.createdAt} />
+                <DateRenderer date={props.expense.createdAt} />
             </TableCell>
         </TableRow>
     );

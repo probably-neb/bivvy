@@ -52,13 +52,13 @@ export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
             </KV>
             <KV k="Paid On">
                 <Show when={expense()?.paidOn}>
-                    {(paidOn) => <DateRenderer dateStr={paidOn()} />}
+                    {(paidOn) => <DateRenderer date={paidOn()} />}
                 </Show>
             </KV>
             <KV k="Added On">
                 <Show when={expense()?.createdAt}>
                     {(createdAt) => (
-                        <DateRenderer dateStr={createdAt()} />
+                        <DateRenderer date={createdAt()} />
                     )}
                 </Show>
             </KV>
