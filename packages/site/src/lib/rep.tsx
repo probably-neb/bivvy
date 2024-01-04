@@ -346,7 +346,7 @@ export function useOtherUsers() {
     return users;
 }
 
-type Owed = {
+export type Owed = {
     total: number;
     to: { [id: User["id"]]: number };
 };
