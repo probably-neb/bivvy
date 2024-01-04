@@ -66,11 +66,11 @@ export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
     );
 }
 
-function KV({ k, children }: ParentProps<{ k: string }>) {
+function KV(props: ParentProps<{ k: string }>) {
     return (
         <>
-            <div class="text-gray-600">{k}</div>
-            <div>{children}</div>
+            <div class="text-gray-600">{props.k}</div>
+            <div>{props.children}</div>
         </>
     );
 }

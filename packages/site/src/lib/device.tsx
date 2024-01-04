@@ -2,7 +2,7 @@ import { Accessor, JSX, createContext, createEffect, createMemo, useContext } fr
 import { createStore } from "solid-js/store";
 
 const sizes = ["sm", "md", "lg"] as const;
-type Size = typeof sizes[number];
+export type Size = typeof sizes[number];
 
 // From tailwind docs
 // sm	640px	@media (min-width: 640px) { ... }
@@ -15,14 +15,16 @@ const pxSizes: Record<Size, number> = {
 }
 
 // this is low-key cool I can do this
-type Queries = Record<`is${Capitalize<Size>}` | `isAtLeast${Capitalize<Size>}`, () => boolean>
+export type Queries = Record<`is${Capitalize<Size>}` | `isAtLeast${Capitalize<Size>}`, () => boolean> & Record<'is' | 'isAtLeast', (s: Size) => boolean>
 
 type Ctx = [Accessor<Size>, Queries]
 
 const defaultCtx: Ctx  = [() => "sm", {
+    is: (size) => size === 'sm',
     isSm: () => true,
     isMd: () => false,
     isLg: () => false,
+    isAtLeast: (size) => size === 'sm',
     isAtLeastSm: () => true,
     isAtLeastMd: () => false,
     isAtLeastLg: () => false,
@@ -69,10 +71,23 @@ export function DeviceContextProvider(props: { children: JSX.Element }) {
         return size;
     })
 
-    const queries = {
+    const queries: Queries = {
+        is: (size) => device() === size,
         isSm: createMemo(() => matches.sm && !matches.md),
         isMd: createMemo(() => matches.md && !matches.lg),
         isLg: createMemo(() => matches.lg),
+        isAtLeast: (size) => {
+            switch (size) {
+                case "sm":
+                    return queries.isAtLeastSm()
+                case "md":
+                    return queries.isAtLeastMd()
+                case "lg":
+                    return queries.isAtLeastLg()
+                default:
+                    return !!(size satisfies never)
+            }
+        },
         isAtLeastSm: createMemo(() => matches.sm),
         isAtLeastMd: createMemo(() => matches.md),
         isAtLeastLg: createMemo(() => matches.lg),
@@ -83,6 +98,10 @@ export function DeviceContextProvider(props: { children: JSX.Element }) {
             {props.children}
         </DeviceContext.Provider>
     )
+}
+
+export function useDeviceContext() {
+    return useContext(DeviceContext);
 }
 
 export function useDevice() {
