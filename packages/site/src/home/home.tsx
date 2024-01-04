@@ -13,6 +13,7 @@ import {
     createMemo,
     createSignal,
     Match,
+    Accessor,
 } from "solid-js";
 import { OverviewCard } from "@/home/overview-card";
 import { ExpensesTable } from "@/home/expenses-table";
@@ -101,26 +102,6 @@ export default function HomePage() {
 
 function ExpenseCardWrapper() {
     const device = useQueries()
-
-    return <Show when={device.isAtLeastLg()} fallback={<ExpenseCardModal />}>
-        <ExpenseCard />
-    </Show>
-}
-
-function ExpenseCardModal() {
-        return (<Dialog
-            open={expenseCardOpen()}
-            onOpenChange={setExpenseCardOpen}
-        >
-            <DialogContent class="sm:max-w-[425px] max-w-[80%]">
-                <ExpenseCardInner />
-                <Button onClick={[setExpenseCardOpen, false]}>Close</Button>
-            </DialogContent>
-        </Dialog>)
-
-}
-
-function ExpenseCard() {
     const title = createMemo(() => {
         switch (expenseCardMode().mode) {
             case "add":
@@ -129,9 +110,29 @@ function ExpenseCard() {
             return "Expense Details";
         }
     })
+
+    return <Show when={device.isAtLeastLg()} fallback={<ExpenseCardModal title={title()} />}>
+        <ExpenseCard title={title()} />
+    </Show>
+}
+
+function ExpenseCardModal(props: {title: string}) {
+        return (<Dialog
+            open={expenseCardOpen()}
+            onOpenChange={setExpenseCardOpen}
+        >
+            <DialogContent class="sm:max-w-[425px] max-w-[80%]">
+                <DialogTitle>{props.title}</DialogTitle>
+                <ExpenseCardInner />
+            </DialogContent>
+        </Dialog>)
+
+}
+
+function ExpenseCard(props: {title: string}) {
     return <Card>
             <CardHeader>
-                <CardTitle>{title()}</CardTitle>
+                <CardTitle>{props.title}</CardTitle>
             </CardHeader>
             <CardContent class="px-10">
                 <ExpenseCardInner />
