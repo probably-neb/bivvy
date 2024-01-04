@@ -13,6 +13,7 @@ import { Accessor, For, JSX, Show, createMemo, on } from "solid-js";
 import {
     DateRenderer,
     MoneyRenderer,
+    SplitRenderer,
     UserRenderer,
 } from "@/components/renderers";
 import { Size, useDeviceContext, useQueries } from "@/lib/device";
@@ -54,7 +55,9 @@ export function ExpensesTable(props: { viewExpense: ViewExpense }) {
     const [device, { isAtLeast }] = useDeviceContext();
     const show = createMemo(
         on(device, () =>
-            Object.fromEntries(columnFields.map(f => [f, isAtLeast(showAt[f])])) as Record<Column, boolean>
+            Object.fromEntries(
+                columnFields.map(f => [f, isAtLeast(showAt[f])])
+            ) as Record<Column, boolean>
         )
     )
     return (
@@ -104,7 +107,7 @@ const renderers: { [key in Column]: RowRenderer<key> } = {
     status: (status) => <span class="uppercase">{status}</span>,
     paidOn: (paidOn) => ( <Show when={paidOn}> <DateRenderer date={paidOn!} /> </Show>),
     createdAt: (createdAt) => <DateRenderer date={createdAt} />,
-    splitId: (splitId) => <span>{splitId}</span>,
+    splitId: (splitId) => <SplitRenderer splitId={splitId} />,
 };
 
 function ExpenseRow(props: {
