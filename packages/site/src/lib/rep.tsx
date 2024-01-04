@@ -294,9 +294,11 @@ export function ReplicacheContextProvider(props: ParentProps) {
     );
 }
 
-function useRep() {
+
+export function useRep() {
     return useContext(ReplicacheContext)[0];
 }
+
 
 export function useMutations() {
     return useContext(ReplicacheContext)[1];

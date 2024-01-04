@@ -20,7 +20,7 @@ import { ExpensesTable } from "@/home/expenses-table";
 import { AddExpenseCard } from "@/home/add-expense";
 import { ViewExpenseCard } from "@/home/view-expense";
 import {CreateSplit} from "@/home/create-split";
-import { Expense } from "@/lib/rep";
+import { Expense, forcePull, useRep } from "@/lib/rep";
 import { useQueries } from "@/lib/device";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -84,6 +84,9 @@ export default function HomePage() {
                         <h1 class="text-4xl font-bold">Paypals</h1>
                     </div>
                     <div class="flex gap-3">
+                        <Show when={import.meta.env.VITE_IS_LOCAL}>
+                            <ForcePullButton />
+                        </Show>
                         <AddExpenseButton />
                     </div>
                 </div>
@@ -149,4 +152,15 @@ function ExpenseCardInner() {
             <ViewExpenseCard expenseId={expenseCardMode().id!} />
         </Match>
     </Switch>
+}
+
+function ForcePullButton() {
+    const rep = useRep()
+    const onClick = async () => {
+        if (!rep()) {
+            console.error("rep not initialized")
+        }
+        await rep()?.pull({now: true})
+    }
+    return <Button variant="outline" onClick={onClick}>Pull</Button>
 }
