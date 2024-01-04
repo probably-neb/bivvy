@@ -14,15 +14,13 @@ import {
     ComboboxContent,
     ComboboxInput,
     ComboboxTriggerMode,
-    ComboboxDescription,
-    ComboboxControl,
 } from "@/components/ui/combobox";
 import { createFilter } from "@kobalte/core";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import {
     ExpenseInput,
-    addExpense,
+    useMutations,
     expenseInputSchema,
     useSplits,
 } from "@/lib/rep";
@@ -31,6 +29,7 @@ import { SplitRenderer } from "@/components/renderers";
 type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
 export function AddExpenseCard() {
+    const { addExpense } = useMutations();
     const form: Form = createForm(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed

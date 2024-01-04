@@ -1,7 +1,7 @@
-import { User } from "@/lib/auth";
+import { User } from "@/lib/session";
 import { Split, useSplit, useUser } from "@/lib/rep";
 import { TiUserOutline } from "solid-icons/ti";
-import { JSX, Show, createMemo } from "solid-js";
+import { JSX, Show, createEffect, createMemo } from "solid-js";
 import { Badge } from "./ui/badge";
 
 export function UserRenderer(props: { userId: User["id"] }) {
@@ -65,6 +65,9 @@ export function MoneyRenderer(props: {
 
 export function SplitRenderer(props: {splitId: Split["id"]}) {
     const split = useSplit(props.splitId)
+    createEffect(() => {
+        console.log("split", split())
+    })
     return <Show when={split()}>
         <Badge style={`background-color: ${split()?.color}`}>{split()?.name}</Badge>
     </Show>

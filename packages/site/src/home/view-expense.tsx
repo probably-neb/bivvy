@@ -1,18 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
-import { Expense, deleteExpense, useExpense } from "@/lib/rep";
-import { ParentProps } from "solid-js";
-import {Show} from "solid-js"
+import { Expense, useExpense, useMutations } from "@/lib/rep";
+import { ParentProps, Show } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { setAsideCardMode } from "@/home/home";
 import {
     DateRenderer,
     MoneyRenderer,
-    Render,
     UserRenderer,
 } from "@/components/renderers";
 
 export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
+    const {deleteExpense} = useMutations();
     const expense = useExpense(props.expenseId);
 
     const onClickDelete = async () => {

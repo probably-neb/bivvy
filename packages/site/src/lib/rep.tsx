@@ -6,62 +6,114 @@ import {
     createMemo,
     from,
     on,
+    useContext,
 } from "solid-js";
 import { ReadTransaction, Replicache, WriteTransaction } from "replicache";
 import { nanoid } from "nanoid";
 
 import z from "zod";
-import { InitSession } from "@/lib/auth";
+import { InitSession } from "@/lib/session";
 import { useMatch } from "@solidjs/router";
 import { createStore, reconcile } from "solid-js/store";
+import { routes } from "@/index";
+import { useSession, useUserId } from "./session";
 
-type TRep = {
-    isInit: true;
-    rep: Rep;
-    userId: User["id"];
-    groupId?: string;
+// NOTE: wrappers around these mutators are required because the mutators will be run by the server
+// with the same arguments (this being the contents of the push request). For consistency we want
+// the server and client to generate entities with the same IDs so the ID and other non-deterministic
+// fields must be generated before being passed to mutator so the server has access to them as well
+const mutators = {
+    addExpense: async (tx: WriteTransaction, expense: Expense) => {
+        await tx.set(P.expense.id(expense.groupId, expense.id), expense);
+        const curUserId = expense.paidBy;
+        const users = await tx
+            .scan<User>({ prefix: P.user.prefix(expense.groupId) })
+            .values()
+            .toArray();
+        let numUsers = users.length;
+        if (numUsers === 0) {
+            numUsers = 1;
+        }
+        // FIXME: splits
+        const portion = expense.amount / numUsers;
+        for (const user of users) {
+            let owed = user.owed ?? 0;
+            if (user.id === curUserId) {
+                owed = owed + expense.amount - portion;
+            } else {
+                owed = owed + portion;
+            }
+            await tx.set(P.user.id(expense.groupId, user.id), {
+                ...user,
+                owed,
+            });
+        }
+    },
+    deleteExpense: async (
+        tx: WriteTransaction,
+        { groupId, id }: { groupId: Expense["groupId"]; id: Expense["id"] },
+    ) => {
+        await tx.del(P.expense.id(groupId, id));
+        // FIXME: handle
+        // FIXME: update owed
+    },
+    createSplit: async (tx: WriteTransaction, split: Split) => {
+        await tx.set(P.split.id(split.groupId, split.id), split);
+    },
 };
 
-// The replicache context is used to store the replicache instance and the some info
-// from the current session
+type Mutators = typeof mutators;
 
-type Ctx = TRep | { isInit: false };
-const [ctx, setCtx] = createStore<Ctx>({ isInit: false });
+export function initReplicache(s: InitSession) {
+    const licenseKey = import.meta.env.VITE_REPLICACHE_LICENSE_KEY;
 
-const ReplicacheContext = createContext<Ctx>({
-    isInit: false,
-});
-
-export function ReplicacheContextProvider(
-    props: ParentProps<{ session: Accessor<InitSession> }>,
-) {
-    createEffect(
-        on(props.session, (s) => {
-            setCtx(() => ({
-                isInit: true,
-                rep: initReplicache(s),
-                userId: s.userId,
-                groupId: undefined,
-            }));
-        }),
-    );
-
-    const groupMatch = useMatch(() => "group/:id/*");
-    createEffect(
-        on(groupMatch, (m) => {
-            console.log("groupMatch", m);
-            setCtx(() => ({
-                groupId: m?.params.id,
-            }));
-        }),
-    );
-
-    return (
-        <ReplicacheContext.Provider value={ctx}>
-            {props.children}
-        </ReplicacheContext.Provider>
-    );
+    const rep = new Replicache<Mutators>({
+        name: s.userId,
+        auth: s.token,
+        licenseKey,
+        mutators,
+        pushURL: import.meta.env.VITE_API_URL + "/push",
+        pullURL: import.meta.env.VITE_API_URL + "/pull",
+        // TODO: client id + auth (will involve waiting to create Replicache or recreating it on login)
+    });
+    return rep;
 }
+
+export type Rep = ReturnType<typeof initReplicache>;
+
+const P = {
+    // return session group id but don't track changes to it
+    group: {
+        prefix: `group/`,
+        id(id: string) {
+            return `${P.group.prefix}${id}`;
+        },
+    },
+    expense: {
+        prefix(groupId: Group["id"]) {
+            return `group-${groupId}/expense/`;
+        },
+        id(groupId: Group["id"], expenseId: Expense["id"]) {
+            return `${P.expense.prefix(groupId)}${expenseId}`;
+        },
+    },
+    user: {
+        prefix(groupId: Group["id"]) {
+            return `group-${groupId}/user/`;
+        },
+        id(groupId: Group["id"], userId: User["id"]) {
+            return `${P.user.prefix(groupId)}${userId}`;
+        },
+    },
+    split: {
+        prefix(groupId: Group["id"]) {
+            return `group-${groupId}/split/`;
+        },
+        id(groupId: Group["id"], splitId: Split["id"]) {
+            return `${P.split.prefix(groupId)}${splitId}`;
+        },
+    },
+};
 
 // TODO: use rep ctx in zod validations for checking uniqueness, existence, etc
 
@@ -131,162 +183,123 @@ export const splitInputSchema = splitSchema.pick({
 
 export type SplitInput = z.infer<typeof splitInputSchema>;
 
-const P = {
-    // return session group id but don't track changes to it
-    group: {
-        prefix: `group/`,
-        id(id: string) {
-            return `${P.group.prefix}${id}`;
-        },
-    },
-    expense: {
-        prefix(groupId: Group["id"]) {
-            return `group-${groupId}/expense/`;
-        },
-        id(groupId: Group["id"], expenseId: Expense["id"]) {
-            return `${P.expense.prefix(groupId)}${expenseId}`;
-        },
-    },
-    user: {
-        prefix(groupId: Group["id"]) {
-            return `group-${groupId}/user/`;
-        },
-        id(groupId: Group["id"], userId: User["id"]) {
-            return `${P.user.prefix(groupId)}${userId}`;
-        },
-    },
-    split: {
-        prefix(groupId: Group["id"]) {
-            return `group-${groupId}/split/`;
-        },
-        id(groupId: Group["id"], splitId: Split["id"]) {
-            return `${P.split.prefix(groupId)}${splitId}`;
-        },
-    },
+// The replicache context is used to store the replicache instance and the some info
+// from the current session
+
+type MutationWrappers = {
+    addExpense: (e: ExpenseInput) => Promise<void>;
+    deleteExpense: (id: Expense["id"]) => Promise<void>;
+    createSplit: (s: SplitInput) => Promise<void>;
 };
 
-// NOTE: wrappers around these mutators are required because the mutators will be run by the server
-// with the same arguments (this being the contents of the push request). For consistency we want
-// the server and client to generate entities with the same IDs so the ID and other non-deterministic
-// fields must be generated before being passed to mutator so the server has access to them as well
-const mutators = {
-    addExpense: async (tx: WriteTransaction, expense: Expense) => {
-        await tx.set(P.expense.id(expense.groupId, expense.id), expense);
-        const curUserId = expense.paidBy;
-        const users = await tx
-            .scan<User>({ prefix: P.user.prefix(expense.groupId) })
-            .values()
-            .toArray();
-        let numUsers = users.length;
-        if (numUsers === 0) {
-            numUsers = 1;
-        }
-        // FIXME: splits
-        const portion = expense.amount / numUsers;
-        for (const user of users) {
-            let owed = user.owed ?? 0;
-            if (user.id === curUserId) {
-                owed = owed + expense.amount - portion;
-            } else {
-                owed = owed + portion;
-            }
-            await tx.set(P.user.id(expense.groupId, user.id), {
-                ...user,
-                owed,
-            });
-        }
-    },
-    deleteExpense: async (
-        tx: WriteTransaction,
-        { groupId, id }: { groupId: Expense["groupId"]; id: Expense["id"] },
-    ) => {
-        await tx.del(P.expense.id(groupId, id));
-        // FIXME: handle
-        // FIXME: update owed
-    },
-    createSplit: async (tx: WriteTransaction, split: Split) => {
-        await tx.set(P.split.id(split.groupId, split.id), split);
-    },
+const defualtMutations: MutationWrappers = {
+    addExpense: async () => {},
+    deleteExpense: async () => {},
+    createSplit: async () => {},
 };
 
-type Mutators = typeof mutators;
+type Ctx = [Accessor<Rep | null>, MutationWrappers];
+const defaultCtx: Ctx = [() => null, defualtMutations];
+const ReplicacheContext = createContext<Ctx>(defaultCtx);
 
-// FIXME: move to a state store and create on login
-// also create
-
-export function initReplicache(s: InitSession) {
-    const licenseKey = import.meta.env.VITE_REPLICACHE_LICENSE_KEY;
-
-    const rep = new Replicache<Mutators>({
-        name: s.userId,
-        auth: s.token,
-        licenseKey,
-        mutators,
-        pushURL: import.meta.env.VITE_API_URL + "/push",
-        pullURL: import.meta.env.VITE_API_URL + "/pull",
-        // TODO: client id + auth (will involve waiting to create Replicache or recreating it on login)
+export function ReplicacheContextProvider(props: ParentProps) {
+    const [session] = useSession();
+    const rep = createMemo(() => {
+        if (!session.valid) {
+            return null;
+        }
+        return initReplicache(session);
     });
-    return rep;
-}
+    const groupId = useGroup();
+    const userId = useUserId();
 
-export type Rep = ReturnType<typeof initReplicache>;
+    const useCtx = createMemo(() => {
+        if (!rep() || !groupId() || !userId()) {
+            return {
+                isInit: false as const,
+            };
+        }
+        return {
+            isInit: true as const,
+            rep: rep()!,
+            groupId: groupId()!,
+            userId: userId()!,
+        };
+    });
 
-export async function deleteExpense(id: Expense["id"]) {
-    if (!ctx.isInit) {
-        throw new Error("Replicache not initialized");
-    }
-    if (!ctx.groupId) {
-        throw new Error("Group not set");
-    }
-    await ctx.rep.mutate.deleteExpense({ groupId: ctx.groupId, id });
-}
-
-export async function addExpense(expense: ExpenseInput) {
-    if (!ctx.isInit) {
-        throw new Error("Replicache not initialized");
-    }
-    if (!ctx.groupId) {
-        throw new Error("Group not set");
-    }
-    console.log("addExpense", ctx, expense);
-    if (!ctx.userId) {
-        throw new Error("Not logged in");
-    }
-    // TODO: consider sanity collision check
-    const id = nanoid();
-    console.log("paidOn", expense.paidOn, typeof expense.paidOn);
-    // FIXME: use passed split id
-    let e: Expense = {
-        // copy because replicache responses are Readonly
-        ...expense,
-        createdAt: new Date().getTime(),
-        paidOn: expense.paidOn ?? null,
-        status: "unpaid" as const,
-        paidBy: ctx.userId,
-        groupId: ctx.groupId,
-        id,
-    };
-    console.log("addExpense", e);
-    await ctx.rep.mutate.addExpense(expenseSchema.parse(e));
-}
-
-export async function createSplit(splitInput: SplitInput) {
-    if (!ctx.isInit) {
-        throw new Error("Replicache not initialized");
-    }
-    const groupId = ctx.groupId;
-    if (!groupId) {
-        throw new Error("Group not set");
-    }
-    const split: Split = Object.assign(
-        {
-            groupId,
-            id: nanoid(),
-            createdAt: new Date().getTime(),
+    const mutations = {
+        async addExpense(expense: ExpenseInput) {
+            const ctx = useCtx();
+            if (!ctx.isInit) {
+                throw new Error("Replicache not initialized");
+            }
+            if (!ctx.groupId) {
+                throw new Error("Group not set");
+            }
+            console.log("addExpense", expense);
+            if (!ctx.userId) {
+                throw new Error("Not logged in");
+            }
+            // TODO: consider sanity collision check
+            const id = nanoid();
+            console.log("paidOn", expense.paidOn, typeof expense.paidOn);
+            // FIXME: use passed split id
+            let e: Expense = {
+                // copy because replicache responses are Readonly
+                ...expense,
+                createdAt: new Date().getTime(),
+                paidOn: expense.paidOn ?? null,
+                status: "unpaid" as const,
+                paidBy: ctx.userId,
+                groupId: ctx.groupId,
+                id,
+            };
+            console.log("addExpense", e);
+            await rep()!.mutate.addExpense(expenseSchema.parse(e));
         },
-        splitInput,
+        async deleteExpense(id: Expense["id"]) {
+            const ctx = useCtx();
+            if (!ctx.isInit) {
+                throw new Error("Replicache not initialized");
+            }
+            if (!ctx.groupId) {
+                throw new Error("Group not set");
+            }
+            await ctx.rep.mutate.deleteExpense({ groupId: ctx.groupId, id });
+        },
+        async createSplit(splitInput: SplitInput) {
+            const ctx = useCtx();
+            if (!ctx.rep) {
+                throw new Error("Replicache not initialized");
+            }
+            if (!ctx.groupId) {
+                throw new Error("Group not set");
+            }
+            const split: Split = Object.assign(
+                {
+                    groupId: ctx.groupId,
+                    id: nanoid(),
+                    createdAt: new Date().getTime(),
+                },
+                splitInput,
+            );
+            await ctx.rep.mutate.createSplit(splitSchema.parse(split));
+        },
+    };
+
+    return (
+        <ReplicacheContext.Provider value={[rep, mutations]}>
+            {props.children}
+        </ReplicacheContext.Provider>
     );
-    await ctx.rep.mutate.createSplit(splitSchema.parse(split));
+}
+
+function useRep() {
+    return useContext(ReplicacheContext)[0];
+}
+
+export function useMutations() {
+    return useContext(ReplicacheContext)[1];
 }
 
 export function useExpenses() {
@@ -401,16 +414,24 @@ type Getter<R> = (
 
 export function use<R>(getter: Getter<R>) {
     const ctxVals = createMemo(() => {
-        if (!ctx.isInit) {
+        const rep = useRep();
+        const groupId = useGroup();
+        const userId = useUserId();
+        if (!rep() || !groupId() || !userId()) {
+            console.log("not init", {
+                rep: rep(),
+                groupId: groupId(),
+                userId: userId(),
+            });
             return {
                 isInit: false,
             } as const;
         }
         return {
-            isInit: ctx.isInit,
-            rep: ctx.rep,
-            userId: ctx.userId,
-            groupId: ctx.groupId,
+            isInit: true,
+            rep: rep()!,
+            userId: userId()!,
+            groupId: groupId()!,
         } as const;
     });
 
@@ -451,4 +472,10 @@ export function use<R>(getter: Getter<R>) {
 
     // TODO: return store directly instead of pretending to be a signal
     return () => value.value;
+}
+
+function useGroup() {
+    const groupMatch = useMatch(() => routes.group(":id") + "/*");
+    const id = createMemo(() => groupMatch()?.params.id);
+    return id;
 }

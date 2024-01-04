@@ -6,7 +6,7 @@ import {
     TextFieldInput,
     TextFieldLabel,
 } from "@/components/ui/textfield";
-import { SplitInput, createSplit, splitInputSchema, useUsers } from "@/lib/rep";
+import { SplitInput, splitInputSchema, useMutations, useUsers } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import { For, createMemo, onMount } from "solid-js";
@@ -17,15 +17,13 @@ import { BlockPicker, ColorResult } from "solid-color";
 import {
     DropdownMenu,
     DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
 
 export function CreateSplit() {
+    const {createSplit} = useMutations();
     const form = createForm<SplitInput, typeof zodValidator>(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed

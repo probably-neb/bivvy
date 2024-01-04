@@ -8,9 +8,7 @@ import { ExpensesTable } from "@/home/expenses-table";
 import { AddExpenseCard } from "@/home/add-expense";
 import { ViewExpenseCard } from "@/home/view-expense";
 import {CreateSplit} from "@/home/create-split";
-import { Expense, ReplicacheContextProvider } from "@/lib/rep";
-import Layout from "@/lib/layout";
-import { session } from "@/lib/auth";
+import { Expense } from "@/lib/rep";
 
 type AsideCardView = { mode: "view"; id: Expense["id"] };
 // TODO:
@@ -45,19 +43,9 @@ export default function HomePage() {
         setAsideCardMode({ mode: "view", id });
     };
 
-    const sessionInfo = createMemo(() => {
-        const s = session();
-        // FIXME: redirect to login if not valid
-        return {
-            userId: s.userId!,
-            token: s.token!,
-        }
-    })
-
     // FIXME: move group ctx provider to group page in child route
     return (
-        <ReplicacheContextProvider session={sessionInfo}>
-            <Layout>
+            <>
                 <div class="flex flex-row justify-between items-center px-4 pt-4">
                     <div class="text-white">
                         <h1 class="text-4xl font-bold">Paypals</h1>
@@ -82,8 +70,7 @@ export default function HomePage() {
                         {AsideCard()}
                     </aside>
                 </div>
-            </Layout>
-        </ReplicacheContextProvider>
+            </>
     );
 }
 

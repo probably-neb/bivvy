@@ -1,41 +1,66 @@
 /* @refresh reload */
-import { render } from 'solid-js/web'
-import './index.css'
+import { render } from "solid-js/web";
+import "./index.css";
 
-import { lazy } from "solid-js";
-import {Route, Router} from "@solidjs/router"
+import { ParentProps, lazy } from "solid-js";
+import { Route, Router } from "@solidjs/router";
 import Layout from "./lib/layout";
+import { SessionContextProvider } from "@/lib/session";
+import { ReplicacheContextProvider } from "@/lib/rep";
 
-const Home = lazy(async () => await import("@/home/home"))
-const Login = lazy(async () => await import("@/login/login"))
-const RequireAuth = lazy(async () => await import("@/components/require-auth"))
+const Home = lazy(async () => await import("@/home/home"));
+const Login = lazy(async () => await import("@/login/login"));
+const RequireAuth = lazy(async () => await import("@/components/require-auth"));
 
-const routes = {
-    auth: "/login"
-}
+export const routes = {
+    auth: "/login",
+    groups: "/groups",
+    group(id: string) {
+        return `/groups/${id}`;
+    },
+};
 
 function ToAuth() {
-    return <Layout>
+    return (
         <div>
             <button>
                 <a href={routes.auth}>Login</a>
             </button>
         </div>
-    </Layout>
+    );
+}
+
+function Providers(props: ParentProps) {
+    return (
+        <SessionContextProvider>
+            <ReplicacheContextProvider>
+                {props.children}
+            </ReplicacheContextProvider>
+        </SessionContextProvider>
+    );
+}
+
+function Root(props: ParentProps) {
+    return (
+        <Providers>
+            <Layout>{props.children}</Layout>
+        </Providers>
+    );
 }
 
 export function App() {
-    console.log("App")
+    console.log("App");
     return (
-        <div>
-            <Router>
-                <Route path="/" component={ToAuth} />
-                <Route path="/group/:id" component={() => <RequireAuth page={Home} />} />
-                <Route path={routes.auth} component={Login} />
-            </Router>
-        </div>
-    )
+        <Router root={Root}>
+            <Route path="/" component={ToAuth} />
+            <Route
+                path={routes.group(":id")}
+                component={() => <RequireAuth page={Home} />}
+            />
+            <Route path={routes.auth} component={Login} />
+        </Router>
+    );
 }
-const root = document.getElementById('root')
+const root = document.getElementById("root");
 
-render(() => <App />, root!)
+render(() => <App />, root!);
