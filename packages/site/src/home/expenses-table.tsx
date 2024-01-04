@@ -16,16 +16,17 @@ import {
     SplitRenderer,
     UserRenderer,
 } from "@/components/renderers";
-import { Size, useDeviceContext, useQueries } from "@/lib/device";
+import { Size, useDeviceContext } from "@/lib/device";
 
+// NOTE: order of fields here determines order in table
 const columnFields = [
     "paidBy",
     "amount",
+    "splitId",
     "description",
     "status",
     "paidOn",
     "createdAt",
-    "splitId",
 ] as const;
 type Columns = Pick<Expense, (typeof columnFields)[number]>;
 type Column = keyof Columns
