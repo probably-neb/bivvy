@@ -329,9 +329,10 @@ func removeExpensePortions(tx *sql.Tx, eid string) (map[string]float64, error) {
     return portions, err
 }
 
+// FIXME: return color
 func GetSplits(groupId string) ([]Split, error) {
     defer util.TimeMe(time.Now(), "GetSplits")
-    q := `SELECT s.id, s.name, sd.user_id, sd.percentage
+    q := `SELECT s.id, s.name, s.color, sd.user_id, sd.percentage
     FROM splits AS s
     LEFT JOIN split_portion_def AS sd ON sd.split_id = s.id
     WHERE s.group_id = ?
@@ -345,8 +346,9 @@ func GetSplits(groupId string) ([]Split, error) {
     var s Split
     for rows.Next() {
         var id, name, userId string
+        var color *string
         var percentage float64
-        err = rows.Scan(&id, &name, &userId, &percentage)
+        err = rows.Scan(&id, &name, &color, &userId, &percentage)
         if err != nil {
             return nil, err
         }
@@ -356,6 +358,7 @@ func GetSplits(groupId string) ([]Split, error) {
             splits = append(splits, s)
             s.Id = id
             s.Name = name
+            s.Color = color
             s.GroupId = groupId
             s.Portions = make(map[string]float64)
         }
