@@ -41,9 +41,10 @@ export {expenseCardMode as asideCardMode}
 const [expenseCardOpen, setExpenseCardOpen] = createSignal(false);
 
 export function setExpenseCardMode(mode: ExpenseCardMode) {
+    console.log("setting mode", mode)
     _setExpenseCardMode(mode);
-    // modal only exists on small devices but just setting it here and
-    // keeping logic elsewhere is simpler
+    // modal only exists on small devices but just setting it here 
+    // always and keeping logic elsewhere is simpler
     setExpenseCardOpen(true);
 }
 
@@ -84,14 +85,13 @@ export default function HomePage() {
                     </div>
                 </div>
                 <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12 p-6">
-                    <section class="w-full lg:w-2/3">
-                        <CreateSplit />
-                        <ExpensesTable viewExpense={viewExpense} />
-                    </section>
-                    <aside class="w-full lg:w-1/3 flex flex-col justify-start gap-6 pt-6">
+                    <aside class="w-full flex flex-col justify-start gap-6 pt-6 lg:w-1/3 lg:order-last">
                         <OverviewCard />
                         <ExpenseCardWrapper />
                     </aside>
+                    <section class="w-full lg:w-2/3">
+                        <ExpensesTable viewExpense={viewExpense} />
+                    </section>
                 </div>
             </>
     );
@@ -115,9 +115,6 @@ function ExpenseCardModal() {
             open={expenseCardOpen()}
             onOpenChange={setExpenseCardOpen}
         >
-            <DialogTrigger>
-                <Button onClick={[setExpenseCardOpen, true]}>Open</Button>
-            </DialogTrigger>
             <DialogContent class="sm:max-w-[425px] max-w-[80%]">
                 <ExpenseCardInner />
                 <Button onClick={[setExpenseCardOpen, false]}>Close</Button>
@@ -155,4 +152,3 @@ function ExpenseCardInner() {
         </Match>
     </Switch>
 }
-

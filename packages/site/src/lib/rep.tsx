@@ -312,9 +312,10 @@ export function useExpenses() {
     return expenses;
 }
 
-export function useExpense(id: Expense["id"]) {
-    const expense = use(
-        async (tx, { groupId }) =>
+export function useExpense(id: Accessor<Expense["id"]>) {
+    const expense = useWithOpts(
+        id,
+        async (tx, id, { groupId }) =>
             await tx.get<Expense>(P.expense.id(groupId, id)),
     );
     return expense;
@@ -381,8 +382,8 @@ export function useUsers() {
     return users;
 }
 
-export function useUser(id: User["id"]) {
-    const user = use(async (tx, { groupId }) => {
+export function useUser(id: Accessor<User["id"]>) {
+    const user = useWithOpts(id, async (tx, id, { groupId }) => {
         const u = await tx.get<User>(P.user.id(groupId, id));
         return u;
     });
@@ -399,8 +400,8 @@ export function useSplits() {
     return splits;
 }
 
-export function useSplit(id: Split["id"]) {
-    const split = use(async (tx, { groupId }) => {
+export function useSplit(id: Accessor<Split["id"]>) {
+    const split = useWithOpts(id, async (tx, id, { groupId }) => {
         return await tx.get<Split>(P.split.id(groupId, id));
     });
     return split;
@@ -455,6 +456,86 @@ export function use<R>(getter: Getter<R>) {
                         setValue(
                             "value",
                             reconcile(val as Exclude<R, Function>),
+                        );
+                    },
+                );
+                return unsub;
+            });
+            // [ I THINK ] returning the signal is necessary here so that it is kept alive
+            // and not cleaned up until next time this effect is ran (aka when the session context
+            // changes). This happens because solid allows returning a value within an effect that
+            // will be passed to the next run of the effect (aka persist the value)
+            // consequently, the signal is kept alive until the next run of the effect and the
+            // subscription is cleaned up when it should be (and not before!)
+            return valSignal;
+        }),
+    );
+
+    // TODO: return store directly instead of pretending to be a signal
+    return () => value.value;
+}
+
+/// Helper function that wraps a Replicache query subscription in a SolidJS signal
+type GetterWithOpts<Opts, Result> = (
+    tx: ReadTransaction,
+    opts: Opts,
+    ctx: { groupId: Expense["groupId"]; userId: User["id"] },
+) => Promise<Result>;
+
+// params to use* hooks are not tracked when used in component body because it is not a tracking scope
+// by passing a closure with the options we can make the hooks reactive because we use the closure in a
+// tracking scope in this utility function
+export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: GetterWithOpts<Opts, Result>) {
+    const ctxVals = createMemo(() => {
+        const rep = useRep();
+        const groupId = useGroup();
+        const userId = useUserId();
+        if (!rep() || !groupId() || !userId()) {
+            console.log("not init", {
+                rep: rep(),
+                groupId: groupId(),
+                userId: userId(),
+            });
+            return {
+                isInit: false,
+            } as const;
+        }
+        return {
+            isInit: true,
+            rep: rep()!,
+            userId: userId()!,
+            groupId: groupId()!,
+        } as const;
+    });
+
+    // while there will be inherently some overhead to using a store to save the
+    // values returned by replicache (replicache docs explicitly state values returned
+    // by subscribe should just be used directly), however, this is working...
+    // and as a bonus we get to use the reconcile function for truly fine grained
+    // reactivity
+    // the overhead of this should be monitored especially with a large number of
+    // expenses
+    const [value, setValue] = createStore<{ value: Result | undefined }>({
+        value: undefined,
+    });
+
+
+    createEffect(
+        on([ctxVals, getOpts], ([ctx, opts]) => {
+            const { isInit, groupId, userId, rep } = ctx;
+            if (!isInit || !groupId) {
+                console.log("not init");
+                return;
+            }
+
+            const valSignal: Accessor<Result | undefined> = from(() => {
+                const subCtx = { groupId, userId };
+                const unsub = rep.subscribe(
+                    async (tx) => getter(tx, opts, subCtx),
+                    (val) => {
+                        setValue(
+                            "value",
+                            reconcile(val as Exclude<Result, Function>),
                         );
                     },
                 );

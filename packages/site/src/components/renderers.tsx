@@ -4,8 +4,10 @@ import { TiUserOutline } from "solid-icons/ti";
 import { JSX, Show, createEffect, createMemo } from "solid-js";
 import { Badge } from "./ui/badge";
 
+// TODO: make renderers take a value instead of an id,
+// no need to make them use rep queries when they probably don't need to
 export function UserRenderer(props: { userId: User["id"] }) {
-    const user = useUser(props.userId);
+    const user = useUser(() => props.userId);
 
     return (
         <div class="flex gap-2 items-center">
@@ -64,10 +66,7 @@ export function MoneyRenderer(props: {
 }
 
 export function SplitRenderer(props: {splitId: Split["id"]}) {
-    const split = useSplit(props.splitId)
-    createEffect(() => {
-        console.log("split", split())
-    })
+    const split = useSplit(() => props.splitId)
     return <Show when={split()}>
         <Badge style={`background-color: ${split()?.color}`}>{split()?.name}</Badge>
     </Show>

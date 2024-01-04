@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
 import { Expense, useExpense, useMutations } from "@/lib/rep";
-import { ParentProps, Show } from "solid-js";
+import { ParentProps, Show, createEffect, createMemo } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { setExpenseCardMode } from "@/home/home";
 import {
@@ -24,8 +24,7 @@ export function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
 }
 
 export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
-    const expense = useExpense(props.expenseId);
-
+    const expense = useExpense(() => props.expenseId);
 
     return (
         <div class="grid grid-cols-2">
