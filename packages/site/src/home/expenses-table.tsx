@@ -51,7 +51,7 @@ const showAt: Record<Column, Size> = {
     createdAt: "md",
 };
 
-export function ExpensesTable(props: { viewExpense: ViewExpense }) {
+export function ExpensesTable(props: { viewExpense: ViewExpense, addExpenseButton: JSX.Element }) {
     const expenses = useExpenses();
     const [device, { isAtLeast }] = useDeviceContext();
     const show = createMemo(
@@ -63,8 +63,9 @@ export function ExpensesTable(props: { viewExpense: ViewExpense }) {
     )
     return (
         <Card class="mt-6">
-            <CardHeader>
+            <CardHeader class="flex flex-row justify-between items-center p-3 pl-6">
                 <CardTitle>Expenses</CardTitle>
+                {props.addExpenseButton}
             </CardHeader>
             <CardContent>
                 <Table>
