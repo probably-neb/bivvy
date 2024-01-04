@@ -1,4 +1,4 @@
-import { Accessor, JSX, createContext, createMemo, useContext } from "solid-js";
+import { Accessor, JSX, createContext, createEffect, createMemo, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 
 const sizes = ["sm", "md", "lg"] as const;
@@ -42,11 +42,15 @@ function computeSize(matches: Record<Size, boolean>) {
 }
 
 export function DeviceContextProvider(props: { children: JSX.Element }) {
-    const [matches, setMatches] = createStore<Record<Size, boolean>>({
+    const [matches, _setMatches] = createStore<Record<Size, boolean>>({
         sm: true,
         md: false,
         lg: false,
     })
+    function setMatches(size: Size, value: boolean) {
+        // default to always having small true
+        _setMatches(size, value || size === "sm")
+    }
     for (const size of sizes) {
         const mql = window.matchMedia(`(min-width: ${pxSizes[size]}px)`)
         setMatches(size, mql.matches)
@@ -55,17 +59,23 @@ export function DeviceContextProvider(props: { children: JSX.Element }) {
         })
     }
 
+    createEffect(() => {
+        console.log("matches", matches)
+    })
+
     const device = createMemo(() => {
-        return computeSize(matches)
+        const size = computeSize(matches)
+        console.log("computed size:", size)
+        return size;
     })
 
     const queries = {
-        isSm: () => matches.sm && !matches.md,
-        isMd: () => matches.md && !matches.lg,
-        isLg: () => matches.lg,
-        isAtLeastSm: () => matches.sm,
-        isAtLeastMd: () => matches.md,
-        isAtLeastLg: () => matches.lg,
+        isSm: createMemo(() => matches.sm && !matches.md),
+        isMd: createMemo(() => matches.md && !matches.lg),
+        isLg: createMemo(() => matches.lg),
+        isAtLeastSm: createMemo(() => matches.sm),
+        isAtLeastMd: createMemo(() => matches.md),
+        isAtLeastLg: createMemo(() => matches.lg),
     }
 
     return (

@@ -16,7 +16,7 @@ import {
     UserRenderer,
 } from "@/components/renderers";
 
-export function ExpensesTable({ viewExpense }: { viewExpense: ViewExpense }) {
+export function ExpensesTable(props: { viewExpense: ViewExpense }) {
     const expenses = useExpenses();
     // FIXME: move add expense button here
     return (
@@ -41,7 +41,7 @@ export function ExpensesTable({ viewExpense }: { viewExpense: ViewExpense }) {
                             {(expense) => (
                                 <ExpenseRow
                                     expense={expense}
-                                    viewExpense={viewExpense}
+                                    viewExpense={props.viewExpense}
                                 />
                             )}
                         </For>

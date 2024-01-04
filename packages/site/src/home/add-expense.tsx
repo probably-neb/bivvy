@@ -50,62 +50,55 @@ export function AddExpenseCard() {
     }));
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>New Expense</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <form.Provider>
-                    <form
-                        class="flex flex-col gap-4"
-                        lang="en"
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            // console.log("submit", form.state.values)
-                            await form
-                                .handleSubmit()
-                                .then(() => console.log("submitted"));
-                            // void form.validate("submit");
-                            // await addExpense(form.state.values);
-                        }}
-                    >
-                        <Field
-                            name="description"
-                            label="Description"
-                            placeholder="Sparkling Apple Cider"
-                            type="text"
-                            validator={expenseInputSchema.shape.description}
-                            form={form}
-                        />
-                        <Field
-                            name="amount"
-                            label="Amount"
-                            placeholder="10.00"
-                            validator={expenseInputSchema.shape.amount}
-                            type="number"
-                            step="any"
-                            parse={parseAmount}
-                            form={form}
-                        />
-                        <SplitSelect form={form} />
-                        <Field
-                            name="paidOn"
-                            label="Paid On"
-                            placeholder="2021-01-01"
-                            type="date"
-                            validator={expenseInputSchema.shape.paidOn}
-                            parse={parseDate}
-                            form={form}
-                        />
+        <form.Provider>
+            <form
+                class="flex flex-col gap-4"
+                lang="en"
+                onSubmit={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // console.log("submit", form.state.values)
+                    await form
+                    .handleSubmit()
+                    .then(() => console.log("submitted"));
+                    // void form.validate("submit");
+                    // await addExpense(form.state.values);
+                }}
+            >
+                <Field
+                    name="description"
+                    label="Description"
+                    placeholder="Sparkling Apple Cider"
+                    type="text"
+                    validator={expenseInputSchema.shape.description}
+                    form={form}
+                />
+                <Field
+                    name="amount"
+                    label="Amount"
+                    placeholder="10.00"
+                    validator={expenseInputSchema.shape.amount}
+                    type="number"
+                    step="any"
+                    parse={parseAmount}
+                    form={form}
+                />
+                <SplitSelect form={form} />
+                <Field
+                    name="paidOn"
+                    label="Paid On"
+                    placeholder="2021-01-01"
+                    type="date"
+                    validator={expenseInputSchema.shape.paidOn}
+                    parse={parseDate}
+                    form={form}
+                />
 
-                        <Button type="submit" disabled={!form.state.canSubmit}>
-                            Add
-                        </Button>
-                    </form>
-                </form.Provider>
-            </CardContent>
-        </Card>
+                <Button type="submit" disabled={!form.state.canSubmit}>
+                    Add
+                </Button>
+            </form>
+        </form.Provider>
     );
 }
 
