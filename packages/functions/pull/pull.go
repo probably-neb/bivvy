@@ -151,12 +151,12 @@ type PatchOperation interface {
 type PatchPutOperation struct {
     Op PatchOp `json:"op"`
     Key string `json:"key"`
-    Value interface{} `json:"value"`
+    Value any `json:"value"`
 }
 func (p PatchPutOperation) GetOp() PatchOp {
     return Put
 }
-func NewPutOp(key string, value interface{}) PatchPutOperation {
+func NewPutOp(key string, value any) PatchPutOperation {
     return PatchPutOperation{
         Op: Put,
         Key: key,
@@ -217,6 +217,7 @@ func parse(body string) (PullRequest, error) {
     return pr, nil
 }
 
+
 func custructPatches(userId string) []PatchOperation {
     defer util.TimeMe(time.Now(), "custructPatches")
     // FIXME: get all groups not just one
@@ -224,10 +225,8 @@ func custructPatches(userId string) []PatchOperation {
 
     users, err := db.GetUsers(userId, devGroupId)
     if err != nil {
-        // TODO: handle error
         log.Fatalf("Could not get users: %v", err)
     }
-    // FIXME: expenses not being returned
     expenses, err := db.GetExpenses(userId, devGroupId)
     if err != nil {
         log.Fatalf("Could not get expenses: %v", err)
@@ -269,7 +268,9 @@ func custructPatches(userId string) []PatchOperation {
     return patches
 }
 
-func getLastMutations(cgid string, uid string) (map[string]int, error) {
+type LastMutations map[string]int
+
+func getLastMutations(cgid, userId string) (LastMutations, error) {
     defer util.TimeMe(time.Now(), "getLastMutations")
     var ct db.ClientGroupTable
     err := ct.Init()
@@ -279,17 +280,25 @@ func getLastMutations(cgid string, uid string) (map[string]int, error) {
     cg, err := ct.GetClientGroup(cgid);
     if err != nil {
         _, isNotFound := err.(db.ClientNotFoundError)
-        if !isNotFound {
-            return nil, err
+        if isNotFound {
+            // client group won't be created until user pushes
+            // a mutation, once they do the client will be created
+            // and we can tell them which mutations we handled
+            // when they pull next
+            return make(LastMutations), nil
         }
+        return nil, err
+    }
+    if cg.UserId != userId {
+        return nil, fmt.Errorf("client group does not belong to user")
     }
 
-    updates := make(map[string]int)
+    handled := make(LastMutations)
     for _, c := range cg.Clients {
-        updates[c.Id] = c.LastMutationId
+        handled[c.Id] = c.LastMutationId
     }
 
-    return updates, nil
+    return handled, nil
 }
 
 func Handler(ctx context.Context, event Request) (*Response, error) {
@@ -320,15 +329,7 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
 
     lastMutations, err := getLastMutations(req.ClientGroupID, session.UserId)
     if err != nil {
-        // FIXME: how to handle client will not be created until user pushes?
-        _, notFound := err.(db.ClientNotFoundError)
-        if !notFound {
-            res = PullResponseClientStateNotFound{}
-            return res.ToResponse()
-        }
-        // TODO: how to handle error here? probably should return ClientStateNotFound anyway
-        log.Printf("error getting last mutations: %v", err)
-        lastMutations = make(map[string]int)
+        return nil, err
     }
 
     res = PullResponseOk{

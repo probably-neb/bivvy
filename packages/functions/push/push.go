@@ -102,6 +102,7 @@ func Handler(ctx context.Context, event Request) (*Response, error) {
     }
     session, ok := _session.(db.UserSession)
     if !ok {
+        // TODO: return not authorized
         log.Fatalf("session was not a user session: %v", session)
     }
     err = doMutations(push, session)
