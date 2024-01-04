@@ -7,6 +7,7 @@ import { Route, Router } from "@solidjs/router";
 import Layout from "./lib/layout";
 import { SessionContextProvider } from "@/lib/session";
 import { ReplicacheContextProvider } from "@/lib/rep";
+import { DeviceContextProvider } from "@/lib/device";
 
 const Home = lazy(async () => await import("@/home/home"));
 const Login = lazy(async () => await import("@/login/login"));
@@ -32,11 +33,13 @@ function ToAuth() {
 
 function Providers(props: ParentProps) {
     return (
-        <SessionContextProvider>
-            <ReplicacheContextProvider>
-                {props.children}
-            </ReplicacheContextProvider>
-        </SessionContextProvider>
+        <DeviceContextProvider>
+            <SessionContextProvider>
+                <ReplicacheContextProvider>
+                    {props.children}
+                </ReplicacheContextProvider>
+            </SessionContextProvider>
+        </DeviceContextProvider>
     );
 }
 
