@@ -1,4 +1,5 @@
-import { ParentProps, createContext, createSignal, splitProps, useContext } from "solid-js";
+import { useNavigate } from "@solidjs/router";
+import { ParentProps, createContext, createRenderEffect, createSignal, on, splitProps, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 import { z } from "zod";
 
@@ -60,11 +61,11 @@ const defaultFns: Functions = {
 
 type Ctx = [Session, Functions]
 
-
 const SessionContext = createContext<Ctx>([{valid: false}, defaultFns])
 
 export function SessionContextProvider(props: ParentProps) {
-    const [session, setSession] = createStore<Session>({valid: false as const});
+    const [session, setSession] = createStore<Session>({valid: false});
+    console.log("initial session", session)
     const fns = {
         initSession: (init: InitSession) => {
             const up: Session = Object.assign({}, init, {
@@ -89,6 +90,18 @@ export function SessionContextProvider(props: ParentProps) {
 
 export function useSession() {
     return useContext(SessionContext);
+}
+
+export function EnsureLogin(props: ParentProps) {
+    const [, session] = useSession()
+    const navigate = useNavigate()
+    createRenderEffect(on(session.isValid, (valid) => {
+        if (!valid) {
+            console.log("not logged in")
+            navigate("/login")
+        }
+    }))
+    return props.children
 }
 
 export function useSessionVars() {

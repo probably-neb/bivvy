@@ -28,14 +28,16 @@ import { SplitRenderer } from "@/components/renderers";
 
 type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
-export function AddExpenseCard() {
+export function AddExpenseCard(props: {onSubmit?: () => void}) {
     const { addExpense } = useMutations();
     const form: Form = createForm(() => ({
-        onSubmit: async ({ value }) => {
+        onSubmit: async ({ value, formApi}) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
             try {
                 await addExpense(value);
+                formApi.reset();
+                props.onSubmit?.();
             } catch (e) {
                 console.error(e);
             }

@@ -15,7 +15,7 @@ import z from "zod";
 import { InitSession } from "@/lib/session";
 import { useMatch } from "@solidjs/router";
 import { createStore, reconcile } from "solid-js/store";
-import { routes } from "@/index";
+import { routes } from "@/routes";
 import { useSession, useUserId } from "./session";
 
 // NOTE: wrappers around these mutators are required because the mutators will be run by the server
@@ -236,13 +236,11 @@ export function ReplicacheContextProvider(props: ParentProps) {
             if (!ctx.groupId) {
                 throw new Error("Group not set");
             }
-            console.log("addExpense", expense);
             if (!ctx.userId) {
                 throw new Error("Not logged in");
             }
             // TODO: consider sanity collision check
             const id = nanoid();
-            console.log("paidOn", expense.paidOn, typeof expense.paidOn);
             // FIXME: use passed split id
             let e: Expense = {
                 // copy because replicache responses are Readonly
@@ -302,6 +300,10 @@ export function useRep() {
 
 export function useMutations() {
     return useContext(ReplicacheContext)[1];
+}
+
+export function useGroups() {
+    return use((tx) => tx.scan<Group>({prefix: P.group.prefix}).values().toArray(), false)
 }
 
 export function useExpenses() {
@@ -410,17 +412,21 @@ export function useSplit(id: Accessor<Split["id"]>) {
 }
 
 /// Helper function that wraps a Replicache query subscription in a SolidJS signal
-type Getter<R> = (
+type Getter<R, WithGroupId> = (
     tx: ReadTransaction,
-    opts: { groupId: Expense["groupId"]; userId: User["id"] },
+    opts: { groupId: WithGroupId extends true ? Expense["groupId"] : undefined; userId: User["id"] },
 ) => Promise<R>;
 
-export function use<R>(getter: Getter<R>) {
+// this mumbo jumbo makes it so if you pass false as the second arg to use the current group id won't be null asserted
+// and you'll get a typesafe result
+export function use<R, W extends false>(g: Getter<R, W>, withGroupId: false): Accessor<R | undefined>
+export function use<R, W extends true>(g: Getter<R, W>, withGroupId?: true | undefined): Accessor<R | undefined>
+export function use<R, W extends true | false>(getter: Getter<R, W>, withGroupId?: true | false) {
     const ctxVals = createMemo(() => {
         const rep = useRep();
         const groupId = useGroup();
         const userId = useUserId();
-        if (!rep() || !groupId() || !userId()) {
+        if (!rep() || !userId()) {
             console.log("not init", {
                 rep: rep(),
                 groupId: groupId(),
@@ -434,7 +440,7 @@ export function use<R>(getter: Getter<R>) {
             isInit: true,
             rep: rep()!,
             userId: userId()!,
-            groupId: groupId()!,
+            groupId: groupId(),
         } as const;
     });
 
@@ -445,7 +451,7 @@ export function use<R>(getter: Getter<R>) {
     createEffect(
         on(ctxVals, (ctx) => {
             const { isInit, groupId, userId, rep } = ctx;
-            if (!isInit || !groupId) {
+            if (!isInit || (!groupId && withGroupId !== false)) {
                 console.log("not init");
                 return;
             }
@@ -453,7 +459,10 @@ export function use<R>(getter: Getter<R>) {
             const valSignal: Accessor<R | undefined> = from(() => {
                 const opts = { groupId, userId };
                 const unsub = rep.subscribe(
-                    async (tx) => getter(tx, opts),
+                    async (tx) => getter(tx, opts as {
+                            groupId: W extends true ? string : undefined;
+                            userId: string;
+                        }),
                     (val) => {
                         setValue(
                             "value",

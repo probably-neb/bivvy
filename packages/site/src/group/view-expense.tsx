@@ -1,27 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TiTrash } from "solid-icons/ti";
-import { Expense, useExpense, useMutations } from "@/lib/rep";
-import { ParentProps, Show, createEffect, createMemo } from "solid-js";
-import { Button } from "@/components/ui/button";
-import { setExpenseCardMode } from "@/home/home";
+import { Expense, useExpense } from "@/lib/rep";
+import { ParentProps, Show } from "solid-js";
 import {
     DateRenderer,
     MoneyRenderer,
     UserRenderer,
 } from "@/components/renderers";
 
-export function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
-    const {deleteExpense} = useMutations();
-    const onClickDelete = async () => {
-        // TODO: show confirmation dialog
-        await deleteExpense(props.expenseId);
-        setExpenseCardMode({ mode: "add" });
-    };
-    // FIXME: button not red
-    return <Button onClick={onClickDelete}>
-            <TiTrash class="bg-red" />
-    </Button>
-}
 
 export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
     const expense = useExpense(() => props.expenseId);

@@ -7,7 +7,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { ViewExpense } from "@/home/home";
+import { ViewExpense } from "@/group/group";
 import { useExpenses, type Expense } from "@/lib/rep";
 import { Accessor, For, JSX, Show, createMemo, on } from "solid-js";
 import {

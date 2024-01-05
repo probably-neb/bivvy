@@ -12,34 +12,32 @@ import Layout from "@/lib/layout";
 import {
     createEffect,
     createMemo,
+    createRenderEffect,
     createResource,
     createSignal,
     on,
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import {routes} from "@/index"
+import {routes} from "@/routes"
 
 // FIXME: hit `GET /auth` endpoint to get possible signin methods
-// (obv could just hard code them but this allows for having backend control whether local version shows)
+// obv could just hard code them but this allows for having backend control what options there are
+// (specifically whether local version shows)
 export default function () {
     console.log("Login");
     const [_, {isValid}] = useSession();
 
-    const DEV_GROUP = "______dev_group______"
     const navigate = useNavigate();
-    createEffect(() => {
-        if (isValid()) {
+    createRenderEffect(on(isValid, (valid) => {
+        if (valid) {
             console.log("has session")
-            // FIXME: navigate to home
-            navigate(routes.group(DEV_GROUP))
+            navigate(routes.groups)
         }
-    });
+    }));
     return (
-        <Layout>
-            <div class="flex flex-row justify-between items-center px-4 pt-4">
-                <GroupMembers />
-            </div>
-        </Layout>
+        <div class="flex flex-row justify-between items-center px-4 pt-4">
+            <GroupMembers />
+        </div>
     );
 }
 

@@ -90,7 +90,6 @@ function OverviewTitle(props: { label: string; total?: number }) {
 function CardInner(props: { title?: () => JSX.Element; owed?: Owed }) {
     const otherUsers = createMemo(() => {
         const owe = props.owed;
-        console.log("owed changed", owe);
         if (owe === undefined) {
             return [];
         }
