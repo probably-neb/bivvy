@@ -29,6 +29,7 @@ export function API({ stack }: StackContext) {
             },
         },
         cors: {
+            // TODO: prod url
             allowOrigins: ["*"],
             allowMethods: ["ANY"],
         },
