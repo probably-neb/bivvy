@@ -220,31 +220,54 @@ func parse(body string) (PullRequest, error) {
 
 func custructPatches(userId string) []PatchOperation {
     defer util.TimeMe(time.Now(), "custructPatches")
-    // FIXME: get all groups not just one
-    var devGroupId = "______dev_group______"
 
-    users, err := db.GetUsers(userId, devGroupId)
+    // 1 for clear op
+    numPatches := 1
+
+    groups, err := db.GetGroups(userId);
+    if err != nil {
+        log.Fatalf("Could not get groups: %v", err)
+    }
+    numPatches += len(groups)
+
+    users, err := db.GetUsers(userId)
     if err != nil {
         log.Fatalf("Could not get users: %v", err)
     }
-    expenses, err := db.GetExpenses(userId, devGroupId)
+    numPatches += len(users)
+
+    expenses, err := db.GetExpenses(userId)
     if err != nil {
         log.Fatalf("Could not get expenses: %v", err)
     }
-    splits, err := db.GetSplits(devGroupId)
+    numPatches += len(expenses)
+
+    splits, err := db.GetSplits(userId)
     if err != nil {
         log.Fatalf("Could not get splits: %v", err)
     }
-    patches := make([]PatchOperation, 1 + len(users) + len(expenses) + len(splits))
+    numPatches += len(splits)
+
+    patches := make([]PatchOperation, numPatches)
 
     // reset strategy
     patches[0] = NewClearOp()
     i := 1;
+    for gi := 0; gi < len(groups); gi++ {
+        g := groups[gi]
+        patches[gi + i] = NewPutOp(
+            groupKey(g.Id),
+            g,
+        )
+    }
+    i = i + len(groups)
 
     for ui := 0; ui < len(users); ui++ {
         u := users[ui]
         patches[ui + i] = NewPutOp(
-            userKey(devGroupId, u.Id),
+            // NOTE: same users in multiple groups will be duplicated
+            // TODO: store current user at known key
+            userKey(u.GroupId, u.Id),
             u,
         )
     }
@@ -253,15 +276,16 @@ func custructPatches(userId string) []PatchOperation {
     for ei := 0; ei < len(expenses); ei++ {
         e := expenses[ei]
         patches[i + ei] = NewPutOp(
-            expenseKey(devGroupId, e.Id),
+            expenseKey(e.GroupId, e.Id),
             e,
         )
     }
     i = i + len(expenses)
+
     for si := 0; si < len(splits); si++ {
         s := splits[si]
         patches[i + si] = NewPutOp(
-            splitKey(devGroupId, s.Id),
+            splitKey(s.GroupId, s.Id),
             s,
         )
     }

@@ -10,10 +10,17 @@ import (
 	"github.com/probably-neb/paypals-api/util"
 )
 
+type Group struct {
+    Id string `json:"id"`
+    Name string `json:"name"`
+}
+
 type User struct {
     Id   string `json:"id"`
     Name string `json:"name"`
     Owed float64 `json:"owed"`
+    // TODO: use this in frontend? (right now frontend doesn't think this key exists)
+    GroupId string `json:"groupId"`
 }
 
 // TODO: nanoid id type that ensures correct length
@@ -78,15 +85,43 @@ func getConn() *sql.DB {
 
 var conn = getConn();
 
-// FIXME: store owed in db per group
-func GetUsers(userId, groupId string) ([]User, error) {
+func GetGroups(userId string) ([]Group, error) {
+    defer util.TimeMe(time.Now(), "GetGroups")
+    q := `SELECT g.id, g.name
+            FROM users_to_group as ug
+            LEFT JOIN groups AS g on g.id = ug.group_id
+            WHERE ug.user_id = ?`
+    rows, err := conn.Query(q, userId);
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var groups []Group
+
+    for rows.Next() {
+        var g Group
+        err = rows.Scan(&g.Id, &g.Name)
+        if err != nil {
+            return nil, err
+        }
+        groups = append(groups, g)
+    }
+    err = rows.Err()
+    return groups, err
+}
+
+// NOTE: userId param is not the user to search for, its the user
+// whose groups users to get
+func GetUsers(userId string) ([]User, error) {
     defer util.TimeMe(time.Now(), "GetUsers")
-    q := `SELECT u.id, u.name, ow.amount
-            FROM users_to_group AS ug
+    q := `SELECT u.id, u.name, ow.amount, ug.group_id
+            FROM users AS ou
+            LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
             LEFT JOIN users AS u ON u.id = ug.user_id
-            LEFT JOIN owed As ow ON ow.from_user_id = u.id AND ow.to_user_id = ? AND ow.group_id = ug.group_id
-            WHERE ug.group_id = ?`
-    rows, err := conn.Query(q, userId, groupId)
+            LEFT JOIN owed As ow ON ow.from_user_id = u.id AND ow.to_user_id = ou.id AND ow.group_id = ug.group_id
+            WHERE ou.id = ?`
+    rows, err := conn.Query(q, userId)
     if err != nil {
         return nil, err
     }
@@ -98,7 +133,7 @@ func GetUsers(userId, groupId string) ([]User, error) {
     for rows.Next() {
         var user User
         var owed *float64
-        err = rows.Scan(&user.Id, &user.Name, &owed)
+        err = rows.Scan(&user.Id, &user.Name, &owed, &user.GroupId)
         // for all other users set owed as one would expect
         if user.Id != userId {
             totalOwed += *owed
@@ -123,12 +158,14 @@ func GetUsers(userId, groupId string) ([]User, error) {
     return users, err
 }
 
-func GetExpenses(userId, groupId string) ([]Expense, error) {
+func GetExpenses(userId string) ([]Expense, error) {
     defer util.TimeMe(time.Now(), "GetExpenses")
-    q := `SELECT id, paid_by_user_id, amount, description, reimbursed_at, paid_on, created_at, split_id, group_id
-            FROM expenses
-            WHERE group_id = ?`
-    rows, err := conn.Query(q, groupId)
+    q := `SELECT e.id, e.paid_by_user_id, e.amount, e.description, e.reimbursed_at, e.paid_on, e.created_at, e.split_id, e.group_id
+            FROM users AS ou
+            LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
+            LEFT JOIN expenses AS e ON ug.group_id = e.group_id
+            WHERE ou.id = ?`
+    rows, err := conn.Query(q, userId)
     if err != nil {
         return nil, err
     }
@@ -329,15 +366,16 @@ func removeExpensePortions(tx *sql.Tx, eid string) (map[string]float64, error) {
     return portions, err
 }
 
-// FIXME: return color
-func GetSplits(groupId string) ([]Split, error) {
+func GetSplits(userId string) ([]Split, error) {
     defer util.TimeMe(time.Now(), "GetSplits")
-    q := `SELECT s.id, s.name, s.color, sd.user_id, sd.percentage
-    FROM splits AS s
-    LEFT JOIN split_portion_def AS sd ON sd.split_id = s.id
-    WHERE s.group_id = ?
-    ORDER BY s.id`
-    rows, err := conn.Query(q, groupId)
+    q := `SELECT s.id, s.name, s.color, sd.user_id, sd.percentage, s.group_id
+            FROM users AS ou
+            LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
+            LEFT JOIN splits AS s ON s.group_id = ug.group_id
+            LEFT JOIN split_portion_def AS sd ON sd.split_id = s.id
+            WHERE ou.id = ?
+            ORDER BY s.id`
+    rows, err := conn.Query(q, userId)
     if err != nil {
         return nil, err
     }
@@ -345,36 +383,31 @@ func GetSplits(groupId string) ([]Split, error) {
     var splits []Split
     var s Split
     for rows.Next() {
-        var id, name, userId string
-        var color *string
+        var si Split
+        var userId string
         var percentage float64
-        err = rows.Scan(&id, &name, &color, &userId, &percentage)
+        err = rows.Scan(&si.Id, &si.Name, &si.Color, &userId, &percentage, &si.GroupId)
         if err != nil {
             return nil, err
         }
         // rows come in lists of the same split with a portion def
         // if we've reached a new split append the current one to the list
-        if s.Id != id {
+        if s.Id != si.Id {
             splits = append(splits, s)
-            s.Id = id
-            s.Name = name
-            s.Color = color
-            s.GroupId = groupId
+            s = si
             s.Portions = make(map[string]float64)
         }
         s.Portions[userId] = percentage
     }
-    err = rows.Err()
-    if err != nil {
-        return nil, err
-    }
-    splits = append(splits, s)
     // Next() returns false on error or EOF.
     // Err should be consulted to distinguish between the two cases.
     err = rows.Err()
-    log.Printf("splits: %v", splits)
+
+    splits = append(splits, s)
     // skip first split as it's empty always
-    return splits[1:], err
+    splits = splits[1:]
+    log.Printf("splits %v", splits)
+    return splits, err
 }
 
 func CreateSplit(split Split) error {
