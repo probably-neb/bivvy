@@ -13,6 +13,8 @@ import (
 type Group struct {
     Id string `json:"id"`
     Name string `json:"name"`
+    // TODO: createdAt
+    // TODO: ownerId
 }
 
 type User struct {
@@ -111,6 +113,34 @@ func GetGroups(userId string) ([]Group, error) {
     return groups, err
 }
 
+func CreateGroup(g Group, ownerId string, defaultSplitId string) error {
+    tx, err := conn.Begin()
+    if err != nil {
+        return err
+    }
+    gq := `INSERT INTO groups
+            (id, name)
+            VALUES
+            (?, ?)`
+    _, err = tx.Exec(gq, g.Id, g.Name)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+    err = addUserToGroup(tx, ownerId, g.Id)
+    if err != nil {
+        return err
+    }
+    err = createEvenSplit(tx, defaultSplitId, g.Id)
+    return err
+}
+
+func addUserToGroup(tx *sql.Tx, userId string, groupId string) error {
+    q := `INSERT INTO users_to_group (user_id, group_id) VALUES (?, ?)`
+    _, err := tx.Exec(q, userId, groupId)
+    return err
+}
+
 // NOTE: userId param is not the user to search for, its the user
 // whose groups users to get
 func GetUsers(userId string) ([]User, error) {
@@ -157,6 +187,34 @@ func GetUsers(userId string) ([]User, error) {
     // Err should be consulted to distinguish between the two cases.
     err = rows.Err()
     return users, err
+}
+
+func getGroupUserIds(tx *sql.Tx, groupId string) ([]string, error) {
+    defer util.TimeMe(time.Now(), "getGroupUsers")
+    q := `SELECT u.id
+            FROM users_to_group AS ug
+            LEFT JOIN users as u ON u.id = ug.user_id
+            WHERE ug.group_id = ?`
+    rows, err := tx.Query(q, groupId)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var userIds []string
+
+    for i := 0; rows.Next(); i++ {
+        var userId string
+        err = rows.Scan(&userId)
+        if err != nil {
+            return nil, err
+        }
+        userIds = append(userIds, userId)
+    }
+    // Next() returns false on error or EOF.
+    // Err should be consulted to distinguish between the two cases.
+    err = rows.Err()
+    return userIds, err
 }
 
 func GetExpenses(userId string) ([]Expense, error) {
@@ -411,27 +469,61 @@ func GetSplits(userId string) ([]Split, error) {
     return splits, err
 }
 
-func CreateSplit(split Split) error {
-    tx, err := conn.Begin()
+func createEvenSplit(tx *sql.Tx, id string, groupId string) error {
+    userIds, err := getGroupUserIds(tx, groupId)
     if err != nil {
         return err
     }
+
+    percentage := 1.0 / float64(len(userIds))
+
+    portions := make(map[string]float64)
+    for _, userId := range userIds {
+        portions[userId] = percentage
+    }
+    split := Split{
+        GroupId: groupId,
+        Id: id,
+        Name: "Evenly",
+        Portions: portions,
+        // TODO: allow customizing default split when creating group
+        Color: nil,
+    }
+    err = createSplit(tx, split)
+    return err
+}
+
+func createSplit(tx *sql.Tx, split Split) error {
     sq := `INSERT INTO splits
     (id, name, group_id, color)
     VALUES
     (?, ?, ?, ?)`
-    _, err = tx.Exec(sq, split.Id, split.Name, split.GroupId, split.Color)
+    _, err := tx.Exec(sq, split.Id, split.Name, split.GroupId, split.Color)
     if err != nil {
-        tx.Rollback()
         return err
     }
 
     err = createSplitPortions(tx, split.Id, split.Portions)
     if err != nil {
+        return err
+    }
+    return err
+}
+
+func CreateSplit(split Split) error {
+    tx, err := conn.Begin()
+    if err != nil {
+        return err
+    }
+    err = createSplit(tx, split)
+    if err != nil {
         tx.Rollback()
         return err
     }
     err = tx.Commit()
+    if err != nil {
+        tx.Rollback()
+    }
     return err
 }
 

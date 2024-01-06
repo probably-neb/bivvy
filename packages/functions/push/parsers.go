@@ -26,24 +26,32 @@ func Invalid(r InvalidReason) InvalidMutation {
     return InvalidMutation{reason: r}
 }
 
+const (
+    addExpenseMutation = "addExpense"
+    deleteExpenseMutation = "deleteExpense"
+    createSplitMutation = "createSplit"
+    createGroupMutation = "createGroup"
+)
 
 func ParseArgs(mutation string, args json.RawMessage) any {
     // repetitive logic for returing InvalidMutation if parse fails
     var tryParse = func(fn (func(a json.RawMessage) (any, error))) any {
         newArgs, err := fn(args)
         if err != nil {
-            log.Printf("error parsing %s args %v:%v", mutation, string(args), err)
+            log.Printf("error parsing %s args %v: %v", mutation, string(args), err)
             return Invalid(InvalidReasonArgs)
         }
         return newArgs
     }
     switch mutation {
-    case "addExpense":
+    case addExpenseMutation:
         return tryParse(parseAddExpense)
-    case "deleteExpense":
+    case deleteExpenseMutation:
         return tryParse(parseDeleteExpense)
-    case "createSplit":
+    case createSplitMutation:
         return tryParse(parseCreateSplit)
+    case createGroupMutation:
+        return tryParse(parseCreateGroup)
     default:
         return Invalid(InvalidReasonUnknown)
     }
@@ -87,4 +95,12 @@ func parseCreateSplit(args json.RawMessage) (any, error) {
     }
     log.Println("parsed split", split)
     return split, nil
+}
+
+func parseCreateGroup(args json.RawMessage) (any, error) {
+    var input GroupInput
+    if err := json.Unmarshal(args, &input); err != nil {
+        return nil, err
+    }
+    return input, nil
 }

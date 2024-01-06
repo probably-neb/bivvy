@@ -60,6 +60,19 @@ const mutators = {
     createSplit: async (tx: WriteTransaction, split: Split) => {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
+    createGroup: async (tx: WriteTransaction, input: CreateGroupInput) => {
+        const defaultSplitId = input.defaultSplitId;
+        const ownerId = input.ownerId;
+        const group: Group = removeKeys(input, ["defaultSplitId", "ownerId"])
+        tx.set(P.group.id(group.id), group);
+        // FIXME: flatten users and get users by getting userIds from group
+        // then getting those ids from users
+        const owner = await tx.get<User>(P.user.id("______dev_group______", ownerId));
+        tx.set(P.user.id(group.id, ownerId), owner!);
+        // TODO: handle invites when creating group so default split can be accurate
+        const split = createEvenSplit([ownerId], defaultSplitId, group.id);
+        tx.set(P.split.id(group.id, split.id), split);
+    },
 };
 
 type Mutators = typeof mutators;
@@ -128,6 +141,7 @@ export const groupSchema = z.object({
 });
 export type Group = z.infer<typeof groupSchema>;
 
+
 export const userSchema = z.object({
     id: idSchema,
     name: z.string(),
@@ -183,6 +197,19 @@ export const splitInputSchema = splitSchema.pick({
 
 export type SplitInput = z.infer<typeof splitInputSchema>;
 
+const createGroupInputSchema = groupSchema.extend({
+    ownerId: userSchema.shape.id,
+    defaultSplitId: splitSchema.shape.id,
+})
+
+type CreateGroupInput = z.infer<typeof createGroupInputSchema>
+
+export const groupInputSchema = groupSchema.pick({
+    name: true
+})
+
+export type GroupInput = z.infer<typeof groupInputSchema>
+
 // The replicache context is used to store the replicache instance and the some info
 // from the current session
 
@@ -190,17 +217,22 @@ type MutationWrappers = {
     addExpense: (e: ExpenseInput) => Promise<void>;
     deleteExpense: (id: Expense["id"]) => Promise<void>;
     createSplit: (s: SplitInput) => Promise<void>;
+    createGroup: (name: Group["name"]) => Promise<void>;
 };
 
 const defualtMutations: MutationWrappers = {
     addExpense: async () => {},
     deleteExpense: async () => {},
     createSplit: async () => {},
+    createGroup: async () => {},
 };
 
 type Ctx = [Accessor<Rep | null>, MutationWrappers];
 const defaultCtx: Ctx = [() => null, defualtMutations];
 const ReplicacheContext = createContext<Ctx>(defaultCtx);
+
+type Simplify<T> = {[KeyType in keyof T]: T[KeyType]} & {};
+type Optional<T, Keys extends keyof T> = Simplify<Omit<T, Keys> & Partial<Pick<T, Keys>>>;
 
 export function ReplicacheContextProvider(props: ParentProps) {
     const [session] = useSession();
@@ -214,15 +246,18 @@ export function ReplicacheContextProvider(props: ParentProps) {
     const userId = useUserId();
 
     const useCtx = createMemo(() => {
-        if (!rep() || !groupId() || !userId()) {
+        if (!rep()) {
             return {
                 isInit: false as const,
             };
         }
+        if (!userId()) {
+            throw new Error("not logged in")
+        }
         return {
             isInit: true as const,
             rep: rep()!,
-            groupId: groupId()!,
+            groupId: groupId(),
             userId: userId()!,
         };
     });
@@ -235,9 +270,6 @@ export function ReplicacheContextProvider(props: ParentProps) {
             }
             if (!ctx.groupId) {
                 throw new Error("Group not set");
-            }
-            if (!ctx.userId) {
-                throw new Error("Not logged in");
             }
             // TODO: consider sanity collision check
             const id = nanoid();
@@ -267,7 +299,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
         },
         async createSplit(splitInput: SplitInput) {
             const ctx = useCtx();
-            if (!ctx.rep) {
+            if (!ctx.isInit) {
                 throw new Error("Replicache not initialized");
             }
             if (!ctx.groupId) {
@@ -283,6 +315,18 @@ export function ReplicacheContextProvider(props: ParentProps) {
             );
             await ctx.rep.mutate.createSplit(splitSchema.parse(split));
         },
+        async createGroup(name: Group["name"]) {
+            const ctx = useCtx();
+            if (!ctx.isInit) {
+                throw new Error("Replicache not initialized");
+            }
+            const group: CreateGroupInput = Object.assign({name}, {
+                id: nanoid(),
+                ownerId: ctx.userId,
+                defaultSplitId: nanoid(),
+            });
+            await ctx.rep.mutate.createGroup(createGroupInputSchema.parse(group));
+        }
     };
 
     return (
@@ -584,4 +628,29 @@ function useGroup(group?: Accessor<Group["id"]>) {
         return id!
     });
     return id;
+}
+
+function createEvenSplit(userIds: string[], splitId: string, groupId: string) {
+    const portions: Split["portions"] = {};
+    const percentage = 1.0 / userIds.length;
+    for (const id of userIds) {
+        portions[id] = percentage;
+    }
+    return {
+        id: splitId,
+        portions,
+        name: "Even Split",
+        groupId,
+        color: null,
+        // TODO: use this in backend
+        createdAt: new Date().getTime(),
+    } satisfies Split;
+}
+
+function removeKeys<T, K extends keyof T>(obj: T, keys: K[]): Simplify<Omit<T, K>> {
+    const copy = { ...obj };
+    for (const key of keys) {
+        delete copy[key];
+    }
+    return copy;
 }

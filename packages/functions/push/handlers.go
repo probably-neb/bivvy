@@ -8,12 +8,14 @@ import (
 
 func handle(m Mutation) (bool, error) {
     switch m.Name {
-    case "addExpense":
+    case addExpenseMutation:
         return addExpense(m.Args)
-    case "deleteExpense":
+    case deleteExpenseMutation:
         return deleteExpense(m.Args)
-    case "createSplit":
+    case createSplitMutation:
         return createSplit(m.Args)
+    case createGroupMutation:
+        return createGroup(m.Args)
     default:
         return false, fmt.Errorf("unknown mutation %s", m.Name)
     }
@@ -51,6 +53,24 @@ func createSplit(args any) (ok bool, err error) {
         return false, fmt.Errorf("createSplit handler did not recieve Split as args: %v", args)
     }
     err = db.CreateSplit(split)
+    if err != nil {
+        return false, err
+    }
+    return true, nil
+}
+
+type GroupInput struct {
+    db.Group
+    OwnerId string `json:"ownerId"`
+    DefaultSplitId string `json:"defaultSplitId"`
+}
+
+func createGroup(args any) (ok bool, err error) {
+    input, ok := args.(GroupInput)
+    if !ok {
+        return false, fmt.Errorf("createGroup handler did not recieve GroupInput as args: %v", args)
+    }
+    err = db.CreateGroup(input.Group, input.OwnerId, input.DefaultSplitId)
     if err != nil {
         return false, err
     }
