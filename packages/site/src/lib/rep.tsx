@@ -338,8 +338,11 @@ export function useUserExpenses(id: User["id"]) {
     return expenses;
 }
 
-export function useOtherUsers() {
-    const users = use(async (tx, { groupId, userId }) => {
+export function useOtherUsers(group?: Accessor<Group["id"]>) {
+    const groupId = useGroup(group);
+    createEffect(on(groupId, gid => console.log("groupId", gid)))
+    const users = useWithOpts(groupId, async (tx, groupId, { userId }) => {
+        console.log("other users", groupId, userId)
         return (
             await tx
                 .scan<User>({ prefix: P.user.prefix(groupId) })
@@ -347,6 +350,7 @@ export function useOtherUsers() {
                 .toArray()
         ).filter((u) => u.id !== userId);
     });
+    createEffect(on(users, console.log))
     return users;
 }
 
@@ -375,8 +379,9 @@ export function useOwed() {
     return info;
 }
 
-export function useUsers() {
-    const users = use((tx, { groupId }) => {
+export function useUsers(group?: Accessor<Group["id"]>) {
+    const groupId = useGroup(group);
+    const users = useWithOpts(groupId, (tx, groupId ) => {
         const us = tx
             .scan<User>({ prefix: P.user.prefix(groupId) })
             .values()
@@ -386,9 +391,11 @@ export function useUsers() {
     return users;
 }
 
-export function useUser(id: Accessor<User["id"]>) {
-    const user = useWithOpts(id, async (tx, id, { groupId }) => {
-        const u = await tx.get<User>(P.user.id(groupId, id));
+export function useUser(userId: Accessor<User["id"]>, group?: Accessor<Group["id"]>) {
+    const groupId = useGroup(group);
+    const opts = createMemo(() => ({ groupId: groupId(), userId: userId() }));
+    const user = useWithOpts(opts, async (tx, {userId, groupId}) => {
+        const u = await tx.get<User>(P.user.id(groupId, userId));
         return u;
     });
     return user;
@@ -501,7 +508,7 @@ export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: Gette
         const rep = useRep();
         const groupId = useGroup();
         const userId = useUserId();
-        if (!rep() || !groupId() || !userId()) {
+        if (!rep() || !userId()) {
             console.log("not init", {
                 rep: rep(),
                 groupId: groupId(),
@@ -534,7 +541,7 @@ export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: Gette
     createEffect(
         on([ctxVals, getOpts], ([ctx, opts]) => {
             const { isInit, groupId, userId, rep } = ctx;
-            if (!isInit || !groupId) {
+            if (!isInit) {
                 console.log("not init");
                 return;
             }
@@ -566,8 +573,15 @@ export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: Gette
     return () => value.value;
 }
 
-function useGroup() {
+function useGroup(group?: Accessor<Group["id"]>) {
     const groupMatch = useMatch(() => routes.group(":id") + "/*");
-    const id = createMemo(() => groupMatch()?.params.id);
+    const id = createMemo(() => {
+        if (group) {
+            return group();
+        }
+        const id = groupMatch()?.params.id
+        // TODO: how to handle?
+        return id!
+    });
     return id;
 }

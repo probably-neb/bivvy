@@ -1,13 +1,13 @@
 import { User } from "@/lib/session";
-import { Split, useSplit, useUser } from "@/lib/rep";
+import { Group, Split, useSplit, useUser } from "@/lib/rep";
 import { TiUserOutline } from "solid-icons/ti";
-import { JSX, Show, createMemo } from "solid-js";
+import { Accessor, JSX, Show, createMemo } from "solid-js";
 import { Badge } from "./ui/badge";
 
 // TODO: make renderers take a value instead of an id,
 // no need to make them use rep queries when they probably don't need to
-export function UserRenderer(props: { userId: User["id"] }) {
-    const user = useUser(() => props.userId);
+export function UserRenderer(props: { userId: User["id"], groupId?: Accessor<Group["id"]> }) {
+    const user = useUser(() => props.userId, props.groupId);
 
     return (
         <div class="flex gap-2 items-center">
