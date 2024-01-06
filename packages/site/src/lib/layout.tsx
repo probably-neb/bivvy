@@ -5,6 +5,10 @@ import { Show } from "solid-js";
 import { Button } from "@/components/ui/button";
 
 export default function Layout({ children }: ParentProps) {
+    // TODO: current user hook (and store current user at known key in rep)
+    // for profile at top right
+
+    // TODO: breadcrumbs in title bar
     return (
         <>
             <main class={`min-h-screen bg-gradient-to-br ${fade}`}>
