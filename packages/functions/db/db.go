@@ -117,7 +117,8 @@ func GetUsers(userId string) ([]User, error) {
     defer util.TimeMe(time.Now(), "GetUsers")
     q := `SELECT u.id, u.name, ow.amount, ug.group_id
             FROM users AS ou
-            LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
+            LEFT JOIN users_to_group as oug ON oug.user_id = ou.id
+            LEFT JOIN users_to_group AS ug ON ug.group_id = oug.group_id
             LEFT JOIN users AS u ON u.id = ug.user_id
             LEFT JOIN owed As ow ON ow.from_user_id = u.id AND ow.to_user_id = ou.id AND ow.group_id = ug.group_id
             WHERE ou.id = ?`
