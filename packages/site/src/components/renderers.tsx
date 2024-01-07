@@ -73,7 +73,6 @@ export function Render<T, K extends string, V extends Record<K, T>>(props: {
     c: (props: V) => JSX.Element;
     key: K;
 }) {
-    console.log("render", props.key, props.value);
     return <Show when={props.value}>
         <props.c {...{ [props.key]: props.value! } as V} />
     </Show>;

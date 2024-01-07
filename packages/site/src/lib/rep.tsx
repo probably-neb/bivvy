@@ -26,24 +26,24 @@ const mutators = {
     addExpense: async (tx: WriteTransaction, expense: Expense) => {
         await tx.set(P.expense.id(expense.groupId, expense.id), expense);
         const curUserId = expense.paidBy;
-        const users = await tx
-            .scan<User>({ prefix: P.user.prefix(expense.groupId) })
+        const groupUsers = await tx
+            .scan<GroupUser>({ prefix: P.groupUser.prefix(expense.groupId) })
             .values()
             .toArray();
-        let numUsers = users.length;
+        let numUsers = groupUsers.length;
         if (numUsers === 0) {
             numUsers = 1;
         }
         // FIXME: splits
         const portion = expense.amount / numUsers;
-        for (const user of users) {
+        for (const user of groupUsers) {
             let owed = user.owed ?? 0;
-            if (user.id === curUserId) {
+            if (user.userId === curUserId) {
                 owed = owed + expense.amount - portion;
             } else {
                 owed = owed + portion;
             }
-            await tx.set(P.user.id(expense.groupId, user.id), {
+            await tx.set(P.groupUser.id(expense.groupId, user.userId), {
                 ...user,
                 owed,
             });
@@ -54,21 +54,19 @@ const mutators = {
         { groupId, id }: { groupId: Expense["groupId"]; id: Expense["id"] },
     ) => {
         await tx.del(P.expense.id(groupId, id));
-        // FIXME: handle
+        // FIXME: handle side effects
         // FIXME: update owed
     },
     createSplit: async (tx: WriteTransaction, split: Split) => {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
     createGroup: async (tx: WriteTransaction, input: CreateGroupInput) => {
-        const defaultSplitId = input.defaultSplitId;
-        const ownerId = input.ownerId;
-        const group: Group = removeKeys(input, ["defaultSplitId", "ownerId"])
+        const [group, {defaultSplitId, ownerId}] = removeKeys(input, ["defaultSplitId", "ownerId"]) satisfies readonly [Group, any]
         tx.set(P.group.id(group.id), group);
-        // FIXME: flatten users and get users by getting userIds from group
-        // then getting those ids from users
-        const owner = await tx.get<User>(P.user.id("______dev_group______", ownerId));
-        tx.set(P.user.id(group.id, ownerId), owner!);
+        tx.set(P.groupUser.id(group.id, ownerId), {
+            userId: ownerId,
+            owed: 0
+        });
         // TODO: handle invites when creating group so default split can be accurate
         const split = createEvenSplit([ownerId], defaultSplitId, group.id);
         tx.set(P.split.id(group.id, split.id), split);
@@ -94,33 +92,42 @@ export function initReplicache(s: InitSession) {
 
 export type Rep = ReturnType<typeof initReplicache>;
 
+// TODO: refactor into set, get, getAll that take Transactions and give type safe result
+// also create filter option that doesn't copy (may need to be called separately but having
+// it here would be nice)
 const P = {
     // return session group id but don't track changes to it
     group: {
-        prefix: `group/`,
+        prefix: `groups/`,
         id(id: string) {
             return `${P.group.prefix}${id}`;
         },
     },
     expense: {
         prefix(groupId: Group["id"]) {
-            return `group-${groupId}/expense/`;
+            return `group/${groupId}/expense/`;
         },
         id(groupId: Group["id"], expenseId: Expense["id"]) {
             return `${P.expense.prefix(groupId)}${expenseId}`;
         },
     },
-    user: {
+    groupUser: {
         prefix(groupId: Group["id"]) {
-            return `group-${groupId}/user/`;
+            return `group/${groupId}/user/`;
         },
         id(groupId: Group["id"], userId: User["id"]) {
-            return `${P.user.prefix(groupId)}${userId}`;
+            return `${P.groupUser.prefix(groupId)}${userId}`;
+        },
+    },
+    user: {
+        prefix: `user/`,
+        id(userId: User["id"]) {
+            return `${P.user.prefix}${userId}`;
         },
     },
     split: {
         prefix(groupId: Group["id"]) {
-            return `group-${groupId}/split/`;
+            return `group/${groupId}/split/`;
         },
         id(groupId: Group["id"], splitId: Split["id"]) {
             return `${P.split.prefix(groupId)}${splitId}`;
@@ -145,9 +152,14 @@ export type Group = z.infer<typeof groupSchema>;
 export const userSchema = z.object({
     id: idSchema,
     name: z.string(),
-    owed: z.number().default(0),
 });
 export type User = z.infer<typeof userSchema>;
+
+export const groupUserSchema = z.object({
+    userId: userSchema.shape.id,
+    owed: z.number().default(0),
+})
+export type GroupUser = z.infer<typeof groupUserSchema>
 
 const unixTimeSchema = z.number().int().min(0);
 
@@ -242,7 +254,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
         }
         return initReplicache(session);
     });
-    const groupId = useGroup();
+    const groupId = useGroupId();
     const userId = useUserId();
 
     const useCtx = createMemo(() => {
@@ -383,19 +395,17 @@ export function useUserExpenses(id: User["id"]) {
 }
 
 export function useOtherUsers(group?: Accessor<Group["id"]>) {
-    const groupId = useGroup(group);
-    createEffect(on(groupId, gid => console.log("groupId", gid)))
+    const groupId = useGroupId(group);
     const users = useWithOpts(groupId, async (tx, groupId, { userId }) => {
-        console.log("other users", groupId, userId)
-        return (
-            await tx
-                .scan<User>({ prefix: P.user.prefix(groupId) })
-                .values()
-                .toArray()
-        ).filter((u) => u.id !== userId);
+        return groupUsers(tx, groupId).then(us => us.filter(u => u.id !== userId))
     });
-    createEffect(on(users, console.log))
     return users;
+}
+
+async function groupUsers(tx: ReadTransaction, groupId: Group["id"]) {
+    let gids = await tx.scan({prefix: P.groupUser.prefix(groupId)}).keys().toArray()
+    gids = gids.map(id => id.split("/").at(-1)!);
+    return tx.scan<User>({ prefix: P.user.prefix }).values().toArray().then(us => us.filter(u => gids.includes(u.id)))
 }
 
 export type Owed = {
@@ -409,37 +419,34 @@ export function useOwed() {
             total: 0,
             to: {},
         };
-        for await (const user of tx
-            .scan<User>({ prefix: P.user.prefix(groupId) })
+        for await (const gu of tx
+            .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
             .values()) {
-            if (user.id === userId) {
-                owed.total = user.owed ?? 0;
+            if (gu.userId === userId) {
+                owed.total = gu.owed ?? 0;
                 continue;
             }
-            owed.to[user.id] = user.owed ?? 0;
+            owed.to[gu.userId] = gu.owed ?? 0;
         }
+        console.log("owed", owed)
         return owed;
     });
     return info;
 }
 
 export function useUsers(group?: Accessor<Group["id"]>) {
-    const groupId = useGroup(group);
-    const users = useWithOpts(groupId, (tx, groupId ) => {
-        const us = tx
-            .scan<User>({ prefix: P.user.prefix(groupId) })
-            .values()
-            .toArray();
-        return us;
+    const groupId = useGroupId(group);
+    const users = useWithOpts(groupId, async (tx, groupId ) => {
+        return groupUsers(tx, groupId);
     });
     return users;
 }
 
 export function useUser(userId: Accessor<User["id"]>, group?: Accessor<Group["id"]>) {
-    const groupId = useGroup(group);
+    const groupId = useGroupId(group);
     const opts = createMemo(() => ({ groupId: groupId(), userId: userId() }));
-    const user = useWithOpts(opts, async (tx, {userId, groupId}) => {
-        const u = await tx.get<User>(P.user.id(groupId, userId));
+    const user = useWithOpts(opts, async (tx, { userId }) => {
+        const u = await tx.get<User>(P.user.id(userId));
         return u;
     });
     return user;
@@ -475,7 +482,7 @@ export function use<R, W extends true>(g: Getter<R, W>, withGroupId?: true | und
 export function use<R, W extends true | false>(getter: Getter<R, W>, withGroupId?: true | false) {
     const ctxVals = createMemo(() => {
         const rep = useRep();
-        const groupId = useGroup();
+        const groupId = useGroupId();
         const userId = useUserId();
         if (!rep() || !userId()) {
             console.log("not init", {
@@ -550,7 +557,7 @@ type GetterWithOpts<Opts, Result> = (
 export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: GetterWithOpts<Opts, Result>) {
     const ctxVals = createMemo(() => {
         const rep = useRep();
-        const groupId = useGroup();
+        const groupId = useGroupId();
         const userId = useUserId();
         if (!rep() || !userId()) {
             console.log("not init", {
@@ -617,7 +624,7 @@ export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: Gette
     return () => value.value;
 }
 
-function useGroup(group?: Accessor<Group["id"]>) {
+function useGroupId(group?: Accessor<Group["id"]>) {
     const groupMatch = useMatch(() => routes.group(":id") + "/*");
     const id = createMemo(() => {
         if (group) {
@@ -647,10 +654,12 @@ function createEvenSplit(userIds: string[], splitId: string, groupId: string) {
     } satisfies Split;
 }
 
-function removeKeys<T, K extends keyof T>(obj: T, keys: K[]): Simplify<Omit<T, K>> {
+function removeKeys<T, K extends keyof T>(obj: T, keys: K[]) {
     const copy = { ...obj };
+    const removed = {} as Pick<T, K>;
     for (const key of keys) {
+        removed[key] = copy[key];
         delete copy[key];
     }
-    return copy;
+    return [copy as Simplify<Omit<T, K>>, removed as Simplify<Pick<T, K>>] as const;
 }

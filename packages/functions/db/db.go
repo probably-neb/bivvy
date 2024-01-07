@@ -143,6 +143,7 @@ func addUserToGroup(tx *sql.Tx, userId string, groupId string) error {
 
 // NOTE: userId param is not the user to search for, its the user
 // whose groups users to get
+// TODO: split out owed
 func GetUsers(userId string) ([]User, error) {
     defer util.TimeMe(time.Now(), "GetUsers")
     q := `SELECT u.id, u.name, ow.amount, ug.group_id

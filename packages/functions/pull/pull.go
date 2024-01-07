@@ -193,19 +193,28 @@ func NewClearOp() PatchClearOperation {
 
 
 func groupKey(groupID string) string {
-    return fmt.Sprintf("group/%s", groupID)
+    return fmt.Sprintf("groups/%s", groupID)
 }
 
 func expenseKey(groupID string, expenseID string) string {
-    return fmt.Sprintf("group-%s/expense/%s", groupID, expenseID)
+    return fmt.Sprintf("group/%s/expense/%s", groupID, expenseID)
 }
 
-func userKey(groupID string, userID string) string {
-    return fmt.Sprintf("group-%s/user/%s", groupID, userID)
+type GroupUser struct {
+    UserId string `json:"userId"`
+    Owed float64 `json:"owed"`
+}
+
+func groupUserKey(groupID string, userID string) string {
+    return fmt.Sprintf("group/%s/user/%s", groupID, userID)
+}
+
+func userKey(userID string) string {
+    return fmt.Sprintf("user/%s", userID)
 }
 
 func splitKey(groupID string, splitID string) string {
-    return fmt.Sprintf("group-%s/split/%s", groupID, splitID)
+    return fmt.Sprintf("group/%s/split/%s", groupID, splitID)
 }
 
 func parse(body string) (PullRequest, error) {
@@ -234,7 +243,8 @@ func custructPatches(userId string) []PatchOperation {
     if err != nil {
         log.Fatalf("Could not get users: %v", err)
     }
-    numPatches += len(users)
+    // * 2 for groupUserKey and userKey
+    numPatches += len(users) * 2
 
     expenses, err := db.GetExpenses(userId)
     if err != nil {
@@ -258,27 +268,34 @@ func custructPatches(userId string) []PatchOperation {
         patches[gi + i] = NewPutOp(
             groupKey(g.Id),
             g,
-        )
+            )
     }
     i = i + len(groups)
 
     for ui := 0; ui < len(users); ui++ {
         u := users[ui]
         patches[ui + i] = NewPutOp(
-            // NOTE: same users in multiple groups will be duplicated
             // TODO: store current user at known key
-            userKey(u.GroupId, u.Id),
+            userKey(u.Id),
             u,
-        )
+            )
+        patches[ui + i + len(users)] = NewPutOp(
+            groupUserKey(u.GroupId, u.Id),
+            // FIXME: figure out how to get owed per user per group
+            GroupUser{
+                UserId: u.Id,
+                Owed: u.Owed,
+            },
+            )
     }
-    i = i + len(users)
+    i = i + len(users) * 2
 
     for ei := 0; ei < len(expenses); ei++ {
         e := expenses[ei]
         patches[i + ei] = NewPutOp(
             expenseKey(e.GroupId, e.Id),
             e,
-        )
+            )
     }
     i = i + len(expenses)
 
@@ -287,7 +304,7 @@ func custructPatches(userId string) []PatchOperation {
         patches[i + si] = NewPutOp(
             splitKey(s.GroupId, s.Id),
             s,
-        )
+            )
     }
     return patches
 }
