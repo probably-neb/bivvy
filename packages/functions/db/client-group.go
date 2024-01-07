@@ -230,7 +230,7 @@ func (ct *ClientGroupTable) PutClientGroup(cg ClientGroup) error {
     log.Println("putting client group", cg.Id)
     for _, c := range cg.Clients {
         if c == nil {
-            log.Printf("client = nil ???", c.Id)
+            log.Println("client = nil ???", c.Id)
             continue
         }
         if !c.changed {
@@ -245,7 +245,7 @@ func (ct *ClientGroupTable) PutClientGroup(cg ClientGroup) error {
             }
             continue;
         }
-        log.Println("updating client %v", c.Id)
+        log.Println("updating client ", c.Id)
         err := ct.updateClient(cg, c)
         if err != nil {
             log.Printf("error updating client: %v", err)

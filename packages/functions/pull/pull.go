@@ -243,8 +243,13 @@ func custructPatches(userId string) []PatchOperation {
     if err != nil {
         log.Fatalf("Could not get users: %v", err)
     }
-    // * 2 for groupUserKey and userKey
-    numPatches += len(users) * 2
+    numPatches += len(users)
+
+    debts, err := db.GetDebts(userId)
+    if err != nil {
+        log.Fatalf("Could not get debts: %v", err)
+    }
+    numPatches += len(debts)
 
     expenses, err := db.GetExpenses(userId)
     if err != nil {
@@ -279,16 +284,21 @@ func custructPatches(userId string) []PatchOperation {
             userKey(u.Id),
             u,
             )
-        patches[ui + i + len(users)] = NewPutOp(
-            groupUserKey(u.GroupId, u.Id),
-            // FIXME: figure out how to get owed per user per group
+    }
+    i = i + len(users)
+
+    for di := 0; di < len(debts); di++ {
+        d := debts[di]
+        patches[di + i] = NewPutOp(
+            groupUserKey(d.GroupId, d.FromUserId),
+            // TODO: have debts return the same type as GroupUser
             GroupUser{
-                UserId: u.Id,
-                Owed: u.Owed,
+                UserId: d.FromUserId,
+                Owed: d.Amount,
             },
             )
     }
-    i = i + len(users) * 2
+    i = i + len(debts)
 
     for ei := 0; ei < len(expenses); ei++ {
         e := expenses[ei]

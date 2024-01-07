@@ -47,6 +47,12 @@ type Split struct {
     Color *string `json:"color"`
 }
 
+type Debt struct {
+    FromUserId string `json:"fromUserId"`
+    GroupId string `json:"groupId"`
+    Amount float64 `json:"amount"`
+}
+
 type unixTimestamp time.Time
 
 // TODO: these may need to be divided by 1000 because
@@ -91,7 +97,7 @@ func GetGroups(userId string) ([]Group, error) {
     defer util.TimeMe(time.Now(), "GetGroups")
     q := `SELECT g.id, g.name
             FROM users_to_group as ug
-            LEFT JOIN groups AS g on g.id = ug.group_id
+            RIGHT JOIN groups AS g on g.id = ug.group_id
             WHERE ug.user_id = ?`
     rows, err := conn.Query(q, userId);
     if err != nil {
@@ -129,9 +135,15 @@ func CreateGroup(g Group, ownerId string, defaultSplitId string) error {
     }
     err = addUserToGroup(tx, ownerId, g.Id)
     if err != nil {
+        tx.Rollback()
         return err
     }
     err = createEvenSplit(tx, defaultSplitId, g.Id)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+    err = tx.Commit()
     return err
 }
 
@@ -150,7 +162,7 @@ func GetUsers(userId string) ([]User, error) {
             FROM users AS ou
             LEFT JOIN users_to_group as oug ON oug.user_id = ou.id
             LEFT JOIN users_to_group AS ug ON ug.group_id = oug.group_id
-            LEFT JOIN users AS u ON u.id = ug.user_id
+            RIGHT JOIN users AS u ON u.id = ug.user_id
             LEFT JOIN owed As ow ON ow.from_user_id = u.id AND ow.to_user_id = ou.id AND ow.group_id = ug.group_id
             WHERE ou.id = ?`
     rows, err := conn.Query(q, userId)
@@ -190,11 +202,54 @@ func GetUsers(userId string) ([]User, error) {
     return users, err
 }
 
+func GetDebts(userId string) ([]Debt, error) {
+    defer util.TimeMe(time.Now(), "GetDebts")
+    q := `SELECT ow.from_user_id, ow.group_id, ow.amount
+    FROM owed as ow
+    WHERE ow.to_user_id = ?`
+    rows, err := conn.Query(q, userId)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var debts []Debt
+    totals := make(map[string]float64)
+
+    for rows.Next() {
+        var debt Debt
+        err = rows.Scan(&debt.FromUserId, &debt.GroupId, &debt.Amount)
+        if err != nil {
+            return nil, err
+        }
+        if _, ok := totals[debt.GroupId]; !ok {
+            totals[debt.GroupId] = 0
+        }
+        totals[debt.GroupId] += debt.Amount
+        debts = append(debts, debt)
+    }
+    // Next() returns false on error or EOF.
+    // Err should be consulted to distinguish between the two cases.
+    err = rows.Err()
+    if err != nil {
+        return nil, err
+    }
+    for groupId, total := range totals {
+        debt := Debt{
+            FromUserId: userId,
+            GroupId: groupId,
+            Amount: total,
+        }
+        debts = append(debts, debt)
+    }
+    return debts, err
+}
+
 func getGroupUserIds(tx *sql.Tx, groupId string) ([]string, error) {
     defer util.TimeMe(time.Now(), "getGroupUsers")
     q := `SELECT u.id
             FROM users_to_group AS ug
-            LEFT JOIN users as u ON u.id = ug.user_id
+            RIGHT JOIN users as u ON u.id = ug.user_id
             WHERE ug.group_id = ?`
     rows, err := tx.Query(q, groupId)
     if err != nil {
@@ -223,7 +278,7 @@ func GetExpenses(userId string) ([]Expense, error) {
     q := `SELECT e.id, e.paid_by_user_id, e.amount, e.description, e.reimbursed_at, e.paid_on, e.created_at, e.split_id, e.group_id
             FROM users AS ou
             LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
-            LEFT JOIN expenses AS e ON ug.group_id = e.group_id
+            RIGHT JOIN expenses AS e ON ug.group_id = e.group_id
             WHERE ou.id = ?`
     rows, err := conn.Query(q, userId)
     if err != nil {
@@ -431,7 +486,7 @@ func GetSplits(userId string) ([]Split, error) {
     q := `SELECT s.id, s.name, s.color, sd.user_id, sd.percentage, s.group_id
             FROM users AS ou
             LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
-            LEFT JOIN splits AS s ON s.group_id = ug.group_id
+            RIGHT JOIN splits AS s ON s.group_id = ug.group_id
             LEFT JOIN split_portion_def AS sd ON sd.split_id = s.id
             WHERE ou.id = ?
             ORDER BY s.id`
@@ -466,7 +521,6 @@ func GetSplits(userId string) ([]Split, error) {
     splits = append(splits, s)
     // skip first split as it's empty always
     splits = splits[1:]
-    log.Printf("splits %v", splits)
     return splits, err
 }
 
