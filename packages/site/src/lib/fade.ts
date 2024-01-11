@@ -9,7 +9,7 @@ const FADES: string[] = [
     "from-[#1a2766] via-[#ae1b1e] to-[#fc9f32]",
 ]
 
-function randomFade() {
+export function randomFade() {
     return FADES[Math.floor(Math.random() * FADES.length)];
 }
 

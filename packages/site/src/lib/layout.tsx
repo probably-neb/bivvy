@@ -24,7 +24,9 @@ export default function Layout({ children }: ParentProps) {
                         </div>
                     </Show>
                 </div>
-                {children}
+                <div class="p-6">
+                    {children}
+                </div>
             </main>
         </>
     );

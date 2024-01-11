@@ -61,11 +61,14 @@ const mutators = {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
     createGroup: async (tx: WriteTransaction, input: CreateGroupInput) => {
-        const [group, {defaultSplitId, ownerId}] = removeKeys(input, ["defaultSplitId", "ownerId"]) satisfies readonly [Group, any]
+        const [group, { defaultSplitId, ownerId }] = removeKeys(input, [
+            "defaultSplitId",
+            "ownerId",
+        ]) satisfies readonly [Group, any];
         tx.set(P.group.id(group.id), group);
         tx.set(P.groupUser.id(group.id, ownerId), {
             userId: ownerId,
-            owed: 0
+            owed: 0,
         });
         // TODO: handle invites when creating group so default split can be accurate
         const split = createEvenSplit([ownerId], defaultSplitId, group.id);
@@ -148,7 +151,6 @@ export const groupSchema = z.object({
 });
 export type Group = z.infer<typeof groupSchema>;
 
-
 export const userSchema = z.object({
     id: idSchema,
     name: z.string(),
@@ -158,8 +160,8 @@ export type User = z.infer<typeof userSchema>;
 export const groupUserSchema = z.object({
     userId: userSchema.shape.id,
     owed: z.number().default(0),
-})
-export type GroupUser = z.infer<typeof groupUserSchema>
+});
+export type GroupUser = z.infer<typeof groupUserSchema>;
 
 const unixTimeSchema = z.number().int().min(0);
 
@@ -212,15 +214,15 @@ export type SplitInput = z.infer<typeof splitInputSchema>;
 const createGroupInputSchema = groupSchema.extend({
     ownerId: userSchema.shape.id,
     defaultSplitId: splitSchema.shape.id,
-})
+});
 
-type CreateGroupInput = z.infer<typeof createGroupInputSchema>
+type CreateGroupInput = z.infer<typeof createGroupInputSchema>;
 
 export const groupInputSchema = groupSchema.pick({
-    name: true
-})
+    name: true,
+});
 
-export type GroupInput = z.infer<typeof groupInputSchema>
+export type GroupInput = z.infer<typeof groupInputSchema>;
 
 // The replicache context is used to store the replicache instance and the some info
 // from the current session
@@ -243,8 +245,10 @@ type Ctx = [Accessor<Rep | null>, MutationWrappers];
 const defaultCtx: Ctx = [() => null, defualtMutations];
 const ReplicacheContext = createContext<Ctx>(defaultCtx);
 
-type Simplify<T> = {[KeyType in keyof T]: T[KeyType]} & {};
-type Optional<T, Keys extends keyof T> = Simplify<Omit<T, Keys> & Partial<Pick<T, Keys>>>;
+type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
+type Optional<T, Keys extends keyof T> = Simplify<
+    Omit<T, Keys> & Partial<Pick<T, Keys>>
+>;
 
 export function ReplicacheContextProvider(props: ParentProps) {
     const [session] = useSession();
@@ -264,7 +268,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
             };
         }
         if (!userId()) {
-            throw new Error("not logged in")
+            throw new Error("not logged in");
         }
         return {
             isInit: true as const,
@@ -332,13 +336,18 @@ export function ReplicacheContextProvider(props: ParentProps) {
             if (!ctx.isInit) {
                 throw new Error("Replicache not initialized");
             }
-            const group: CreateGroupInput = Object.assign({name}, {
-                id: nanoid(),
-                ownerId: ctx.userId,
-                defaultSplitId: nanoid(),
-            });
-            await ctx.rep.mutate.createGroup(createGroupInputSchema.parse(group));
-        }
+            const group: CreateGroupInput = Object.assign(
+                { name },
+                {
+                    id: nanoid(),
+                    ownerId: ctx.userId,
+                    defaultSplitId: nanoid(),
+                },
+            );
+            await ctx.rep.mutate.createGroup(
+                createGroupInputSchema.parse(group),
+            );
+        },
     };
 
     return (
@@ -348,18 +357,19 @@ export function ReplicacheContextProvider(props: ParentProps) {
     );
 }
 
-
 export function useRep() {
     return useContext(ReplicacheContext)[0];
 }
-
 
 export function useMutations() {
     return useContext(ReplicacheContext)[1];
 }
 
 export function useGroups() {
-    return use((tx) => tx.scan<Group>({prefix: P.group.prefix}).values().toArray(), false)
+    return use(
+        (tx) => tx.scan<Group>({ prefix: P.group.prefix }).values().toArray(),
+        false,
+    );
 }
 
 export function useExpenses() {
@@ -394,18 +404,37 @@ export function useUserExpenses(id: User["id"]) {
     return expenses;
 }
 
+export function useNumUsers(group?: Accessor<Group["id"]>) {
+    const groupId = useGroupId(group);
+    const len = useWithOpts(groupId, (tx, groupId) =>
+        groupUsers(tx, groupId).then(
+            (us) => us.length
+        ),
+    );
+    return len;
+}
+
 export function useOtherUsers(group?: Accessor<Group["id"]>) {
     const groupId = useGroupId(group);
     const users = useWithOpts(groupId, async (tx, groupId, { userId }) => {
-        return groupUsers(tx, groupId).then(us => us.filter(u => u.id !== userId))
+        return groupUsers(tx, groupId).then((us) =>
+            us.filter((u) => u.id !== userId),
+        );
     });
     return users;
 }
 
 async function groupUsers(tx: ReadTransaction, groupId: Group["id"]) {
-    let gids = await tx.scan({prefix: P.groupUser.prefix(groupId)}).keys().toArray()
-    gids = gids.map(id => id.split("/").at(-1)!);
-    return tx.scan<User>({ prefix: P.user.prefix }).values().toArray().then(us => us.filter(u => gids.includes(u.id)))
+    let gids = await tx
+        .scan({ prefix: P.groupUser.prefix(groupId) })
+        .keys()
+        .toArray();
+    gids = gids.map((id) => id.split("/").at(-1)!);
+    return tx
+        .scan<User>({ prefix: P.user.prefix })
+        .values()
+        .toArray()
+        .then((us) => us.filter((u) => gids.includes(u.id)));
 }
 
 export type Owed = {
@@ -428,7 +457,7 @@ export function useOwed() {
             }
             owed.to[gu.userId] = gu.owed ?? 0;
         }
-        console.log("owed", owed)
+        console.log("owed", owed);
         return owed;
     });
     return info;
@@ -436,13 +465,16 @@ export function useOwed() {
 
 export function useUsers(group?: Accessor<Group["id"]>) {
     const groupId = useGroupId(group);
-    const users = useWithOpts(groupId, async (tx, groupId ) => {
+    const users = useWithOpts(groupId, async (tx, groupId) => {
         return groupUsers(tx, groupId);
     });
     return users;
 }
 
-export function useUser(userId: Accessor<User["id"]>, group?: Accessor<Group["id"]>) {
+export function useUser(
+    userId: Accessor<User["id"]>,
+    group?: Accessor<Group["id"]>,
+) {
     const groupId = useGroupId(group);
     const opts = createMemo(() => ({ groupId: groupId(), userId: userId() }));
     const user = useWithOpts(opts, async (tx, { userId }) => {
@@ -472,14 +504,26 @@ export function useSplit(id: Accessor<Split["id"]>) {
 /// Helper function that wraps a Replicache query subscription in a SolidJS signal
 type Getter<R, WithGroupId> = (
     tx: ReadTransaction,
-    opts: { groupId: WithGroupId extends true ? Expense["groupId"] : undefined; userId: User["id"] },
+    opts: {
+        groupId: WithGroupId extends true ? Expense["groupId"] : undefined;
+        userId: User["id"];
+    },
 ) => Promise<R>;
 
 // this mumbo jumbo makes it so if you pass false as the second arg to use the current group id won't be null asserted
 // and you'll get a typesafe result
-export function use<R, W extends false>(g: Getter<R, W>, withGroupId: false): Accessor<R | undefined>
-export function use<R, W extends true>(g: Getter<R, W>, withGroupId?: true | undefined): Accessor<R | undefined>
-export function use<R, W extends true | false>(getter: Getter<R, W>, withGroupId?: true | false) {
+export function use<R, W extends false>(
+    g: Getter<R, W>,
+    withGroupId: false,
+): Accessor<R | undefined>;
+export function use<R, W extends true>(
+    g: Getter<R, W>,
+    withGroupId?: true | undefined,
+): Accessor<R | undefined>;
+export function use<R, W extends true | false>(
+    getter: Getter<R, W>,
+    withGroupId?: true | false,
+) {
     const ctxVals = createMemo(() => {
         const rep = useRep();
         const groupId = useGroupId();
@@ -517,10 +561,14 @@ export function use<R, W extends true | false>(getter: Getter<R, W>, withGroupId
             const valSignal: Accessor<R | undefined> = from(() => {
                 const opts = { groupId, userId };
                 const unsub = rep.subscribe(
-                    async (tx) => getter(tx, opts as {
-                            groupId: W extends true ? string : undefined;
-                            userId: string;
-                        }),
+                    async (tx) =>
+                        getter(
+                            tx,
+                            opts as {
+                                groupId: W extends true ? string : undefined;
+                                userId: string;
+                            },
+                        ),
                     (val) => {
                         setValue(
                             "value",
@@ -554,7 +602,10 @@ type GetterWithOpts<Opts, Result> = (
 // params to use* hooks are not tracked when used in component body because it is not a tracking scope
 // by passing a closure with the options we can make the hooks reactive because we use the closure in a
 // tracking scope in this utility function
-export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: GetterWithOpts<Opts, Result>) {
+export function useWithOpts<Opts, Result>(
+    getOpts: Accessor<Opts>,
+    getter: GetterWithOpts<Opts, Result>,
+) {
     const ctxVals = createMemo(() => {
         const rep = useRep();
         const groupId = useGroupId();
@@ -587,7 +638,6 @@ export function useWithOpts<Opts, Result>(getOpts: Accessor<Opts>, getter: Gette
     const [value, setValue] = createStore<{ value: Result | undefined }>({
         value: undefined,
     });
-
 
     createEffect(
         on([ctxVals, getOpts], ([ctx, opts]) => {
@@ -630,9 +680,9 @@ function useGroupId(group?: Accessor<Group["id"]>) {
         if (group) {
             return group();
         }
-        const id = groupMatch()?.params.id
+        const id = groupMatch()?.params.id;
         // TODO: how to handle?
-        return id!
+        return id!;
     });
     return id;
 }
@@ -661,5 +711,8 @@ function removeKeys<T, K extends keyof T>(obj: T, keys: K[]) {
         removed[key] = copy[key];
         delete copy[key];
     }
-    return [copy as Simplify<Omit<T, K>>, removed as Simplify<Pick<T, K>>] as const;
+    return [
+        copy as Simplify<Omit<T, K>>,
+        removed as Simplify<Pick<T, K>>,
+    ] as const;
 }

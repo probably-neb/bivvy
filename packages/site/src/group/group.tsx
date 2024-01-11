@@ -88,7 +88,7 @@ export default function GroupPage() {
     // TODO: move header to layout
     return (
             <>
-                <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12 p-6">
+                <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12">
                     <aside class="w-full flex flex-col justify-start gap-6 pt-6 lg:w-1/3 lg:order-last">
                         <OverviewCard />
                         <ExpenseCardWrapper />
