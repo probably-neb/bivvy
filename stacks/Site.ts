@@ -4,10 +4,10 @@ import {
     StaticSite,
     use,
 } from "sst/constructs";
-import { API } from "./Api";
+import Api from "./Api";
 
-export function Site({ stack, app }: StackContext) {
-    const { api } = use(API);
+export default function SITE({ stack, app }: StackContext) {
+    const { api } = use(Api);
 
     const site = new StaticSite(stack, "Site", {
         path: "packages/site",

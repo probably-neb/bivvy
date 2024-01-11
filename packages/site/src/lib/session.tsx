@@ -67,15 +67,31 @@ export function SessionContextProvider(props: ParentProps) {
     const [session, setSession] = createStore<Session>({valid: false});
     console.log("initial session", session)
     const fns = {
-        initSession: (init: InitSession) => {
+        initSession(init: InitSession) {
             const up: Session = Object.assign({}, init, {
                 valid: true as const,
             })
             console.log("initSession", up)
             setSession(up)
         },
-        isValid: () => session.valid,
-        vars: () => {
+        isValid() {
+            if (!session.valid) {
+                const qparams = new URLSearchParams(window.location.search);
+                const userId = qparams.get("userId");
+                if (!userId) {
+                    console.log("no userId param")
+                    return false;
+                }
+                const token = qparams.get("token");
+                if (!token) {
+                    console.log("no token")
+                    return false;
+                }
+                fns.initSession({token, userId})
+            }
+            return session.valid
+        },
+        vars() {
             const [vars] = splitProps(session, ["token", "userId"]);
             if (session.valid) {
                 return vars;
@@ -86,6 +102,11 @@ export function SessionContextProvider(props: ParentProps) {
     return (<SessionContext.Provider value={[session, fns]}>
         {props.children}
     </SessionContext.Provider>)
+}
+
+function getAuthCookie() {
+    const key = "auth-token"
+    return localStorage.getItem(key)
 }
 
 export function useSession() {

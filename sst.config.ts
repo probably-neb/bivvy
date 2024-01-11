@@ -1,6 +1,7 @@
 import { SSTConfig } from "sst";
-import { API } from "./stacks/Api";
-import { Site } from "./stacks/Site";
+import Api from "./stacks/Api";
+import Site from "./stacks/Site";
+import Auth from "./stacks/Auth";
 
 export default {
     config(input) {
@@ -12,6 +13,9 @@ export default {
         };
     },
     stacks(app) {
-        app.stack(API).stack(Site);
+        if (app.stage !== "production") {
+            app.setDefaultRemovalPolicy("destroy")
+        }
+        app.stack(Api).stack(Site).stack(Auth);
     },
 } satisfies SSTConfig;
