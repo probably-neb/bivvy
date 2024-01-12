@@ -326,6 +326,7 @@ func custructPatches(userId string) []PatchOperation {
             s,
             )
     }
+    i = i + len(splits)
 
     for ii := 0; ii < len(invites); ii++ {
         invite := invites[ii]
@@ -334,6 +335,7 @@ func custructPatches(userId string) []PatchOperation {
             invite,
         )
     }
+    i = i + len(invites)
 
     return patches
 }
