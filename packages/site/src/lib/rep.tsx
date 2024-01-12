@@ -23,7 +23,7 @@ import { useSession, useUserId } from "./session";
 // the server and client to generate entities with the same IDs so the ID and other non-deterministic
 // fields must be generated before being passed to mutator so the server has access to them as well
 const mutators = {
-    addExpense: async (tx: WriteTransaction, expense: Expense) => {
+    async addExpense(tx: WriteTransaction, expense: Expense) {
         await tx.set(P.expense.id(expense.groupId, expense.id), expense);
         const curUserId = expense.paidBy;
         const groupUsers = await tx
@@ -49,18 +49,18 @@ const mutators = {
             });
         }
     },
-    deleteExpense: async (
+    async deleteExpense(
         tx: WriteTransaction,
         { groupId, id }: { groupId: Expense["groupId"]; id: Expense["id"] },
-    ) => {
+    ) {
         await tx.del(P.expense.id(groupId, id));
         // FIXME: handle side effects
         // FIXME: update owed
     },
-    createSplit: async (tx: WriteTransaction, split: Split) => {
+    async createSplit(tx: WriteTransaction, split: Split) {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
-    createGroup: async (tx: WriteTransaction, input: CreateGroupInput) => {
+    async createGroup(tx: WriteTransaction, input: CreateGroupInput) {
         const [group, { defaultSplitId, ownerId }] = removeKeys(input, [
             "defaultSplitId",
             "ownerId",
@@ -73,6 +73,17 @@ const mutators = {
         // TODO: handle invites when creating group so default split can be accurate
         const split = createEvenSplit([ownerId], defaultSplitId, group.id);
         tx.set(P.split.id(group.id, split.id), split);
+    },
+    async createInvite(tx: WriteTransaction, invite: Invite) {
+        tx.set(P.invite.id(invite.id), invite);
+    },
+    async acceptInvite(tx: WriteTransaction, inviteId: Invite["id"]) {
+        let invite = await tx.get<Invite>(P.invite.id(inviteId));
+        if (!invite) {
+            throw new Error("invite not found");
+        }
+        invite = { ...invite, acceptedAt: new Date().getTime() };
+        tx.set(P.invite.id(invite.id), invite);
     },
 };
 
@@ -134,6 +145,12 @@ const P = {
         },
         id(groupId: Group["id"], splitId: Split["id"]) {
             return `${P.split.prefix(groupId)}${splitId}`;
+        },
+    },
+    invite: {
+        prefix: `invite/`,
+        id(inviteId: Invite["id"]) {
+            return `${P.invite.prefix}${inviteId}`;
         },
     },
 };
@@ -224,22 +241,54 @@ export const groupInputSchema = groupSchema.pick({
 
 export type GroupInput = z.infer<typeof groupInputSchema>;
 
+export const inviteSchema = z.object({
+    id: idSchema,
+    groupId: groupSchema.shape.id,
+    email: z.string().email(),
+    createdAt: unixTimeSchema,
+    acceptedAt: unixTimeSchema.nullable(),
+});
+
+export type Invite = z.infer<typeof inviteSchema>;
+
+export const inviteInputSchema = inviteSchema.pick({
+    email: true,
+});
+
+export type InviteInput = z.infer<typeof inviteInputSchema>;
+
 // The replicache context is used to store the replicache instance and the some info
 // from the current session
 
+// interface MutationWrappers extends Record<keyof Mutators, Mutation<any>> {
+//     addExpense: Mutation<ExpenseInput>;
+//     deleteExpense: Mutation<Expense["id"]>;
+//     createSplit: Mutation<SplitInput>;
+//     createGroup: Mutation<Group["name"]>;
+// }
+
+interface MutationMap extends Record<keyof Mutators, any> {}
+
+interface MutationWrapperInputs extends MutationMap {
+    addExpense: ExpenseInput;
+    deleteExpense: Expense["id"];
+    createSplit: SplitInput;
+    createGroup: Group["name"];
+    createInvite: InviteInput;
+    markInviteAccepted: Invite["id"];
+}
+
+type Mutation<M extends keyof Mutators> = (
+    input: MutationWrapperInputs[M],
+) => Promise<void>;
+
 type MutationWrappers = {
-    addExpense: (e: ExpenseInput) => Promise<void>;
-    deleteExpense: (id: Expense["id"]) => Promise<void>;
-    createSplit: (s: SplitInput) => Promise<void>;
-    createGroup: (name: Group["name"]) => Promise<void>;
+    [key in keyof Mutators]: Mutation<key>;
 };
 
-const defualtMutations: MutationWrappers = {
-    addExpense: async () => {},
-    deleteExpense: async () => {},
-    createSplit: async () => {},
-    createGroup: async () => {},
-};
+const defualtMutations: MutationWrappers = Object.fromEntries(
+    Object.keys(mutators).map((k) => [k, async () => {}]),
+) as MutationMap;
 
 type Ctx = [Accessor<Rep | null>, MutationWrappers];
 const defaultCtx: Ctx = [() => null, defualtMutations];
@@ -273,7 +322,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
         return {
             isInit: true as const,
             rep: rep()!,
-            groupId: groupId(),
+            groupId: groupId() as string | undefined,
             userId: userId()!,
         };
     });
@@ -348,7 +397,31 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 createGroupInputSchema.parse(group),
             );
         },
-    };
+        async createInvite(i: InviteInput) {
+            const ctx = useCtx();
+            if (!ctx.isInit) {
+                throw new Error("Replicache not initialized");
+            }
+            const groupId = ctx.groupId
+            if (!groupId) {
+                throw new Error("Group not set");
+            }
+            const invite = Object.assign({}, i, {
+                createdAt: new Date().getTime(),
+                id: nanoid(),
+                acceptedAt: null,
+                groupId,
+            });
+            await ctx.rep.mutate.createInvite(inviteSchema.parse(invite));
+        },
+        async acceptInvite(id: Invite["id"]) {
+            const ctx = useCtx();
+            if (!ctx.isInit) {
+                throw new Error("Replicache not initialized");
+            }
+            await ctx.rep.mutate.acceptInvite(id);
+        }
+    } satisfies MutationWrappers;
 
     return (
         <ReplicacheContext.Provider value={[rep, mutations]}>
@@ -407,9 +480,7 @@ export function useUserExpenses(id: User["id"]) {
 export function useNumUsers(group?: Accessor<Group["id"]>) {
     const groupId = useGroupId(group);
     const len = useWithOpts(groupId, (tx, groupId) =>
-        groupUsers(tx, groupId).then(
-            (us) => us.length
-        ),
+        groupUsers(tx, groupId).then((us) => us.length),
     );
     return len;
 }

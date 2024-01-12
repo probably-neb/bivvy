@@ -31,6 +31,7 @@ const (
     deleteExpenseMutation = "deleteExpense"
     createSplitMutation = "createSplit"
     createGroupMutation = "createGroup"
+    createInviteMutation = "createInvite"
 )
 
 func ParseArgs(mutation string, args json.RawMessage) any {
@@ -52,6 +53,8 @@ func ParseArgs(mutation string, args json.RawMessage) any {
         return tryParse(parseCreateSplit)
     case createGroupMutation:
         return tryParse(parseCreateGroup)
+    case createInviteMutation:
+        return tryParse(parseCreateInvite)
     default:
         return Invalid(InvalidReasonUnknown)
     }
@@ -103,4 +106,12 @@ func parseCreateGroup(args json.RawMessage) (any, error) {
         return nil, err
     }
     return input, nil
+}
+
+func parseCreateInvite(args json.RawMessage) (any, error) {
+    var invite db.Invite
+    if err := json.Unmarshal(args, &invite); err != nil {
+        return nil, err
+    }
+    return invite, nil
 }

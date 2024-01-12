@@ -15,8 +15,7 @@ import { OverviewCard } from "@/group/overview-card";
 import { ExpensesTable } from "@/group/expenses-table";
 import { AddExpenseCard } from "@/group/add-expense";
 import { ViewExpenseCard } from "@/group/view-expense";
-// import {CreateSplit} from "@/group/create-split";
-import { Expense, useMutations, useRep } from "@/lib/rep";
+import { Expense, useMutations } from "@/lib/rep";
 import { useQueries } from "@/lib/device";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
@@ -88,7 +87,7 @@ export default function GroupPage() {
     // TODO: move header to layout
     return (
             <>
-                <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12">
+                <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12 p-6">
                     <aside class="w-full flex flex-col justify-start gap-6 pt-6 lg:w-1/3 lg:order-last">
                         <OverviewCard />
                         <ExpenseCardWrapper />

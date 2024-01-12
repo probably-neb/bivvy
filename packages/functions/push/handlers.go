@@ -16,6 +16,8 @@ func handle(m Mutation) (bool, error) {
         return createSplit(m.Args)
     case createGroupMutation:
         return createGroup(m.Args)
+    case createInviteMutation:
+        return createInvite(m.Args)
     default:
         return false, fmt.Errorf("unknown mutation %s", m.Name)
     }
@@ -71,6 +73,18 @@ func createGroup(args any) (ok bool, err error) {
         return false, fmt.Errorf("createGroup handler did not recieve GroupInput as args: %v", args)
     }
     err = db.CreateGroup(input.Group, input.OwnerId, input.DefaultSplitId)
+    if err != nil {
+        return false, err
+    }
+    return true, nil
+}
+
+func createInvite(args any) (ok bool, err error) {
+    invite, ok := args.(db.Invite)
+    if !ok {
+        return false, fmt.Errorf("createInvite handler did not recieve Invite as args: %v", args)
+    }
+    err = db.CreateInvite(invite)
     if err != nil {
         return false, err
     }

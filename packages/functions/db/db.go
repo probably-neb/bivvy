@@ -53,6 +53,14 @@ type Debt struct {
     Amount float64 `json:"amount"`
 }
 
+type Invite struct {
+    Id string `json:"id"`
+    GroupId string `json:"groupId"`
+    Email string `json:"email"`
+    CreatedAt unixTimestamp `json:"createdAt"`
+    AcceptedAt *unixTimestamp `json:"acceptedAt"`
+}
+
 type unixTimestamp time.Time
 
 // TODO: these may need to be divided by 1000 because
@@ -595,4 +603,34 @@ func createSplitPortions(tx *sql.Tx, splitId string, portions map[string]float64
         }
     }
     return nil
+}
+
+func CreateInvite(invite Invite) error {
+    q := `INSERT INTO invites (id, email, group_id) VALUES (?, ?, ?)`
+    _, err := conn.Exec(q, invite.Id, invite.Email, invite.GroupId)
+    return err
+}
+
+func GetInvites(userId string) ([]Invite, error) {
+    q := `SELECT i.id, i.email, i.group_id, i.created_at, i.accepted_at
+            FROM users_to_group AS ug
+            RIGHT JOIN users_to_group AS ag ON ag.group_id = ug.group_id
+            RIGHT JOIN invites AS i ON i.group_id = ag.group_id
+            WHERE ug.user_id = ?`
+    rows, err := conn.Query(q, userId)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+    invites := make([]Invite, 0)
+    for rows.Next() {
+        var i Invite
+        err = rows.Scan(&i.Id, &i.Email, &i.GroupId, &i.CreatedAt, &i.AcceptedAt)
+        if err != nil {
+            return nil, err
+        }
+        invites = append(invites, i)
+    }
+    err = rows.Err()
+    return invites, err
 }

@@ -217,6 +217,10 @@ func splitKey(groupID string, splitID string) string {
     return fmt.Sprintf("group/%s/split/%s", groupID, splitID)
 }
 
+func inviteKey(inviteId string) string {
+    return fmt.Sprintf("invite/%s", inviteId)
+}
+
 func parse(body string) (PullRequest, error) {
     pr := PullRequest{}
     err := json.Unmarshal([]byte(body), &pr)
@@ -262,6 +266,12 @@ func custructPatches(userId string) []PatchOperation {
         log.Fatalf("Could not get splits: %v", err)
     }
     numPatches += len(splits)
+
+    invites, err := db.GetInvites(userId)
+    if err != nil {
+        log.Fatalf("Could not get invites: %v", err)
+    }
+    numPatches += len(invites)
 
     patches := make([]PatchOperation, numPatches)
 
@@ -316,6 +326,15 @@ func custructPatches(userId string) []PatchOperation {
             s,
             )
     }
+
+    for ii := 0; ii < len(invites); ii++ {
+        invite := invites[ii]
+        patches[i + ii] = NewPutOp(
+            inviteKey(invite.Id),
+            invite,
+        )
+    }
+
     return patches
 }
 

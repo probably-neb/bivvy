@@ -243,3 +243,11 @@ export const payment_splits = table("payment_splits", {
     split_portion_id: idRef("split_portion_id").notNull(),
     amount: ucents("amount").notNull(),
 });
+
+export const invites = table("invites", {
+    id: id("id"),
+    group_id: idRef("group_id").notNull(),
+    email: varchar("email", { length: 255 }).notNull(),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    accepted_at: timestamp("accepted_at"),
+})

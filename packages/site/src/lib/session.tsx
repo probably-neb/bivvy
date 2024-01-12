@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { ParentProps, createContext, createRenderEffect, createSignal, on, splitProps, useContext } from "solid-js";
+import { ParentProps, createContext, createRenderEffect, on, splitProps, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 import { z } from "zod";
 
@@ -76,18 +76,11 @@ export function SessionContextProvider(props: ParentProps) {
         },
         isValid() {
             if (!session.valid) {
-                const qparams = new URLSearchParams(window.location.search);
-                const userId = qparams.get("userId");
-                if (!userId) {
-                    console.log("no userId param")
-                    return false;
+                let init = loadInitFromParams()
+                if (!init) {
+                    return false
                 }
-                const token = qparams.get("token");
-                if (!token) {
-                    console.log("no token")
-                    return false;
-                }
-                fns.initSession({token, userId})
+                fns.initSession(init)
             }
             return session.valid
         },
@@ -102,6 +95,21 @@ export function SessionContextProvider(props: ParentProps) {
     return (<SessionContext.Provider value={[session, fns]}>
         {props.children}
     </SessionContext.Provider>)
+}
+
+function loadInitFromParams() {
+    const qparams = new URLSearchParams(window.location.search);
+    const userId = qparams.get("userId");
+    if (!userId) {
+        console.log("no userId param")
+        return null;
+    }
+    const token = qparams.get("token");
+    if (!token) {
+        console.log("no token")
+        return null;
+    }
+    return {userId, token}
 }
 
 function getAuthCookie() {

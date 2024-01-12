@@ -5,7 +5,7 @@ import "./index.css";
 import { routes } from "@/routes";
 import { ParentProps, lazy } from "solid-js";
 import { Route, Router } from "@solidjs/router";
-import Layout from "./lib/layout";
+import Layout from "@/layout/layout";
 import { SessionContextProvider, EnsureLogin } from "@/lib/session";
 import { ReplicacheContextProvider } from "@/lib/rep";
 import { DeviceContextProvider } from "@/lib/device";
