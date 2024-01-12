@@ -2,5 +2,5 @@ before_compile:
   - curl -fsSL https://bun.sh/install | bash
   - echo 'export PATH="$HOME/.bun/bin:$PATH"' >> $BASH_ENV
 compile:
-  - cd packages/site && bun run vite build
+  - cd packages/site && bun install && bun run vite build
     
