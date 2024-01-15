@@ -12,6 +12,7 @@ export default function SITE({ stack, app }: StackContext) {
     const site = new StaticSite(stack, "Site", {
         path: "packages/site",
         buildOutput: "dist",
+        buildCommand: "pnpm run build",
         environment: {
             VITE_IS_LOCAL: String(app.local),
             VITE_API_URL: api.url,

@@ -5,9 +5,9 @@
     "type": "module",
     "scripts": {
         "dev": "sst bind vite",
-        "build": "tsc && vite build",
+        "build": "sst bind vite build",
         "preview": "vite preview",
-        "shadd": "pnpm dlx shadcn-solid@latest add"
+        "shadd": "bunx shadcn-solid@latest add"
     },
     "dependencies": {
         "@kobalte/core": "link:../kobalte/packages/core",

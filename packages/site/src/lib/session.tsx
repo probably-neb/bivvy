@@ -142,3 +142,8 @@ export function useUserId() {
     const [session] = useSession();
     return () => session.userId;
 }
+
+export function useToken() {
+    const [session] = useSession();
+    return () => session.token;
+}

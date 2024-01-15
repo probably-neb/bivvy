@@ -17,6 +17,7 @@ import { useMatch } from "@solidjs/router";
 import { createStore, reconcile } from "solid-js/store";
 import { routes } from "@/routes";
 import { useSession, useUserId } from "./session";
+import { useCurrentGroupId } from "./group";
 
 // NOTE: wrappers around these mutators are required because the mutators will be run by the server
 // with the same arguments (this being the contents of the push request). For consistency we want
@@ -244,7 +245,8 @@ export type GroupInput = z.infer<typeof groupInputSchema>;
 export const inviteSchema = z.object({
     id: idSchema,
     groupId: groupSchema.shape.id,
-    email: z.string().email(),
+    email: z.string().email().nullable(),
+    key: z.string(),
     createdAt: unixTimeSchema,
     acceptedAt: unixTimeSchema.nullable(),
 });
@@ -252,20 +254,11 @@ export const inviteSchema = z.object({
 export type Invite = z.infer<typeof inviteSchema>;
 
 export const inviteInputSchema = inviteSchema.pick({
-    email: true,
+    key: true,
+    groupId: true,
 });
 
 export type InviteInput = z.infer<typeof inviteInputSchema>;
-
-// The replicache context is used to store the replicache instance and the some info
-// from the current session
-
-// interface MutationWrappers extends Record<keyof Mutators, Mutation<any>> {
-//     addExpense: Mutation<ExpenseInput>;
-//     deleteExpense: Mutation<Expense["id"]>;
-//     createSplit: Mutation<SplitInput>;
-//     createGroup: Mutation<Group["name"]>;
-// }
 
 interface MutationMap extends Record<keyof Mutators, any> {}
 
@@ -411,7 +404,8 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 id: nanoid(),
                 acceptedAt: null,
                 groupId,
-            });
+                email: null
+            }) satisfies Invite;
             await ctx.rep.mutate.createInvite(inviteSchema.parse(invite));
         },
         async acceptInvite(id: Invite["id"]) {
@@ -746,12 +740,12 @@ export function useWithOpts<Opts, Result>(
 }
 
 function useGroupId(group?: Accessor<Group["id"]>) {
-    const groupMatch = useMatch(() => routes.group(":id") + "/*");
+    const curId = useCurrentGroupId();
     const id = createMemo(() => {
         if (group) {
             return group();
         }
-        const id = groupMatch()?.params.id;
+        const id = curId()
         // TODO: how to handle?
         return id!;
     });

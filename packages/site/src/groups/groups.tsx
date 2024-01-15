@@ -53,17 +53,22 @@ function GroupCard(props: { group: Group }) {
 
 function NewGroupCard() {
     const [createGroupModalOpen, setCreateGroupModalOpen] = createSignal(false);
+    const onClick = (open: boolean) => {
+        setCreateGroupModalOpen(open);
+    };
     return (
-        <Card
-            onClick={[setCreateGroupModalOpen, true]}
-            class="w-64 h-32 grow-0 shrink-0 col-span-full hover:scale-105 border-2 border-white flex items-center justify-center bg-white/50"
-        >
-            <TiPlus size={50} color="#FFFFFF" />
+        <>
+            <Card
+                onClick={[onClick, true]}
+                class="w-64 h-32 grow-0 shrink-0 col-span-full hover:scale-105 border-2 border-white flex items-center justify-center bg-white/50"
+            >
+                <TiPlus size={50} color="#FFFFFF" />
+            </Card>
             <CreateGroupModal
                 open={createGroupModalOpen}
                 setOpen={setCreateGroupModalOpen}
             />
-        </Card>
+        </>
     );
 }
 

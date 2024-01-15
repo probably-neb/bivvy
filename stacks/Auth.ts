@@ -1,10 +1,10 @@
 import { Auth, Config, StackContext, use } from "sst/constructs";
 import Api from "./Api";
-import Site from "./Site"
+import Site from "./Site";
 
-export default function AUTH({stack}: StackContext) {
-    const {api} = use(Api)
-    const {site} = use(Site)
+export default function AUTH({ stack }: StackContext) {
+    const { api } = use(Api);
+    const { site } = use(Site);
 
     const gcid = new Config.Secret(stack, "GOOGLE_CLIENT_ID");
     const gcids = new Config.Secret(stack, "GOOGLE_CLIENT_ID_SECRET");
@@ -15,12 +15,13 @@ export default function AUTH({stack}: StackContext) {
             bind: [gcid, gcids, site],
             environment: {
                 SITE_URL: site.url!,
-            }
+            },
         },
     });
 
     auth.attach(stack, { api });
+
     stack.addOutputs({
-        authRoutes: "\n     " + api.routes.join("\n     "),
-    })
+        authRoutes: "\n     " + api.routes.filter(r => r.includes("auth")).join("\n     "),
+    });
 }

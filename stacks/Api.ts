@@ -57,13 +57,24 @@ export default function API({ stack }: StackContext) {
                     },
                 },
             },
+            "GET /invite": {
+                function: {
+                    handler: "packages/functions/src/invite.createHandler",
+                    bind: [],
+                },
+            },
+            "GET /invite/validate": {
+                function: {
+                    handler: "packages/functions/src/invite.validateHandler",
+                    bind: [],
+                },
+            },
         },
     });
 
-
     stack.addOutputs({
         ApiEndpoint: api.url,
-        ApiEndpoints: "\n     " + api.routes.filter(r => r.includes("auth")).join("\n     "),
+        ApiEndpoints: "\n     " + api.routes.join("\n     "),
     });
     return { api };
 }

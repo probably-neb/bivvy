@@ -8,6 +8,7 @@ import { useMatch } from "@solidjs/router";
 import { routes } from "@/routes";
 import { CreateInviteForm } from "@/layout/create-invite";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useCurrentGroupId } from "@/lib/group";
 
 export default function Layout({ children }: ParentProps) {
     // TODO: current user hook (and store current user at known key in rep)
@@ -66,15 +67,15 @@ function DropDataButton() {
 }
 
 function CreateInviteButton() {
-    const groupMatch = useMatch(() => routes.group(":id") + "/*");
+    const groupId = useCurrentGroupId()
     const [open, setOpen] = createSignal(false);
     return (
-        <Show when={Boolean(groupMatch())}>
+        <Show when={Boolean(groupId())}>
             <Button variant="outline" onClick={[setOpen, true]}>New Invite</Button>
             <Dialog open={open()} onOpenChange={setOpen}>
                 <DialogContent class="sm:max-w-[425px] max-w-[80%]">
                     <DialogTitle>Invite</DialogTitle>
-                    <CreateInviteForm onSubmit={() => setOpen(false)} />
+                    <CreateInviteForm onSubmit={() => setOpen(false)} groupId={groupId()!} />
                 </DialogContent>
             </Dialog>
         </Show>
