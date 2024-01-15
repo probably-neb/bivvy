@@ -1,14 +1,22 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Switch, Show, createMemo, createSignal, Match, ParentProps } from "solid-js";
+import {
+    Switch,
+    Show,
+    createMemo,
+    createSignal,
+    Match,
+    ParentProps,
+} from "solid-js";
 import { OverviewCard } from "@/group/overview-card";
 import { ExpensesTable } from "@/group/expenses-table";
 import { AddExpenseCard } from "@/group/add-expense";
 import { ViewExpenseCard } from "@/group/view-expense";
-import { Expense, useMutations } from "@/lib/rep";
+import { Expense, useExpense, useMutations } from "@/lib/rep";
 import { useQueries } from "@/lib/device";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
+import { useSession, useUserId } from "@/lib/session";
 
 type ExpenseCardView = { mode: "view"; id: Expense["id"] };
 // TODO:
@@ -60,17 +68,23 @@ function AddExpenseButton() {
 
 function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
     const { deleteExpense } = useMutations();
+
+    const userId = useUserId();
+    const expense = useExpense(() => props.expenseId);
+    const allowed = createMemo(() => userId() === expense()?.paidBy);
+
     const onClickDelete = async () => {
         // TODO: show confirmation dialog
         await deleteExpense(props.expenseId);
         setExpenseCardMode({ mode: "add" });
         setExpenseCardOpen(false);
     };
-    // FIXME: button not red
     return (
-        <Button variant="ghost" onClick={onClickDelete}>
-            <TiTrash size="1.5em" class="bg-red" />
-        </Button>
+        <Show when={allowed()}>
+            <Button variant="ghost" onClick={onClickDelete}>
+                <TiTrash size="1.5em" class="bg-red" />
+            </Button>
+        </Show>
     );
 }
 
@@ -123,7 +137,6 @@ function ExpenseCardModal(props: { title: string }) {
     return (
         <Dialog open={expenseCardOpen()} onOpenChange={setExpenseCardOpen}>
             <DialogContent class="sm:max-w-[425px] max-w-[80%]">
-
                 <ExpenseCardHeader>
                     <DialogTitle>{props.title}</DialogTitle>
                 </ExpenseCardHeader>
@@ -149,12 +162,17 @@ function ExpenseCard(props: { title: string }) {
 }
 
 function ExpenseCardHeader(props: ParentProps) {
-    return <Show when={expenseCardMode().mode === "view"} fallback={props.children}>
-        <div class="flex justify-between items-center">
-            {props.children}
-            <DeleteExpenseButton expenseId={expenseCardMode().id!} />
-        </div>
-    </Show>
+    return (
+        <Show
+            when={expenseCardMode().mode === "view"}
+            fallback={props.children}
+        >
+            <div class="flex justify-between items-center">
+                {props.children}
+                <DeleteExpenseButton expenseId={expenseCardMode().id!} />
+            </div>
+        </Show>
+    );
 }
 
 function ExpenseCardInner() {
