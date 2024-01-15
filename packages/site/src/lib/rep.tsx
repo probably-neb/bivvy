@@ -13,11 +13,10 @@ import { nanoid } from "nanoid";
 
 import z from "zod";
 import { InitSession } from "@/lib/session";
-import { useMatch } from "@solidjs/router";
 import { createStore, reconcile } from "solid-js/store";
-import { routes } from "@/routes";
 import { useSession, useUserId } from "./session";
 import { useCurrentGroupId } from "./group";
+import { removeKeys } from "./utils";
 
 // NOTE: wrappers around these mutators are required because the mutators will be run by the server
 // with the same arguments (this being the contents of the push request). For consistency we want
@@ -26,37 +25,14 @@ import { useCurrentGroupId } from "./group";
 const mutators = {
     async addExpense(tx: WriteTransaction, expense: Expense) {
         await tx.set(P.expense.id(expense.groupId, expense.id), expense);
-        const curUserId = expense.paidBy;
-        const groupUsers = await tx
-            .scan<GroupUser>({ prefix: P.groupUser.prefix(expense.groupId) })
-            .values()
-            .toArray();
-        let numUsers = groupUsers.length;
-        if (numUsers === 0) {
-            numUsers = 1;
-        }
-        // FIXME: splits
-        const portion = expense.amount / numUsers;
-        for (const user of groupUsers) {
-            let owed = user.owed ?? 0;
-            if (user.userId === curUserId) {
-                owed = owed + expense.amount - portion;
-            } else {
-                owed = owed + portion;
-            }
-            await tx.set(P.groupUser.id(expense.groupId, user.userId), {
-                ...user,
-                owed,
-            });
-        }
+        await createExpenseSideEffects(tx, expense);
     },
     async deleteExpense(
         tx: WriteTransaction,
         { groupId, id }: { groupId: Expense["groupId"]; id: Expense["id"] },
     ) {
+        await cleanupExpenseSideEffects(tx, id, groupId);
         await tx.del(P.expense.id(groupId, id));
-        // FIXME: handle side effects
-        // FIXME: update owed
     },
     async createSplit(tx: WriteTransaction, split: Split) {
         await tx.set(P.split.id(split.groupId, split.id), split);
@@ -87,6 +63,71 @@ const mutators = {
         tx.set(P.invite.id(invite.id), invite);
     },
 };
+
+async function createExpenseSideEffects(tx: WriteTransaction, expense: Expense) {
+    const groupId = expense.groupId;
+    const curUserId = expense.paidBy;
+    const split = await tx.get<Split>(P.split.id(groupId, expense.splitId));
+    if (!split) {
+        throw new Error("split not found");
+    }
+    await updateOwed(tx, curUserId, groupId, expense.amount, split.portions);
+}
+
+async function cleanupExpenseSideEffects(
+    tx: WriteTransaction,
+    id: Expense["id"],
+    groupId: Group["id"],
+) {
+    const expense = await tx.get<Expense>(P.expense.id(groupId, id));
+    if (!expense) {
+        throw new Error("expense not found");
+    }
+    let split = await tx.get<Split>(P.split.id(groupId, expense.splitId));
+    if (!split) {
+        // FIXME: uncomment
+        // throw new Error("split not found");
+        const userIds = await groupUserIds(tx, groupId);
+        split = createEvenSplit(userIds, expense.splitId, groupId);
+    }
+    // const portions = invertPortions(split.portions);
+    const total = -expense.amount;
+    await updateOwed(tx, expense.paidBy, expense.groupId, total, split.portions);
+}
+
+function invertPortions(portions: Split["portions"]) {
+    // lots of copies because portions might be a readonly obj
+    // returned from replicache
+    return Object.fromEntries(
+        Object.entries(portions).map(([userId, percent]) => [userId, -percent]),
+    );
+}
+
+async function updateOwed(
+    tx: WriteTransaction,
+    paidById: string,
+    groupId: string,
+    total: number,
+    portions: Split["portions"],
+) {
+    const groupUsers = await tx
+        .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
+        .values()
+        .toArray();
+    for (const user of groupUsers) {
+        const portion = total * (portions[user.userId] ?? 0);
+        let owed = user.owed ?? 0;
+        if (user.userId === paidById) {
+            owed = owed + total - portion;
+        } else {
+            owed = owed + portion;
+        }
+        await tx.set(P.groupUser.id(groupId, user.userId), {
+            ...user,
+            owed,
+        });
+    }
+}
 
 type Mutators = typeof mutators;
 
@@ -287,11 +328,6 @@ type Ctx = [Accessor<Rep | null>, MutationWrappers];
 const defaultCtx: Ctx = [() => null, defualtMutations];
 const ReplicacheContext = createContext<Ctx>(defaultCtx);
 
-type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
-type Optional<T, Keys extends keyof T> = Simplify<
-    Omit<T, Keys> & Partial<Pick<T, Keys>>
->;
-
 export function ReplicacheContextProvider(props: ParentProps) {
     const [session] = useSession();
     const rep = createMemo(() => {
@@ -395,7 +431,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
             if (!ctx.isInit) {
                 throw new Error("Replicache not initialized");
             }
-            const groupId = ctx.groupId
+            const groupId = ctx.groupId;
             if (!groupId) {
                 throw new Error("Group not set");
             }
@@ -404,7 +440,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 id: nanoid(),
                 acceptedAt: null,
                 groupId,
-                email: null
+                email: null,
             }) satisfies Invite;
             await ctx.rep.mutate.createInvite(inviteSchema.parse(invite));
         },
@@ -414,7 +450,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 throw new Error("Replicache not initialized");
             }
             await ctx.rep.mutate.acceptInvite(id);
-        }
+        },
     } satisfies MutationWrappers;
 
     return (
@@ -489,12 +525,17 @@ export function useOtherUsers(group?: Accessor<Group["id"]>) {
     return users;
 }
 
-async function groupUsers(tx: ReadTransaction, groupId: Group["id"]) {
+async function groupUserIds(tx: ReadTransaction, groupId: Group["id"]) {
     let gids = await tx
         .scan({ prefix: P.groupUser.prefix(groupId) })
         .keys()
         .toArray();
     gids = gids.map((id) => id.split("/").at(-1)!);
+    return gids;
+}
+
+async function groupUsers(tx: ReadTransaction, groupId: Group["id"]) {
+    const gids = await groupUserIds(tx, groupId);
     return tx
         .scan<User>({ prefix: P.user.prefix })
         .values()
@@ -745,7 +786,7 @@ function useGroupId(group?: Accessor<Group["id"]>) {
         if (group) {
             return group();
         }
-        const id = curId()
+        const id = curId();
         // TODO: how to handle?
         return id!;
     });
@@ -767,17 +808,4 @@ function createEvenSplit(userIds: string[], splitId: string, groupId: string) {
         // TODO: use this in backend
         createdAt: new Date().getTime(),
     } satisfies Split;
-}
-
-function removeKeys<T, K extends keyof T>(obj: T, keys: K[]) {
-    const copy = { ...obj };
-    const removed = {} as Pick<T, K>;
-    for (const key of keys) {
-        removed[key] = copy[key];
-        delete copy[key];
-    }
-    return [
-        copy as Simplify<Omit<T, K>>,
-        removed as Simplify<Pick<T, K>>,
-    ] as const;
 }

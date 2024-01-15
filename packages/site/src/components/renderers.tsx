@@ -10,8 +10,8 @@ export function UserRenderer(props: { userId: User["id"], groupId?: Accessor<Gro
     const user = useUser(() => props.userId, props.groupId);
 
     return (
-        <div class="flex gap-2 items-center">
-            <TiUserOutline />
+        <div class="flex gap-1 items-center">
+            <TiUserOutline size="1em" />
             <h3>{user()?.name}</h3>
         </div>
     );
