@@ -29,10 +29,21 @@ const mutators = {
     },
     async deleteExpense(
         tx: WriteTransaction,
-        { groupId, id }: { groupId: Expense["groupId"]; id: Expense["id"] },
+        o: {
+            groupId: Expense["groupId"];
+            id: Expense["id"];
+            userId: User["id"];
+        },
     ) {
-        await cleanupExpenseSideEffects(tx, id, groupId);
-        await tx.del(P.expense.id(groupId, id));
+        const expense = await tx.get<Expense>(P.expense.id(o.groupId, o.id));
+        if (!expense) {
+            throw new Error("expense not found");
+        }
+        if (expense.paidBy !== o.userId) {
+            throw new Error("Cannot delete other users expenses");
+        }
+        await cleanupExpenseSideEffects(tx, expense, o.groupId);
+        await tx.del(P.expense.id(o.groupId, o.id));
     },
     async createSplit(tx: WriteTransaction, split: Split) {
         await tx.set(P.split.id(split.groupId, split.id), split);
@@ -64,7 +75,10 @@ const mutators = {
     },
 };
 
-async function createExpenseSideEffects(tx: WriteTransaction, expense: Expense) {
+async function createExpenseSideEffects(
+    tx: WriteTransaction,
+    expense: Expense,
+) {
     const groupId = expense.groupId;
     const curUserId = expense.paidBy;
     const split = await tx.get<Split>(P.split.id(groupId, expense.splitId));
@@ -76,13 +90,9 @@ async function createExpenseSideEffects(tx: WriteTransaction, expense: Expense) 
 
 async function cleanupExpenseSideEffects(
     tx: WriteTransaction,
-    id: Expense["id"],
+    expense: Expense,
     groupId: Group["id"],
 ) {
-    const expense = await tx.get<Expense>(P.expense.id(groupId, id));
-    if (!expense) {
-        throw new Error("expense not found");
-    }
     let split = await tx.get<Split>(P.split.id(groupId, expense.splitId));
     if (!split) {
         // FIXME: uncomment
@@ -92,15 +102,7 @@ async function cleanupExpenseSideEffects(
     }
     // const portions = invertPortions(split.portions);
     const total = -expense.amount;
-    await updateOwed(tx, expense.paidBy, expense.groupId, total, split.portions);
-}
-
-function invertPortions(portions: Split["portions"]) {
-    // lots of copies because portions might be a readonly obj
-    // returned from replicache
-    return Object.fromEntries(
-        Object.entries(portions).map(([userId, percent]) => [userId, -percent]),
-    );
+    await updateOwed(tx, expense.paidBy, groupId, total, split.portions);
 }
 
 async function updateOwed(
@@ -389,7 +391,11 @@ export function ReplicacheContextProvider(props: ParentProps) {
             if (!ctx.groupId) {
                 throw new Error("Group not set");
             }
-            await ctx.rep.mutate.deleteExpense({ groupId: ctx.groupId, id });
+            await ctx.rep.mutate.deleteExpense({
+                groupId: ctx.groupId,
+                id,
+                userId: ctx.userId,
+            });
         },
         async createSplit(splitInput: SplitInput) {
             const ctx = useCtx();
@@ -473,6 +479,12 @@ export function useGroups() {
         (tx) => tx.scan<Group>({ prefix: P.group.prefix }).values().toArray(),
         false,
     );
+}
+
+export function useGroup(group: Accessor<Group["id"]>) {
+    return use(
+        tx => tx.get<Group>(P.group.id(group())),
+    )
 }
 
 export function useExpenses() {
