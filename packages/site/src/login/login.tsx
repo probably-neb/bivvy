@@ -1,42 +1,37 @@
-import { createFilter } from "@kobalte/core";
-import type { ComboboxTriggerMode } from "@/components/ui/combobox";
+import { USERS, User, useSession } from "@/lib/session";
 import {
-    Combobox,
-    ComboboxContent,
-    ComboboxInput,
-    ComboboxItem,
-    ComboboxTrigger,
-} from "@/components/ui/combobox";
-import { USERS, User, initSessionSchema, useSession } from "@/lib/session";
-import Layout from "@/lib/layout";
-import {
-    Match,
-    Switch,
-    createEffect,
+    For,
+    JSX,
+    Show,
     createMemo,
     createRenderEffect,
-    createResource,
-    createSignal,
     on,
 } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { routes } from "@/routes";
 import { Button } from "@/components/ui/button";
-import { Show } from "solid-js";
 import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
 } from "@/components/ui/select";
+import { Api, authUrl } from "@/lib/api";
+import { CollectionNode } from "@kobalte/core";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AiOutlineGoogle } from "solid-icons/ai";
 
-type name = string;
-type url = string;
-type Providers = Record<name, url>;
+type SelectItemProps<T> = { item: CollectionNode<T> };
 
-// FIXME: hit `GET /auth` endpoint to get possible signin methods
-// obv could just hard code them but this allows for having backend control what options there are
-// (specifically whether local version shows)
+const AVAILABLE_PROVIDERS = ["google"] as const;
+type Provider = (typeof AVAILABLE_PROVIDERS)[number];
+
+const DEFAULT_PROVIDERS: Provider[] = ["google"];
+
+const PROVIDERS = Object.fromEntries(
+    DEFAULT_PROVIDERS.map((p) => [p, Api.authUrl(p)]),
+);
+
 export default function () {
     console.log("Login");
     const [_, { isValid }] = useSession();
@@ -50,120 +45,95 @@ export default function () {
             }
         }),
     );
-    // TODO: remove
-    const [providersResource] = createResource<Providers>(() =>
-        fetch(`${import.meta.env.VITE_API_URL}/auth/`).then((r) => r.json()),
-    );
-    const providers = createMemo(
-        on(providersResource, (p) => {
-            if (!p) return new Map();
-            return new Map(Object.entries(p));
-        }),
-    );
-    createEffect(
-        on(providers, (p) => {
-            console.log("providers", p);
-        }),
-    );
     return (
-        <div class="flex flex-row justify-between items-center px-4 pt-4">
-            <Show when={providers().has("local")}>
-                <GroupMembers />
-            </Show>
-            <Show when={providers().has("google")}>
-                <a href={providers().get("google")} rel="noreferrer">
-                    <Button>GOOGOO</Button>
-                </a>
-            </Show>
+        <div class="flex justify-center items-center px-4 pt-4">
+            <LoginCard providers={PROVIDERS} />
         </div>
     );
 }
 
+function LoginCard(props: { providers: Record<string, string> }) {
+    return (
+        <Card class="min-w-fit md:w-1/3">
+            <CardHeader>
+                <CardTitle>Login</CardTitle>
+            </CardHeader>
+            <CardContent>
+                {/* TODO: email login */ }
+                <Show when={import.meta.env.VITE_IS_LOCAL}>
+                    <GroupMembers />
+                </Show>
+                <div class="px-2 py-4 text-center text-sm text-muted-foreground">Or Continue With</div>
+                <Providers providers={props.providers} />
+            </CardContent>
+        </Card>
+    );
+}
+
+function Providers(props: { providers: Record<string, string> }) {
+    return (
+        <div class="flex flex-col gap-2">
+            <For each={Object.entries(props.providers)}>
+                {([provider, url]) => (
+                    <Provider provider={provider as Provider} url={url} />
+                )}
+            </For>
+        </div>
+    );
+}
+
+const ICONS: Record<Provider, () => JSX.Element> = {
+    google: () => <AiOutlineGoogle />,
+};
+
+const TITLES: Record<Provider, string> = {
+    google: "Google",
+};
+
+function Provider(props: { provider: Provider; url: string }) {
+    const icon = createMemo(() => ICONS[props.provider]());
+    return (
+        <a href={props.url} rel="noreferrer">
+            <Button class="flex gap-2 w-full">
+                {icon()} {TITLES[props.provider]}
+            </Button>
+        </a>
+    );
+}
+
 function GroupMembers() {
-    const [_, { initSession }] = useSession();
-    const users = createMemo(() => {
-        return USERS.map((user) => user.name) ?? [];
-    });
-    // const filter = createFilter({ sensitivity: "base" });
-    const [options, setOptions] = createSignal(USERS);
-    // createEffect(
-    //     on(users, (users) => {
-    //         setOptions(users);
-    //     }),
-    // );
-    // const onOpenChange = (
-    //     isOpen: boolean,
-    //     triggerMode?: ComboboxTriggerMode,
-    // ) => {
-    //     if (isOpen && triggerMode === "manual") {
-    //         // setOptions(users());
-    //     }
-    // };
-
-    // const onInputChange = (value: string) => {
-    //     setOptions(users().filter((option) => filter.contains(option, value)));
-    // };
-
-    //const [currentUser, setCurrentUser] = createSignal<User | undefined>();
     const navigate = useNavigate();
+
+    const url = (userId: User["id"]) => `${authUrl("local")}?userId=${userId}`;
 
     const onChange = async (user: User) => {
         // TODO: handle
         if (!user) return;
         navigate(
-            `${import.meta.env.VITE_API_URL}/auth/local/authorize?userId=${
-                user.id
-            }`,
+            url(user.id)
         );
-        //setCurrentUser(user);
     };
 
-    // const [session] = createResource(currentUser, async (user) => {
-    //     if (!user) return;
-    //     const id = user.id;
-    //     const res = await fetch(
-    //         `${import.meta.env.VITE_API_URL}/auth/local/authorize?userId=${id}`,
-    //         {
-    //             method: "GET",
-    //         },
-    //     ).then((res) => res.json());
-    //     if (!res.body) {
-    //         throw new Error("Invalid response");
-    //     }
-    //     const info = initSessionSchema.safeParse(JSON.parse(res.body));
-    //     if (!info.success) {
-    //         throw new Error("Invalid response: " + info.error);
-    //     }
-    //     return info.data;
-    // });
-    //
-    // createEffect(
-    //     on(session, (s) => {
-    //         if (!s) return;
-    //         console.log("session", s);
-    //         initSession(s);
-    //     }),
-    // );
+    function itemComponent(itemProps: SelectItemProps<User>) {
+        const { item } = itemProps;
+        const user = item.rawValue;
+        return (
+            <SelectItem item={item}>
+                <a href={url(user.id)}>
+                    <Button>{user.name}</Button>
+                </a>
+            </SelectItem>
+        );
+    }
 
     return (
         <Select<User>
-            options={options()}
-            // onOpenChange={onOpenChange}
+            options={USERS}
             onChange={onChange}
             placeholder="Member"
-            itemComponent={(props) => (
-                <SelectItem item={props.item}>
-                    <a
-                        href={`${
-                            import.meta.env.VITE_API_URL
-                        }/auth/local/authorize?userId=${props.item.rawValue.id}`}
-                    >
-                        <Button>{props.item.rawValue.name}</Button>
-                    </a>
-                </SelectItem>
-            )}
+            itemComponent={itemComponent}
         >
-            <SelectTrigger class="bg-white"></SelectTrigger>
+            <SelectTrigger class="bg-white">User</SelectTrigger>
             <SelectContent />
         </Select>
     );
