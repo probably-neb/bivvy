@@ -9,7 +9,17 @@ import {
 } from "@/components/ui/table";
 import { ViewExpense } from "@/group/group";
 import { useExpenses, type Expense } from "@/lib/rep";
-import { Accessor, Component, For, JSX, Show, createMemo, createSignal, on } from "solid-js";
+import {
+    Accessor,
+    Component,
+    For,
+    JSX,
+    Show,
+    createEffect,
+    createMemo,
+    createSignal,
+    on,
+} from "solid-js";
 import {
     DateRenderer,
     MoneyRenderer,
@@ -20,6 +30,7 @@ import { Size, useDeviceContext } from "@/lib/device";
 import { TiPlus } from "solid-icons/ti";
 import { Button } from "@/components/ui/button";
 import { CreateSplitDialog } from "./create-split";
+import { createStore } from "solid-js/store";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -32,7 +43,7 @@ const columnFields = [
     "createdAt",
 ] as const;
 type Columns = Pick<Expense, (typeof columnFields)[number]>;
-type Column = keyof Columns
+type Column = keyof Columns;
 
 const titles: Record<Column, string> = {
     paidBy: "Paid By",
@@ -62,23 +73,37 @@ const actions: Record<Column, Component> = {
     paidOn: () => null,
     createdAt: () => null,
     splitId: () => <CreateSplitButton />,
+};
+
+function ColumnAction(props: { field: Column }) {
+    const Action = actions[props.field];
+    return <Action />;
 }
 
-function ColumnAction(props: { field: Column}) {
-    const Action = actions[props.field]
-    return <Action />
-}
+const defaultShow = Object.fromEntries(
+    columnFields.map((c) => [c, true]),
+) as Record<Column, boolean>;
 
-export function ExpensesTable(props: { viewExpense: ViewExpense, addExpenseButton: JSX.Element }) {
-    const expenses = useExpenses();
+const [show, setShow] = createStore<Record<Column, boolean>>(defaultShow);
+
+function watchShow() {
     const [device, { isAtLeast }] = useDeviceContext();
-    const show = createMemo(
-        on(device, () =>
-            Object.fromEntries(
-                columnFields.map(f => [f, isAtLeast(showAt[f])])
-            ) as Record<Column, boolean>
-        )
-    )
+    createEffect(
+        on(device, () => {
+            setShow(
+                Object.fromEntries(
+                    columnFields.map((f) => [f, isAtLeast(showAt[f])]),
+                ),
+            );
+        }),
+    );
+}
+
+export function ExpensesTable(props: {
+    viewExpense: ViewExpense;
+    addExpenseButton: JSX.Element;
+}) {
+    watchShow();
     return (
         <Card class="mt-6">
             <CardHeader class="flex flex-row justify-between items-center p-3 pl-6">
@@ -89,29 +114,41 @@ export function ExpensesTable(props: { viewExpense: ViewExpense, addExpenseButto
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <For each={columnFields}>
-                                {(field) => (
-                                    <Show when={show()[field]}>
-                                        <TableHead>{titles[field]} <ColumnAction field={field} /></TableHead>
-                                    </Show>
-                                )}
-                            </For>
+                            <TableHeaders />
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <For each={expenses()}>
-                            {(expense) => (
-                                <ExpenseRow
-                                    show={show}
-                                    expense={expense}
-                                    viewExpense={props.viewExpense}
-                                />
-                            )}
-                        </For>
+                        <TableRows viewExpense={props.viewExpense} />
                     </TableBody>
                 </Table>
             </CardContent>
         </Card>
+    );
+}
+
+function TableHeaders() {
+    return (
+        <For each={columnFields}>
+            {(field) => (
+                <Show when={show[field]}>
+                    <TableHead>
+                        {titles[field]}
+                        <ColumnAction field={field} />
+                    </TableHead>
+                </Show>
+            )}
+        </For>
+    );
+}
+
+function TableRows(props: { viewExpense: ViewExpense }) {
+    const expenses = useExpenses();
+    return (
+        <For each={expenses()}>
+            {(expense) => (
+                <ExpenseRow expense={expense} viewExpense={props.viewExpense} />
+            )}
+        </For>
     );
 }
 
@@ -125,13 +162,16 @@ const renderers: { [key in Column]: RowRenderer<key> } = {
     amount: (amount) => <MoneyRenderer amount={amount} />,
     description: (description) => <span>{description}</span>,
     status: (status) => <span class="uppercase">{status}</span>,
-    paidOn: (paidOn) => ( <Show when={paidOn}> <DateRenderer date={paidOn!} /> </Show>),
+    paidOn: (paidOn) => (
+        <Show when={paidOn}>
+            <DateRenderer date={paidOn!} />
+        </Show>
+    ),
     createdAt: (createdAt) => <DateRenderer date={createdAt} />,
     splitId: (splitId) => <SplitRenderer splitId={splitId} />,
 };
 
 function ExpenseRow(props: {
-    show: Accessor<Record<Column, boolean>>;
     expense: Expense;
     viewExpense: (expenseId: Expense["id"]) => void;
 }) {
@@ -139,9 +179,12 @@ function ExpenseRow(props: {
         <TableRow onClick={[props.viewExpense, props.expense.id]}>
             <For each={columnFields}>
                 {(field) => (
-                    <Show when={props.show()[field]}>
+                    <Show when={show[field]}>
                         <TableCell>
-                            {(renderers[field] as any)(props.expense[field], props.expense)}
+                            {(renderers[field] as any)(
+                                props.expense[field],
+                                props.expense,
+                            )}
                         </TableCell>
                     </Show>
                 )}
@@ -152,11 +195,12 @@ function ExpenseRow(props: {
 
 function CreateSplitButton() {
     const [open, setOpen] = createSignal(false);
-    return <>
-        <Button variant="ghost" onClick={() => setOpen(true)}>
-            <TiPlus />
-        </Button>
-        <CreateSplitDialog open={open()} setOpen={setOpen} />
-    </>
+    return (
+        <>
+            <Button variant="ghost" onClick={() => setOpen(true)}>
+                <TiPlus />
+            </Button>
+            <CreateSplitDialog open={open()} setOpen={setOpen} />
+        </>
+    );
 }
-
