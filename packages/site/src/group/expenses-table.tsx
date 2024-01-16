@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { ViewExpense } from "@/group/group";
 import { useExpenses, type Expense } from "@/lib/rep";
-import { Accessor, For, JSX, Show, createMemo, on } from "solid-js";
+import { Accessor, Component, For, JSX, Show, createMemo, createSignal, on } from "solid-js";
 import {
     DateRenderer,
     MoneyRenderer,
@@ -17,6 +17,9 @@ import {
     UserRenderer,
 } from "@/components/renderers";
 import { Size, useDeviceContext } from "@/lib/device";
+import { TiPlus } from "solid-icons/ti";
+import { Button } from "@/components/ui/button";
+import { CreateSplitDialog } from "./create-split";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -51,6 +54,21 @@ const showAt: Record<Column, Size> = {
     createdAt: "md",
 };
 
+const actions: Record<Column, Component> = {
+    paidBy: () => null,
+    amount: () => null,
+    description: () => null,
+    status: () => null,
+    paidOn: () => null,
+    createdAt: () => null,
+    splitId: () => <CreateSplitButton />,
+}
+
+function ColumnAction(props: { field: Column}) {
+    const Action = actions[props.field]
+    return <Action />
+}
+
 export function ExpensesTable(props: { viewExpense: ViewExpense, addExpenseButton: JSX.Element }) {
     const expenses = useExpenses();
     const [device, { isAtLeast }] = useDeviceContext();
@@ -74,7 +92,7 @@ export function ExpensesTable(props: { viewExpense: ViewExpense, addExpenseButto
                             <For each={columnFields}>
                                 {(field) => (
                                     <Show when={show()[field]}>
-                                        <TableHead>{titles[field]}</TableHead>
+                                        <TableHead>{titles[field]} <ColumnAction field={field} /></TableHead>
                                     </Show>
                                 )}
                             </For>
@@ -131,3 +149,14 @@ function ExpenseRow(props: {
         </TableRow>
     );
 }
+
+function CreateSplitButton() {
+    const [open, setOpen] = createSignal(false);
+    return <>
+        <Button variant="ghost" onClick={() => setOpen(true)}>
+            <TiPlus />
+        </Button>
+        <CreateSplitDialog open={open()} setOpen={setOpen} />
+    </>
+}
+

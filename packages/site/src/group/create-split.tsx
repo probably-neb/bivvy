@@ -6,7 +6,12 @@ import {
     TextFieldInput,
     TextFieldLabel,
 } from "@/components/ui/textfield";
-import { SplitInput, splitInputSchema, useMutations, useUsers } from "@/lib/rep";
+import {
+    SplitInput,
+    splitInputSchema,
+    useMutations,
+    useUsers,
+} from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import { For, createMemo, onMount } from "solid-js";
@@ -19,16 +24,32 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
 
-export function CreateSplit() {
-    const {createSplit} = useMutations();
+export function CreateSplitDialog(props: {
+    open: boolean;
+    setOpen: (b: boolean) => void;
+}) {
+    return (
+        <Dialog open={props.open} onOpenChange={props.setOpen}>
+            <DialogContent>
+                <DialogTitle>New Split</DialogTitle>
+                <CreateSplit onSubmit={() => props.setOpen(false)} />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export function CreateSplit(props: { onSubmit?: () => void }) {
+    const { createSplit } = useMutations();
     const form = createForm<SplitInput, typeof zodValidator>(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
             await createSplit(value);
+            props.onSubmit?.();
         },
         validatorAdapter: zodValidator,
         onSubmitInvalid: (e) => {
@@ -43,55 +64,51 @@ export function CreateSplit() {
     }));
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>New Split</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <form.Provider>
-                    <form
-                        class="flex flex-col gap-4"
-                        lang="en"
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log("values", splitInputSchema.safeParse(form.state.values))
-                            await form.handleSubmit();
-                        }}
-                    >
-                        <div class="flex flex-row gap-4 items-end">
-                            <Field
-                                name="name"
-                                label="Name"
-                                placeholder="Utilities"
-                                validator={splitInputSchema.shape.name}
-                                type="text"
-                                form={form}
-                            />
-                            <SplitColorPick form={form} />
-                        </div>
-                        <UserPortions form={form} />
-                        <Button type="submit" disabled={!form.state.canSubmit}>
-                            Create
-                        </Button>
-                    </form>
-                </form.Provider>
-            </CardContent>
-        </Card>
+        <form.Provider>
+            <form
+                class="flex flex-col gap-4"
+                lang="en"
+                onSubmit={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log(
+                        "values",
+                        splitInputSchema.safeParse(form.state.values),
+                    );
+                    await form.handleSubmit();
+                }}
+            >
+                <div class="flex flex-row gap-4 items-end">
+                    <Field
+                        name="name"
+                        label="Name"
+                        placeholder="Utilities"
+                        validator={splitInputSchema.shape.name}
+                        type="text"
+                        form={form}
+                    />
+                    <SplitColorPick form={form} />
+                </div>
+                <UserPortions form={form} />
+                <Button type="submit" disabled={!form.state.canSubmit}>
+                    Create
+                </Button>
+            </form>
+        </form.Provider>
     );
 }
 
 const colors = [
-        '#D9E3F0',
-        '#F47373',
-        '#697689',
-        '#37D67A',
-        '#2CCCE4',
-        '#555555',
-        '#dce775',
-        '#ff8a65',
-        '#ba68c8',
-]
+    "#D9E3F0",
+    "#F47373",
+    "#697689",
+    "#37D67A",
+    "#2CCCE4",
+    "#555555",
+    "#dce775",
+    "#ff8a65",
+    "#ba68c8",
+];
 
 function randomHexColor() {
     return `#${colors[Math.floor(Math.random() * colors.length)]}`;
@@ -121,9 +138,11 @@ function SplitColorPick(props: { form: SplitForm }) {
                                 class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
                                 style={{ background: color() }}
                             ></div>
-                        <For each={field().state.meta.errors}>
-                            {(error) => <div class="text-red-500">{error}</div>}
-                        </For>
+                            <For each={field().state.meta.errors}>
+                                {(error) => (
+                                    <div class="text-red-500">{error}</div>
+                                )}
+                            </For>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                             <BlockPicker
