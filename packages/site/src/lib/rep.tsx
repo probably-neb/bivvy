@@ -487,6 +487,12 @@ export function useGroup(group: Accessor<Group["id"]>) {
     )
 }
 
+
+export function fetchGroup(groupId: Group["id"]) {
+    const rep = useRep();
+    return rep?.()?.query(async (tx) => tx.get<Group>(P.group.id(groupId)));
+}
+
 export function useExpenses() {
     const expenses = use(async (tx, { groupId }) => {
         return await tx
