@@ -1,7 +1,5 @@
-import { UserRenderer } from "@/components/renderers";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Group, useGroups, useNumUsers, useOtherUsers } from "@/lib/rep";
+import { Group, useGroups, useNumUsers } from "@/lib/rep";
 import { routes } from "@/routes";
 import { A } from "@solidjs/router";
 import {
@@ -13,8 +11,8 @@ import {
 } from "solid-js";
 import { CreateGroupForm } from "./create-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { randomFade } from "@/lib/fade";
 import { TiPlus, TiUserOutline } from "solid-icons/ti";
+import { Pattern, randomPattern } from "@/lib/patterns";
 
 export default function Groups() {
     const groups = useGroups();
@@ -31,12 +29,16 @@ function GroupCard(props: { group: Group }) {
     const groupId = createMemo(() => props.group.id);
     // TODO: useTotalOwed in this card here
     const otherUsers = useNumUsers(groupId);
+    const pattern = randomPattern();
+    console.log(pattern, props.group.name)
     return (
         <Card class="hover:scale-105 border-none w-64 h-32 grow-0 shrink-0">
             <A href={routes.group(props.group.id)}>
                 <CardHeader
-                    class={`w-full rounded-t-xl bg-gradient-to-tl ${randomFade()}`}
-                ></CardHeader>
+                    class="w-full h-16 p-0 rounded-t-xl"
+                >
+                    <Pattern name={pattern} />
+                </CardHeader>
                 <CardContent class="pt-2 px-2 flex items-center justify-between">
                     <CardTitle class="text-xl whitespace-nowrap">
                         {props.group.name}
