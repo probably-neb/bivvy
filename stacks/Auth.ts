@@ -14,7 +14,7 @@ export default function AUTH({ stack }: StackContext) {
             handler: "packages/functions/src/auth.handler",
             bind: [gcid, gcids, site],
             environment: {
-                SITE_URL: site.url!,
+                SITE_URL: site.url || "localhost:5173",
             },
         },
     });

@@ -22,7 +22,11 @@ function queryParams(userId: string) {
     const searchParams = new URLSearchParams()
     searchParams.set("userId", userId)
     searchParams.set("token", token)
-    Session.parameter
+    const SITE_URL = process.env.SITE_URL
+    if (SITE_URL === undefined) {
+        throw new Error("Missing SITE_URL")
+    }
+    const location = `${SITE_URL}/login?${searchParams.toString()}`
     return {
         statusCode: 302,
         headers: {
