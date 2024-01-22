@@ -4,7 +4,7 @@ import "./index.css";
 
 import { routes } from "@/routes";
 import { ParentProps, lazy } from "solid-js";
-import { Route, Router } from "@solidjs/router";
+import { Route, Router, Navigate } from "@solidjs/router";
 import Layout from "@/layout/layout";
 import { SessionContextProvider, EnsureLogin } from "@/lib/session";
 import { ReplicacheContextProvider } from "@/lib/rep";
@@ -17,9 +17,7 @@ const Login = lazy(() => import("@/login/login"));
 function ToAuth() {
     return (
         <div>
-            <button>
-                <a href={routes.auth}>Login</a>
-            </button>
+            <Navigate href={routes.groups} />
         </div>
     );
 }
@@ -48,6 +46,7 @@ export function App() {
     console.log("App");
     return (
         <Router root={Root}>
+            {/* TODO: add home page */ }
             <Route path="/" component={ToAuth} />
             <Route path={routes.groups} component={EnsureLogin}>
                 <Route path="/" component={Groups} />
