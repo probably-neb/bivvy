@@ -23,10 +23,5 @@
     },
     "workspaces": [
         "packages/*"
-    ],
-    "pnpm": {
-        "overrides": {
-            "@kobalte/core": "link:./packages/kobalte/packages/core"
-        }
-    }
+    ]
 }

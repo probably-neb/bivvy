@@ -10,12 +10,12 @@
         "shadd": "bunx shadcn-solid@latest add"
     },
     "dependencies": {
-        "@kobalte/core": "link:../kobalte/packages/core",
         "@solidjs/router": "0.10.5",
         "@tanstack/solid-form": "^0.11.0",
         "@tanstack/zod-form-adapter": "^0.11.0",
         "class-variance-authority": "^0.7.0",
         "clsx": "^2.0.0",
+        "kobalte-monorepo": "github:probably-neb/kobalte",
         "lodash-es": "^4.17.21",
         "nanoid": "^5.0.4",
         "replicache": "^14.0.3",
