@@ -13,7 +13,9 @@ export default defineConfig({
     },
     build: {
         rollupOptions: {
-            plugins: [nodeResolve]
+            plugins: [nodeResolve({
+                modulePaths: ['node_modules', '../']
+            })]
         }
     }
 });
