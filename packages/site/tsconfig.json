@@ -23,8 +23,8 @@
     "baseUrl": "./",
     "paths": {
         "@/*": ["./src/*"],
-        "@kobalte/core": ["../kobalte/packages/core/dist/"]
-        // "solid-color": ["../solid-color/src/"]
+        "@kobalte/core": ["../kobalte/packages/core/dist/"],
+        "solid-color": ["../solid-color/src/"]
     }
   },
   "include": ["src"],
