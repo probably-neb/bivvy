@@ -22,7 +22,7 @@ importers:
         version: 10.2.69
       sst:
         specifier: ^2.36.2
-        version: 2.36.2
+        version: 2.36.2(@types/react@18.2.38)
       typescript:
         specifier: ^5.3.2
         version: 5.3.2
@@ -38,7 +38,7 @@ importers:
         version: 20.9.4
       sst:
         specifier: ^2.36.2
-        version: 2.36.2
+        version: 2.36.2(@types/react@18.2.38)
       vitest:
         specifier: ^0.34.6
         version: 0.34.6
@@ -79,7 +79,7 @@ importers:
         version: 20.9.4
       sst:
         specifier: ^2.36.2
-        version: 2.36.2
+        version: 2.36.2(@types/react@18.2.38)
       vitest:
         specifier: ^0.34.6
         version: 0.34.6
@@ -531,8 +531,8 @@ importers:
         specifier: ^14.0.3
         version: 14.0.3
       solid-color:
-        specifier: link:../solid-color/
-        version: link:../solid-color
+        specifier: ^0.0.4
+        version: 0.0.4(solid-js@1.8.7)
       solid-icons:
         specifier: ^1.1.0
         version: 1.1.0(solid-js@1.8.7)
@@ -551,7 +551,7 @@ importers:
     devDependencies:
       '@rollup/plugin-node-resolve':
         specifier: ^15.2.3
-        version: 15.2.3(rollup@3.28.1)
+        version: 15.2.3
       autoprefixer:
         specifier: ^10.4.16
         version: 10.4.16(postcss@8.4.32)
@@ -669,6 +669,10 @@ importers:
         version: 5.0.10(@types/node@20.9.4)
 
   packages/solid-color:
+    dependencies:
+      solid-color:
+        specifier: ^0.0.4
+        version: 0.0.4(solid-js@1.8.7)
     devDependencies:
       '@solidjs/testing-library':
         specifier: ^0.6.0
@@ -5794,6 +5798,23 @@ packages:
       rollup: 2.79.1
     dev: true
 
+  /@rollup/plugin-node-resolve@15.2.3:
+    resolution: {integrity: sha512-j/lym8nf5E21LwBT4Df1VD6hRO2L2iwUeUmP7litikRsVp1H6NWx20NEp0Y7su+7XGc476GnXXc4kFeZNGmaSQ==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      rollup: ^2.78.0||^3.0.0||^4.0.0
+    peerDependenciesMeta:
+      rollup:
+        optional: true
+    dependencies:
+      '@rollup/pluginutils': 5.1.0(rollup@2.79.1)
+      '@types/resolve': 1.20.2
+      deepmerge: 4.3.1
+      is-builtin-module: 3.2.1
+      is-module: 1.0.0
+      resolve: 1.22.8
+    dev: true
+
   /@rollup/plugin-node-resolve@15.2.3(rollup@3.28.1):
     resolution: {integrity: sha512-j/lym8nf5E21LwBT4Df1VD6hRO2L2iwUeUmP7litikRsVp1H6NWx20NEp0Y7su+7XGc476GnXXc4kFeZNGmaSQ==}
     engines: {node: '>=14.0.0'}
@@ -7225,7 +7246,6 @@ packages:
 
   /@types/node@20.5.4:
     resolution: {integrity: sha512-Y9vbIAoM31djQZrPYjpTLo0XlaSwOIsrlfE3LpulZeRblttsLQRFRlBAppW0LOxyT3ALj2M5vU1ucQQayQH3jA==}
-    dev: true
 
   /@types/node@20.9.4:
     resolution: {integrity: sha512-wmyg8HUhcn6ACjsn8oKYjkN/zUzQeNtMy44weTJSM6p4MMzEOuKbA3OjJ267uPCOW7Xex9dyrNTful8XTQYoDA==}
@@ -17097,6 +17117,14 @@ packages:
       smart-buffer: 4.2.0
     dev: true
 
+  /solid-color@0.0.4(solid-js@1.8.7):
+    resolution: {integrity: sha512-hFZ0E0v6OYiuxc73txwlN8NB1KoeEU3mw5rwBfk3eJ8Kr/yY7h4G7X/QZ1xhnmOeVmam8lHk8iTujee8BeWSOw==}
+    peerDependencies:
+      solid-js: '>=1.0.0'
+    dependencies:
+      solid-js: 1.8.7
+    dev: false
+
   /solid-icons@1.1.0(solid-js@1.8.7):
     resolution: {integrity: sha512-IesTfr/F1ElVwH2E1110s2RPXH4pujKfSs+koT8rwuTAdleO5s26lNSpqJV7D1+QHooJj18mcOiz2PIKs0ic+A==}
     peerDependencies:
@@ -17391,97 +17419,6 @@ packages:
       fsevents: 2.3.2
     dev: true
 
-  /sst@2.36.2:
-    resolution: {integrity: sha512-6uGJlM7/1mUYTVJxcnmqAjKkELkKtOGewLFeEwdEZRpTnN/mu9Y+K1qr96oDE8FaLKwRfx9lpOl/Ejf3GxC0qg==}
-    hasBin: true
-    peerDependencies:
-      '@sls-next/lambda-at-edge': ^3.7.0
-    peerDependenciesMeta:
-      '@sls-next/lambda-at-edge':
-        optional: true
-    dependencies:
-      '@aws-cdk/aws-apigatewayv2-alpha': 2.101.1-alpha.0(aws-cdk-lib@2.101.1)(constructs@10.2.69)
-      '@aws-cdk/aws-apigatewayv2-authorizers-alpha': 2.101.1-alpha.0(@aws-cdk/aws-apigatewayv2-alpha@2.101.1-alpha.0)(aws-cdk-lib@2.101.1)(constructs@10.2.69)
-      '@aws-cdk/aws-apigatewayv2-integrations-alpha': 2.101.1-alpha.0(@aws-cdk/aws-apigatewayv2-alpha@2.101.1-alpha.0)(aws-cdk-lib@2.101.1)(constructs@10.2.69)
-      '@aws-cdk/cloud-assembly-schema': 2.101.1
-      '@aws-cdk/cloudformation-diff': 2.101.1
-      '@aws-cdk/cx-api': 2.101.1(@aws-cdk/cloud-assembly-schema@2.101.1)
-      '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/client-cloudformation': 3.454.0
-      '@aws-sdk/client-ecs': 3.454.0
-      '@aws-sdk/client-eventbridge': 3.454.0
-      '@aws-sdk/client-iam': 3.454.0
-      '@aws-sdk/client-iot': 3.454.0
-      '@aws-sdk/client-iot-data-plane': 3.454.0
-      '@aws-sdk/client-lambda': 3.454.0
-      '@aws-sdk/client-rds-data': 3.454.0
-      '@aws-sdk/client-s3': 3.456.0
-      '@aws-sdk/client-ssm': 3.454.0
-      '@aws-sdk/client-sts': 3.454.0
-      '@aws-sdk/config-resolver': 3.374.0
-      '@aws-sdk/credential-providers': 3.454.0
-      '@aws-sdk/middleware-retry': 3.374.0
-      '@aws-sdk/middleware-signing': 3.451.0
-      '@aws-sdk/signature-v4-crt': 3.451.0
-      '@aws-sdk/smithy-client': 3.374.0
-      '@babel/core': 7.23.3
-      '@babel/generator': 7.23.4
-      '@babel/plugin-syntax-typescript': 7.23.3(@babel/core@7.23.3)
-      '@smithy/signature-v4': 2.0.16
-      '@trpc/server': 9.16.0
-      adm-zip: 0.5.10
-      aws-cdk-lib: 2.101.1(constructs@10.2.69)
-      aws-iot-device-sdk: 2.2.13
-      aws-sdk: 2.1502.0
-      builtin-modules: 3.2.0
-      cdk-assets: 2.101.1
-      chalk: 5.3.0
-      chokidar: 3.5.3
-      ci-info: 3.9.0
-      colorette: 2.0.20
-      conf: 10.2.0
-      constructs: 10.2.69
-      cross-spawn: 7.0.3
-      dendriform-immer-patch-optimiser: 2.1.3(immer@9.0.21)
-      dotenv: 16.3.1
-      esbuild: 0.18.13
-      express: 4.18.2
-      fast-jwt: 3.3.2
-      get-port: 6.1.2
-      glob: 10.3.10
-      graphql: 16.8.1
-      graphql-yoga: 3.9.1(graphql@16.8.1)
-      immer: 9.0.21
-      ink: 4.4.1(@types/react@18.2.38)(react@18.2.0)
-      ink-spinner: 5.0.0(ink@4.4.1)(react@18.2.0)
-      kysely: 0.25.0
-      kysely-codegen: 0.10.1(kysely@0.25.0)
-      kysely-data-api: 0.2.1(@aws-sdk/client-rds-data@3.454.0)(kysely@0.25.0)
-      minimatch: 6.2.0
-      openid-client: 5.6.1
-      ora: 6.3.1
-      react: 18.2.0
-      remeda: 1.29.0
-      sst-aws-cdk: 2.101.1
-      tree-kill: 1.2.2
-      undici: 5.27.2
-      uuid: 9.0.1
-      ws: 8.14.2
-      yargs: 17.7.2
-      zod: 3.22.4
-    transitivePeerDependencies:
-      - '@types/react'
-      - aws-crt
-      - better-sqlite3
-      - bufferutil
-      - debug
-      - mysql2
-      - pg
-      - react-devtools-core
-      - supports-color
-      - utf-8-validate
-    dev: true
-
   /sst@2.36.2(@types/react@18.2.38):
     resolution: {integrity: sha512-6uGJlM7/1mUYTVJxcnmqAjKkELkKtOGewLFeEwdEZRpTnN/mu9Y+K1qr96oDE8FaLKwRfx9lpOl/Ejf3GxC0qg==}
     hasBin: true
@@ -17555,7 +17492,7 @@ packages:
       remeda: 1.29.0
       sst-aws-cdk: 2.101.1
       tree-kill: 1.2.2
-      undici: 5.23.0
+      undici: 5.27.2
       uuid: 9.0.1
       ws: 8.14.2
       yargs: 17.7.2
@@ -19069,7 +19006,6 @@ packages:
       rollup: 2.79.1
     optionalDependencies:
       fsevents: 2.3.3
-    dev: true
 
   /vite@5.0.10(@types/node@20.10.5):
     resolution: {integrity: sha512-2P8J7WWgmc355HUMlFrwofacvr98DAjoE52BfdbwQtyLH06XKwaL/FMnmKM2crF0iX4MpmMKoDlNCB1ok7zHCw==}
@@ -19151,7 +19087,7 @@ packages:
       vite:
         optional: true
     dependencies:
-      vite: 3.2.7(@types/node@20.10.5)(terser@5.26.0)
+      vite: 3.2.7(@types/node@20.5.4)
 
   /vitefu@0.2.5(vite@5.0.10):
     resolution: {integrity: sha512-SgHtMLoqaeeGnd2evZ849ZbACbnwQCIwRH57t18FxcXoZop0uQu0uzlIhJBlF/eWVzuce0sHeqPcDo+evVcg8Q==}

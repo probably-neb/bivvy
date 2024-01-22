@@ -22,8 +22,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": "./",
     "paths": {
-        "@/*": ["./src/*"],
-        "solid-color": ["../solid-color/src/"]
+        "@/*": ["./src/*"]
+        // "solid-color": ["../solid-color/src/"]
     }
   },
   "include": ["src"],
