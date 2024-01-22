@@ -531,8 +531,8 @@ importers:
         specifier: ^14.0.3
         version: 14.0.3
       solid-color:
-        specifier: ^0.0.4
-        version: 0.0.4(solid-js@1.8.7)
+        specifier: link:../solid-color/
+        version: link:../solid-color
       solid-icons:
         specifier: ^1.1.0
         version: 1.1.0(solid-js@1.8.7)
@@ -551,7 +551,7 @@ importers:
     devDependencies:
       '@rollup/plugin-node-resolve':
         specifier: ^15.2.3
-        version: 15.2.3
+        version: 15.2.3(rollup@3.28.1)
       autoprefixer:
         specifier: ^10.4.16
         version: 10.4.16(postcss@8.4.32)
@@ -5794,23 +5794,6 @@ packages:
       rollup: 2.79.1
     dev: true
 
-  /@rollup/plugin-node-resolve@15.2.3:
-    resolution: {integrity: sha512-j/lym8nf5E21LwBT4Df1VD6hRO2L2iwUeUmP7litikRsVp1H6NWx20NEp0Y7su+7XGc476GnXXc4kFeZNGmaSQ==}
-    engines: {node: '>=14.0.0'}
-    peerDependencies:
-      rollup: ^2.78.0||^3.0.0||^4.0.0
-    peerDependenciesMeta:
-      rollup:
-        optional: true
-    dependencies:
-      '@rollup/pluginutils': 5.1.0(rollup@2.79.1)
-      '@types/resolve': 1.20.2
-      deepmerge: 4.3.1
-      is-builtin-module: 3.2.1
-      is-module: 1.0.0
-      resolve: 1.22.8
-    dev: true
-
   /@rollup/plugin-node-resolve@15.2.3(rollup@3.28.1):
     resolution: {integrity: sha512-j/lym8nf5E21LwBT4Df1VD6hRO2L2iwUeUmP7litikRsVp1H6NWx20NEp0Y7su+7XGc476GnXXc4kFeZNGmaSQ==}
     engines: {node: '>=14.0.0'}
@@ -7242,6 +7225,7 @@ packages:
 
   /@types/node@20.5.4:
     resolution: {integrity: sha512-Y9vbIAoM31djQZrPYjpTLo0XlaSwOIsrlfE3LpulZeRblttsLQRFRlBAppW0LOxyT3ALj2M5vU1ucQQayQH3jA==}
+    dev: true
 
   /@types/node@20.9.4:
     resolution: {integrity: sha512-wmyg8HUhcn6ACjsn8oKYjkN/zUzQeNtMy44weTJSM6p4MMzEOuKbA3OjJ267uPCOW7Xex9dyrNTful8XTQYoDA==}
@@ -17113,14 +17097,6 @@ packages:
       smart-buffer: 4.2.0
     dev: true
 
-  /solid-color@0.0.4(solid-js@1.8.7):
-    resolution: {integrity: sha512-hFZ0E0v6OYiuxc73txwlN8NB1KoeEU3mw5rwBfk3eJ8Kr/yY7h4G7X/QZ1xhnmOeVmam8lHk8iTujee8BeWSOw==}
-    peerDependencies:
-      solid-js: '>=1.0.0'
-    dependencies:
-      solid-js: 1.8.7
-    dev: false
-
   /solid-icons@1.1.0(solid-js@1.8.7):
     resolution: {integrity: sha512-IesTfr/F1ElVwH2E1110s2RPXH4pujKfSs+koT8rwuTAdleO5s26lNSpqJV7D1+QHooJj18mcOiz2PIKs0ic+A==}
     peerDependencies:
@@ -19093,6 +19069,7 @@ packages:
       rollup: 2.79.1
     optionalDependencies:
       fsevents: 2.3.3
+    dev: true
 
   /vite@5.0.10(@types/node@20.10.5):
     resolution: {integrity: sha512-2P8J7WWgmc355HUMlFrwofacvr98DAjoE52BfdbwQtyLH06XKwaL/FMnmKM2crF0iX4MpmMKoDlNCB1ok7zHCw==}
@@ -19174,7 +19151,7 @@ packages:
       vite:
         optional: true
     dependencies:
-      vite: 3.2.7(@types/node@20.5.4)
+      vite: 3.2.7(@types/node@20.10.5)(terser@5.26.0)
 
   /vitefu@0.2.5(vite@5.0.10):
     resolution: {integrity: sha512-SgHtMLoqaeeGnd2evZ849ZbACbnwQCIwRH57t18FxcXoZop0uQu0uzlIhJBlF/eWVzuce0sHeqPcDo+evVcg8Q==}

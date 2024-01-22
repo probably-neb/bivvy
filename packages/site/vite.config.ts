@@ -9,8 +9,8 @@ export default defineConfig({
         alias: {
             "@": path.resolve(__dirname, "./src"),
             solid: "solid-js",
-            "@kobalte/core": "kobalte-monorepo/packages/core/src/index",
-            "@kobalte/utils": "kobalte-monorepo/packages/utils/src/index"
+            "@kobalte/core": "kobalte-monorepo/packages/core/src",
+            "@kobalte/utils": "kobalte-monorepo/packages/utils/src"
         },
     },
     build: {

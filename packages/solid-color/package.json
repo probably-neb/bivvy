@@ -1,0 +1,94 @@
+{
+  "name": "my-solid-color",
+  "version": "0.0.4",
+  "private": false,
+  "description": "",
+  "keywords": [
+    "solid",
+    "solid-component",
+    "color picker",
+    "colorpicker",
+    "picker",
+    "sketch",
+    "chrome",
+    "photoshop",
+    "material design",
+    "popup"
+  ],
+  "homepage": "https://github.com/xbmlz/solid-color#readme",
+  "bugs": {
+    "url": "https://github.com/xbmlz/solid-color/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xbmlz/solid-color.git"
+  },
+  "license": "MIT",
+  "author": "xbmlz",
+  "contributors": [],
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "solid": "./dist/source/index.jsx",
+      "import": "./dist/esm/index.js",
+      "browser": {
+        "import": "./dist/esm/index.js",
+        "require": "./dist/cjs/index.js"
+      },
+      "require": "./dist/cjs/index.js",
+      "node": "./dist/cjs/index.js"
+    }
+  },
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "minify": "terser --compress --mangle --module -- dist/cjs/index.js > dist/cjs/index.min.js",
+    "example:dev": "vite serve example",
+    "example:build": "vite build example",
+    "format": "prettier -w \"src/**/*.{js,ts,json,css,tsx,jsx}\" \"example/**/*.{js,ts,json,css,tsx,jsx}\"",
+    "lint": "eslint . --ext .js,.ts,.tsx,.jsx --fix",
+    "prepublishOnly": "pnpm build",
+    "release": "bumpp --commit --tag --push && npm publish",
+    "test": "vitest -c vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "update-deps": "taze -w && pnpm i"
+  },
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.6.0",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@types/lodash-es": "^4.17.6",
+    "@types/testing-library__jest-dom": "^5.14.5",
+    "@types/tinycolor2": "^1.4.3",
+    "@typescript-eslint/eslint-plugin": "^5.48.2",
+    "@typescript-eslint/parser": "^5.48.2",
+    "bumpp": "^8.2.1",
+    "eslint": "^8.32.0",
+    "eslint-plugin-no-only-tests": "^3.1.0",
+    "eslint-plugin-solid": "^0.9.3",
+    "jsdom": "^21.1.0",
+    "lodash-es": "^4.17.21",
+    "prettier": "2.7.1",
+    "rollup": "^2.77.2",
+    "rollup-preset-solid": "^1.4.0",
+    "solid-js": "^1.4.8",
+    "taze": "^0.7.6",
+    "terser": "^5.16.3",
+    "tinycolor2": "^1.5.2",
+    "typescript": "^4.7.4",
+    "vite": "^3.0.4",
+    "vite-plugin-solid": "^2.3.0",
+    "vitest": "^0.27.3"
+  },
+  "peerDependencies": {
+    "solid-js": ">=1.0.0"
+  },
+  "packageManager": "pnpm@7.5.0"
+}
