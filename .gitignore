@@ -14,3 +14,5 @@ node_modules
 # local env files
 .env*.local
 packages/site/public/patterns
+.env
+packages/solid-color/.git.bak
