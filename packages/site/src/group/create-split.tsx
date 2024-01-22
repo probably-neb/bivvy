@@ -14,7 +14,7 @@ import {
 } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { For, createMemo, onMount } from "solid-js";
+import { For, Setter, createMemo, createSignal, onMount } from "solid-js";
 import z from "zod";
 import { createEffect, on } from "solid-js";
 import { UserRenderer } from "@/components/renderers";
@@ -25,6 +25,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import "./no-spinners.css";
+import { AiOutlineMinus, AiOutlinePlus } from "solid-icons/ai";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
 
@@ -79,6 +81,7 @@ export function CreateSplit(props: { onSubmit?: () => void }) {
                 }}
             >
                 <div class="flex flex-row gap-4 items-end">
+                    {/* FIXME: when `required` shows up split color pick stays centered */}
                     <Field
                         name="name"
                         label="Name"
@@ -89,7 +92,7 @@ export function CreateSplit(props: { onSubmit?: () => void }) {
                     />
                     <SplitColorPick form={form} />
                 </div>
-                <UserPortions form={form} />
+                <PortionParts form={form} />
                 <Button type="submit" disabled={!form.state.canSubmit}>
                     Create
                 </Button>
@@ -117,86 +120,108 @@ function randomHexColor() {
 function SplitColorPick(props: { form: SplitForm }) {
     return (
         <props.form.Field name="color">
-            {(field) => {
-                const color = createMemo(
-                    () => field().state.value || randomHexColor(),
-                );
-                onMount(
-                    on(color, (color) => {
-                        console.log("color", color);
-                        field().setValue(color, { touch: false });
-                    }),
-                );
-                const onChange = (color: ColorResult) => {
-                    field().setValue(color.hex, { touch: true });
-                };
-
-                return (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger>
-                            <div
-                                class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
-                                style={{ background: color() }}
-                            ></div>
-                            <For each={field().state.meta.errors}>
-                                {(error) => (
-                                    <div class="text-red-500">{error}</div>
-                                )}
-                            </For>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                            <BlockPicker
-                                colors={colors}
-                                color={color()}
-                                onChangeComplete={onChange}
-                            />
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                );
-            }}
+            {(field) => (
+                <ColorPicker
+                    value={field().state.value}
+                    set={field().setValue}
+                />
+            )}
         </props.form.Field>
     );
 }
 
-function UserPortions(props: { form: SplitForm }) {
-    const users = useUsers();
-    const numUsers = createMemo(
-        on(users, (users) => {
-            if (!users || users.length === 0) {
-                return 1;
+function ColorPicker(props: {
+    set: (color: string | null, opts: { touch: boolean }) => void;
+    value: string | null;
+    errors?: string[];
+}) {
+    const color = createMemo(() => props.value || randomHexColor());
+    onMount(
+        on(color, (color) => {
+            console.log("color", color);
+            if (color === null) {
+                props.set(randomHexColor(), { touch: false })
             }
-            return users.length;
         }),
     );
-    const portion = createMemo(() => 1.0 / numUsers());
-    const portionPercent = createMemo(() => `${portion() * 100}%`);
+
+    const [open, setOpen] = createSignal(false);
+
+    const onChange = (color: ColorResult) => {
+        props.set(color.hex, { touch: true });
+        setOpen(false);
+    };
+
 
     return (
-        <div class="grid grid-cols-[max-content_max-content] gap-x-4">
-            <For each={users()}>
-                {(user) => (
-                    <props.form.Field
-                        name={`portions.${user.id}`}
-                        validators={{
-                            onChange: splitInputSchema.shape.portions.element,
-                        }}
-                    >
-                        {(field) => {
-                            createEffect(
-                                on(portion, (p) => {
-                                    field().setValue(p, { touch: false });
-                                }),
-                            );
-                            return (
-                                <>
-                                    <UserRenderer userId={user.id} />{" "}
-                                    <span>{portionPercent()}</span>
-                                </>
-                            );
-                        }}
-                    </props.form.Field>
-                )}
-            </For>
+        <DropdownMenu
+            open={open()}
+            onOpenChange={setOpen}
+        >
+            <DropdownMenuTrigger>
+                <div
+                    class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
+                    style={{ background: color() }}
+                ></div>
+                <For each={props.errors}>
+                    {(error) => <div class="text-red-500">{error}</div>}
+                </For>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                <BlockPicker
+                    colors={colors}
+                    color={color()}
+                    onChangeComplete={onChange}
+                />
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+function PortionParts(props: { form: SplitForm }) {
+    // TODO: store portions, total in portion types + db
+    // i.e. calculate owed as parts * amount / numParts
+    // where for pecentage numparts is 1.0 (25% * amount / 1.0)
+    const users = useUsers();
+    return (
+        <For each={users()}>
+            {(user) => {
+                const id = `portions.${user.id}`;
+                const [value, setValue] = createSignal(1);
+                return (
+                    <div class="flex">
+                        <div class="shrink grid grid-cols-2">
+                            <UserRenderer userId={user.id} />
+                            <Incrementer value={value()} onChange={setValue} />
+                        </div>
+                    </div>
+                );
+            }}
+        </For>
+    );
+}
+
+function Incrementer(props: { value: number; onChange: Setter<number> }) {
+    const decrement = () =>
+        props.onChange((value) => (value <= 0 ? 0 : value - 1));
+    const increment = () => props.onChange((value) => value + 1);
+    const btnclass =
+        "text-xl rounded-full h-6 w-6 flex items-center justify-center select-none text-white bg-gray-900 hover:bg-gray-700";
+    return (
+        <div class="flex items-center gap-2">
+            <button class={btnclass} onClick={decrement}>
+                <AiOutlineMinus />
+            </button>
+            <TextField>
+                <TextFieldInput
+                    type="number"
+                    class={`no-spinners w-12 px-0 text-center rounded-full py-0`}
+                    value={props.value}
+                />
+            </TextField>
+            <button class={btnclass} onClick={increment}>
+                <AiOutlinePlus />
+            </button>
         </div>
     );
 }
@@ -256,11 +281,6 @@ export function Field(props: FieldProps<typeof splitInputSchema>) {
                             )
                         }
                     />
-                    <TextFieldErrorMessage>
-                        <For each={[field().state.meta.errors]}>
-                            {(error) => <div class="text-red-500">{error}</div>}
-                        </For>
-                    </TextFieldErrorMessage>
                 </TextField>
             )}
         </form.Field>
