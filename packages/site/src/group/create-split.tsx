@@ -140,7 +140,7 @@ function ColorPicker(props: {
         on(color, (color) => {
             console.log("color", color);
             if (color === null) {
-                props.set(randomHexColor(), { touch: false })
+                props.set(randomHexColor(), { touch: false });
             }
         }),
     );
@@ -152,12 +152,8 @@ function ColorPicker(props: {
         setOpen(false);
     };
 
-
     return (
-        <DropdownMenu
-            open={open()}
-            onOpenChange={setOpen}
-        >
+        <DropdownMenu open={open()} onOpenChange={setOpen}>
             <DropdownMenuTrigger>
                 <div
                     class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
@@ -178,26 +174,47 @@ function ColorPicker(props: {
     );
 }
 
+const zParts = z.number().min(0).max(100);
+
 function PortionParts(props: { form: SplitForm }) {
     // TODO: store portions, total in portion types + db
     // i.e. calculate owed as parts * amount / numParts
     // where for pecentage numparts is 1.0 (25% * amount / 1.0)
     const users = useUsers();
     return (
-        <For each={users()}>
-            {(user) => {
-                const id = `portions.${user.id}`;
-                const [value, setValue] = createSignal(1);
-                return (
-                    <div class="flex">
-                        <div class="shrink grid grid-cols-2">
-                            <UserRenderer userId={user.id} />
-                            <Incrementer value={value()} onChange={setValue} />
-                        </div>
-                    </div>
-                );
-            }}
-        </For>
+        <div class="flex">
+            <div class="shrink grid grid-cols-2">
+                <For each={users()}>
+                    {(user) => {
+                        const id = `portions.${user.id}` as const;
+                        if (
+                            props.form.state.values.portions?.[user.id] ===
+                            undefined
+                        ) {
+                            props.form.setFieldValue(id, 1);
+                        }
+                        return (
+                            <props.form.Field
+                                name={id}
+                                validators={{
+                                    onChange: zParts,
+                                }}
+                            >
+                                {(field) => (
+                                    <>
+                                        <UserRenderer userId={user.id} />
+                                        <Incrementer
+                                            value={field().state.value}
+                                            onChange={field().handleChange}
+                                        />
+                                    </>
+                                )}
+                            </props.form.Field>
+                        );
+                    }}
+                </For>
+            </div>
+        </div>
     );
 }
 
@@ -209,7 +226,7 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
         "text-xl rounded-full h-6 w-6 flex items-center justify-center select-none text-white bg-gray-900 hover:bg-gray-700";
     return (
         <div class="flex items-center gap-2">
-            <button class={btnclass} onClick={decrement}>
+            <button class={btnclass} type="button" onClick={decrement}>
                 <AiOutlineMinus />
             </button>
             <TextField>
@@ -219,7 +236,7 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
                     value={props.value}
                 />
             </TextField>
-            <button class={btnclass} onClick={increment}>
+            <button class={btnclass} type="button" onClick={increment}>
                 <AiOutlinePlus />
             </button>
         </div>

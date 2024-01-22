@@ -116,8 +116,10 @@ async function updateOwed(
         .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
         .values()
         .toArray();
+    const totalParts = Math.max(Math.abs(Object.values(portions).reduce((a, b) => a + b, 0)), 1.0);
+    console.log("totalParts", totalParts, "portions", portions)
     for (const user of groupUsers) {
-        const portion = total * (portions[user.userId] ?? 0);
+        const portion = total * (portions[user.userId] ?? 0) / totalParts;
         let owed = user.owed ?? 0;
         if (user.userId === paidById) {
             owed = owed + total - portion;
@@ -247,7 +249,7 @@ export const expenseInputSchema = expenseSchema.pick({
 });
 export type ExpenseInput = z.infer<typeof expenseInputSchema>;
 
-const percentSchema = z.number().gte(0.0).lte(1.0);
+const portionSchema = z.number().gte(0.0);
 
 const zHexString = z
     .string()
@@ -257,7 +259,7 @@ const zHexString = z
 export const splitSchema = z.object({
     name: z.string(),
     id: idSchema,
-    portions: z.record(userSchema.shape.id, percentSchema),
+    portions: z.record(userSchema.shape.id, portionSchema),
     createdAt: unixTimeSchema,
     groupId: groupSchema.shape.id,
     color: zHexString.nullable(),
@@ -813,9 +815,8 @@ function useGroupId(group?: Accessor<Group["id"]>) {
 
 function createEvenSplit(userIds: string[], splitId: string, groupId: string) {
     const portions: Split["portions"] = {};
-    const percentage = 1.0 / userIds.length;
     for (const id of userIds) {
-        portions[id] = percentage;
+        portions[id] = 1.0;
     }
     return {
         id: splitId,
