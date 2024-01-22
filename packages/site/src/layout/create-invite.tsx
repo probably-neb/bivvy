@@ -1,49 +1,82 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     TextField,
-    TextFieldErrorMessage,
     TextFieldInput,
-    TextFieldLabel,
 } from "@/components/ui/textfield";
 import { Api } from "@/lib/api";
-import {
-    Group,
-    InviteInput,
-    inviteInputSchema,
-    useMutations,
-} from "@/lib/rep";
-import { OcCopy3 } from "solid-icons/oc";
-import { TbClipboardCopy } from "solid-icons/tb";
-import { createResource, createSignal, Show} from "solid-js";
+import { Group } from "@/lib/rep";
+import { OcCheckcircle3, OcCopy3 } from "solid-icons/oc";
+import { createResource, createSignal, Match, Show, Switch } from "solid-js";
 
-export function CreateInviteForm(props: { onSubmit: () => void, groupId: Group["id"]}) {
-    const mutations = useMutations();
+export function CreateInviteForm(props: {
+    onSubmit: () => void;
+    groupId: Group["id"];
+}) {
     const [shouldGenerate, setShouldGenerate] = createSignal(false);
 
     async function generate() {
-        const groupId = props.groupId
-        const key = await Api.getInviteKey(groupId)
+        const groupId = props.groupId;
+        const key = await Api.getInviteKey(groupId);
         // await mutations.createInvite({ key, groupId })
-        return inviteUrl(key)
+        return inviteUrl(key);
     }
-    const [invite] = createResource(shouldGenerate, generate)
+    const [invite] = createResource(shouldGenerate, generate);
 
-    return <div>
-        <Show when={invite()} fallback={<GenerateInviteButton generate={() => setShouldGenerate(true)} />}>
-            <TextField class="flex gap-4 items-center">
-                <TextFieldInput disabled class="disabled:opacity-100" value={invite()!} />
-                <OcCopy3 size={"1.5rem"}/>
-            </TextField>
-        </Show>
-    </div>
+    return (
+        <div>
+            <Switch>
+                <Match when={!shouldGenerate()}>
+                    <GenerateInviteButton
+                        generate={() => setShouldGenerate(true)}
+                    />
+                </Match>
+                <Match when={invite.loading}>
+                    <div>Generating...</div>
+                </Match>
+                <Match when={invite.error}>
+                    <div>Failed to generate invite</div>
+                </Match>
+                <Match when={invite()}>
+                    <TextField class="flex gap-4 items-center">
+                        <TextFieldInput
+                            disabled
+                            class="disabled:opacity-100"
+                            value={invite()!}
+                        />
+                        <CopyToClipboardButton url={invite()!} />
+                    </TextField>
+                </Match>
+            </Switch>
+        </div>
+    );
 }
 
 function GenerateInviteButton(props: { generate: () => void }) {
-    return <Button variant="outline" onClick={props.generate}>Generate</Button>
+    return (
+        <Button variant="outline" onClick={props.generate}>
+            Generate
+        </Button>
+    );
 }
 
-
 function inviteUrl(key: string) {
-    return `${window.location.origin}/invite?key=${key}`
+    return `${window.location.origin}/invite?key=${key}`;
+}
+
+function CopyToClipboardButton(props: { url: string }) {
+    const [clicked, setClicked] = createSignal(false);
+    return (
+        <Button
+            disabled={clicked()}
+            variant="ghost"
+            onClick={() => {
+                navigator.clipboard.writeText(props.url);
+                setClicked(true);
+            }}
+        >
+            <Show when={!clicked()} fallback={<OcCheckcircle3 size="1.5rem" />}>
+                <OcCopy3 size={"1.5rem"} />
+            </Show>
+        </Button>
+    );
 }
