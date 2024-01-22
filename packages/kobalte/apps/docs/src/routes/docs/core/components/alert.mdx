@@ -1,0 +1,75 @@
+import { Preview, TabsSnippets } from "../../../../components";
+import { BasicExample } from "../../../../examples/alert";
+
+# Alert
+
+Display a brief, important message in a way that attracts the user's attention without interrupting the user's task.
+
+## Import
+
+```ts
+import { Alert } from "@kobalte/core";
+```
+
+## Features
+
+- Adhere to the [WAI ARIA Alert](https://www.w3.org/WAI/ARIA/apg/patterns/alert/) design pattern.
+
+## Anatomy
+
+The alert consists of :
+
+- **Alert.Root:** The root container for an alert.
+
+```tsx
+<Alert.Root />
+```
+
+## Example
+
+<Preview>
+  <BasicExample />
+</Preview>
+
+<TabsSnippets>
+  <TabsSnippets.List>
+    <TabsSnippets.Trigger value="index.tsx">index.tsx</TabsSnippets.Trigger>
+    <TabsSnippets.Trigger value="style.css">style.css</TabsSnippets.Trigger>
+  </TabsSnippets.List>
+{/* <!-- prettier-ignore-start --> */}
+  <TabsSnippets.Content value="index.tsx">
+    ```tsx
+    import { Alert } from "@kobalte/core";
+    import "./style.css";
+
+    function App() {
+      return <Alert.Root class="alert">Kobalte is going live soon, get ready!</Alert.Root>;
+    }
+    ```
+
+  </TabsSnippets.Content>
+  <TabsSnippets.Content value="style.css">
+    ```css
+    .alert {
+      border-radius: 6px;
+      padding: 12px 16px;
+      background-color: hsl(204 100% 97%);
+      color: hsl(201 96% 32%);
+      font-size: 16px;
+    }
+    ```
+  </TabsSnippets.Content>
+{/* <!-- prettier-ignore-end -->*/}
+</TabsSnippets>
+
+## API reference
+
+### Alert.Root
+
+Renders a `div` by default and support all it's props.
+
+## Rendered elements
+
+| Component    | Default rendered element |
+| :----------- | :----------------------- |
+| `Alert.Root` | `div`                    |
