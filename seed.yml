@@ -2,5 +2,5 @@ before_compile:
   - curl -fsSL https://bun.sh/install | bash
   - echo 'export PATH="$HOME/.bun/bin:$PATH"' >> $BASH_ENV
 compile:
-  - cd packages/kobalte && bun install && bun run build
+  - cd packages/kobalte && pnpm install && bun run build
   - cd packages/site && pnpm install && bun run build
