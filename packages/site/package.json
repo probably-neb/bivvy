@@ -10,6 +10,7 @@
         "shadd": "bunx shadcn-solid@latest add"
     },
     "dependencies": {
+        "@internationalized/date": "^3.4.0",
         "@solidjs/router": "0.10.5",
         "@tanstack/solid-form": "^0.11.0",
         "@tanstack/zod-form-adapter": "^0.11.0",
