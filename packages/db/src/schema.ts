@@ -35,8 +35,8 @@ function cents(name: string) {
     return int(name);
 }
 
-function percentage(name: string) {
-    return decimal(name, { precision: 12, scale: 10 }).notNull();
+function parts(name: string) {
+    return decimal(name, { precision: 12, scale: 10 });
 }
 
 export const users = table(
@@ -171,8 +171,9 @@ export const splitRelations = relations(splits, ({ one }) => ({
 
 export const split_portion_def = table("split_portion_def", {
     split_id: idRef("split_id").notNull(),
-    percentage: percentage("percentage"),
+    parts: parts("parts").notNull(),
     user_id: idRef("user_id"),
+    total_parts: parts("total_parts").notNull().default("1.0"),
 });
 
 export const splitPortionDefRelations = relations(

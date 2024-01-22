@@ -348,20 +348,21 @@ func CreateExpense(e Expense) error {
 func createExpenseSideEffects(tx *sql.Tx, e Expense) error {
     portions := make(map[string]float64)
     rows, err := tx.Query(
-        `SELECT user_id, percentage FROM split_portion_def WHERE split_id = ?`,
+        `SELECT user_id, parts, total_parts FROM split_portion_def WHERE split_id = ?`,
         e.SplitId)
     if err != nil {
         return err
     }
     for rows.Next() {
         var userId string
-        var percentage float64
-        err = rows.Scan(&userId, &percentage)
+        var parts float64
+        var totalParts float64
+        err = rows.Scan(&userId, &parts, &totalParts)
         if err != nil {
             return err
         }
         // FIXME: how to avoid float errors here?
-        owed := e.Amount * percentage
+        owed := e.Amount * parts / totalParts
         portions[userId] = owed
     }
     err = rows.Err()
@@ -492,7 +493,7 @@ func removeExpensePortions(tx *sql.Tx, eid string) (map[string]float64, error) {
 
 func GetSplits(userId string) ([]Split, error) {
     defer util.TimeMe(time.Now(), "GetSplits")
-    q := `SELECT s.id, s.name, s.color, sd.user_id, sd.percentage, s.group_id
+    q := `SELECT s.id, s.name, s.color, sd.user_id, sd.parts, sd.total_parts, s.group_id
             FROM users AS ou
             LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
             RIGHT JOIN splits AS s ON s.group_id = ug.group_id
@@ -509,8 +510,9 @@ func GetSplits(userId string) ([]Split, error) {
     for rows.Next() {
         var si Split
         var userId string
-        var percentage float64
-        err = rows.Scan(&si.Id, &si.Name, &si.Color, &userId, &percentage, &si.GroupId)
+        var parts float64
+        var total_parts float64
+        err = rows.Scan(&si.Id, &si.Name, &si.Color, &userId, &parts, &total_parts, &si.GroupId)
         if err != nil {
             return nil, err
         }
@@ -521,7 +523,8 @@ func GetSplits(userId string) ([]Split, error) {
             s = si
             s.Portions = make(map[string]float64)
         }
-        s.Portions[userId] = percentage
+        // FIXME: pass parts back to frontend
+        s.Portions[userId] = parts / total_parts
     }
     // Next() returns false on error or EOF.
     // Err should be consulted to distinguish between the two cases.
@@ -593,12 +596,21 @@ func CreateSplit(split Split) error {
 
 func createSplitPortions(tx *sql.Tx, splitId string, portions map[string]float64) error {
     //  FIXME: check user id exists
-    for userId, percentage := range portions {
+    totalParts := 0.0
+    allLessThanOne := true
+    for _, parts := range portions {
+        totalParts += parts
+        allLessThanOne = allLessThanOne && parts <= 1
+    }
+    if allLessThanOne {
+        totalParts = 1
+    }
+    for userId, parts := range portions {
         sq := `INSERT INTO split_portion_def
-        (split_id, user_id, percentage)
+        (split_id, user_id, parts, total_parts)
         VALUES
-        (?, ?, ?)`
-        _, err := tx.Exec(sq, splitId, userId, percentage)
+        (?, ?, ?, ?)`
+        _, err := tx.Exec(sq, splitId, userId, parts, totalParts)
         if err != nil {
             return err
         }
