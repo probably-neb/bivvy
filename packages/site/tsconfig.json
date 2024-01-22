@@ -22,8 +22,9 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": "./",
     "paths": {
-        "@/*": ["./src/*"]
-        // "solid-color": ["../solid-color/src/"]
+        "@/*": ["./src/*"],
+        "@kobalte/core": ["../kobalte/packages/core/dist/"],
+        "solid-color": ["../solid-color/src/"]
     }
   },
   "include": ["src"],
