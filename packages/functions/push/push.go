@@ -59,7 +59,10 @@ func doMutations(push PushEvent, session db.UserSession) error {
     ms := push.Mutations
     ct := db.ClientGroupTable{}
     // TODO: handle error
-    _ = ct.Init()
+    err := ct.Init()
+    if err != nil {
+        return err
+    }
     cg, err := ct.GetClientGroup(push.ClientGroupId)
     if err != nil {
         _, notFound := err.(db.ClientNotFoundError)
