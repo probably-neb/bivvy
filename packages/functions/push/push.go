@@ -79,13 +79,13 @@ func doMutations(push PushEvent, session db.UserSession) error {
         ok, err := handle(m)
         if err != nil {
             log.Println("error handling mutation [",m.Name,"]", err)
+        }
+        if !ok {
+            log.Printf("Mutation %s failed: not skipping", m.Name)
             break
         }
-        if ok {
-            log.Println("marking mutation processed", m)
-            cg.Clients[m.ClientId].MarkMutationProcessed(m.Id)
-        }
-        // log.Println("mutation", m)
+        log.Println("marking mutation processed", m)
+        cg.Clients[m.ClientId].MarkMutationProcessed(m.Id)
     }
     ct.PutClientGroup(cg)
     return nil

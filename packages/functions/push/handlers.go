@@ -28,25 +28,19 @@ func addExpense(args any) (ok bool, err error) {
     if !ok {
         return false, fmt.Errorf("addExpense handler did not recieve Expense as args: %v", args)
     }
+    ok = true
     err = db.CreateExpense(expense)
-    if err != nil {
-        return false, err
-    }
-    return true, nil
+    return ok, err
 }
 
-// TODO: 1/1/24 : update delete expense code to update owed
-//                implement splits and portions + use portions when calculating owed
 func deleteExpense(args any) (ok bool, err error) {
     expense, ok := args.(DeleteArgs)
     if !ok {
         return false, fmt.Errorf("deleteExpense handler did not recieve DeleteArgs as args: %v", args)
     }
+    ok = true
     err = db.DeleteExpense(expense.Id)
-    if err != nil {
-        return false, err
-    }
-    return true, nil
+    return ok, err
 }
 
 func createSplit(args any) (ok bool, err error) {
@@ -54,11 +48,9 @@ func createSplit(args any) (ok bool, err error) {
     if !ok {
         return false, fmt.Errorf("createSplit handler did not recieve Split as args: %v", args)
     }
+    ok = true
     err = db.CreateSplit(split)
-    if err != nil {
-        return false, err
-    }
-    return true, nil
+    return ok, err
 }
 
 type GroupInput struct {
@@ -72,11 +64,9 @@ func createGroup(args any) (ok bool, err error) {
     if !ok {
         return false, fmt.Errorf("createGroup handler did not recieve GroupInput as args: %v", args)
     }
+    ok = true
     err = db.CreateGroup(input.Group, input.OwnerId, input.DefaultSplitId)
-    if err != nil {
-        return false, err
-    }
-    return true, nil
+    return ok, err
 }
 
 func createInvite(args any) (ok bool, err error) {
@@ -84,9 +74,7 @@ func createInvite(args any) (ok bool, err error) {
     if !ok {
         return false, fmt.Errorf("createInvite handler did not recieve Invite as args: %v", args)
     }
+    ok = true
     err = db.CreateInvite(invite)
-    if err != nil {
-        return false, err
-    }
-    return true, nil
+    return ok, err
 }
