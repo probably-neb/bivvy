@@ -55,7 +55,6 @@ func parse(body string) (PushEvent, error) {
 }
 
 func doMutations(push PushEvent, session db.UserSession) error {
-    // TODO: get
     ms := push.Mutations
     ct := db.ClientGroupTable{}
     // TODO: handle error

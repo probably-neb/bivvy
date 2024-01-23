@@ -1,7 +1,7 @@
 package main
 
 import (
-    "github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-lambda-go/lambda"
 
 	"github.com/probably-neb/paypals-api/pull"
 )

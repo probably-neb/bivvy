@@ -14,7 +14,9 @@ type Group struct {
     Id string `json:"id"`
     Name string `json:"name"`
     // TODO: createdAt
+    // TODO: updatedAt
     // TODO: ownerId
+    // TODO: patternName + patternColor
 }
 
 type User struct {
@@ -23,9 +25,9 @@ type User struct {
     Owed float64 `json:"owed"`
     // TODO: use this in frontend? (right now frontend doesn't think this key exists)
     GroupId string `json:"groupId"`
+    // TODO: createdAt
+    // TODO: updatedAt
 }
-
-// TODO: nanoid id type that ensures correct length
 
 type Expense struct {
     Id          string `json:"id"`
@@ -98,8 +100,6 @@ func getConn() *sql.DB {
     return db
 }
 
-// TODO: create db wrapper like dynamo and have prepare pull/push functions
-
 var conn = getConn();
 
 func GetGroups(userId string) ([]Group, error) {
@@ -108,7 +108,11 @@ func GetGroups(userId string) ([]Group, error) {
             FROM users_to_group as ug
             RIGHT JOIN groups AS g on g.id = ug.group_id
             WHERE ug.user_id = ?`
-    rows, err := conn.Query(q, userId);
+    stmt, err := conn.Prepare(q)
+    if err != nil {
+        return nil, err
+    }
+    rows, err := stmt.Query(userId);
     if err != nil {
         return nil, err
     }
@@ -137,7 +141,12 @@ func CreateGroup(g Group, ownerId string, defaultSplitId string) error {
             (id, name)
             VALUES
             (?, ?)`
-    _, err = tx.Exec(gq, g.Id, g.Name)
+    stmt, err := tx.Prepare(gq)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+    _, err = stmt.Exec(g.Id, g.Name)
     if err != nil {
         tx.Rollback()
         return err
@@ -158,7 +167,11 @@ func CreateGroup(g Group, ownerId string, defaultSplitId string) error {
 
 func addUserToGroup(tx *sql.Tx, userId string, groupId string) error {
     q := `INSERT INTO users_to_group (user_id, group_id) VALUES (?, ?)`
-    _, err := tx.Exec(q, userId, groupId)
+    stmt, err := tx.Prepare(q)
+    if err != nil {
+        return err
+    }
+    _, err = stmt.Exec(userId, groupId)
     return err
 }
 
@@ -174,7 +187,11 @@ func GetUsers(userId string) ([]User, error) {
             RIGHT JOIN users AS u ON u.id = ug.user_id
             LEFT JOIN owed As ow ON ow.from_user_id = u.id AND ow.to_user_id = ou.id AND ow.group_id = ug.group_id
             WHERE ou.id = ?`
-    rows, err := conn.Query(q, userId)
+    stmt, err := conn.Prepare(q)
+    if err != nil {
+        return nil, err
+    }
+    rows, err := stmt.Query(userId)
     if err != nil {
         return nil, err
     }
@@ -216,7 +233,11 @@ func GetDebts(userId string) ([]Debt, error) {
     q := `SELECT ow.from_user_id, ow.group_id, ow.amount
     FROM owed as ow
     WHERE ow.to_user_id = ?`
-    rows, err := conn.Query(q, userId)
+    stmt, err := conn.Prepare(q)
+    if err != nil {
+        return nil, err
+    }
+    rows, err := stmt.Query(userId)
     if err != nil {
         return nil, err
     }
@@ -260,7 +281,11 @@ func getGroupUserIds(tx *sql.Tx, groupId string) ([]string, error) {
             FROM users_to_group AS ug
             RIGHT JOIN users as u ON u.id = ug.user_id
             WHERE ug.group_id = ?`
-    rows, err := tx.Query(q, groupId)
+    stmt, err := tx.Prepare(q)
+    if err != nil {
+        return nil, err
+    }
+    rows, err := stmt.Query(groupId)
     if err != nil {
         return nil, err
     }
@@ -289,7 +314,11 @@ func GetExpenses(userId string) ([]Expense, error) {
             LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
             RIGHT JOIN expenses AS e ON ug.group_id = e.group_id
             WHERE ou.id = ?`
-    rows, err := conn.Query(q, userId)
+    stmt, err := conn.Prepare(q)
+    if err != nil {
+        return nil, err
+    }
+    rows, err := stmt.Query(userId)
     if err != nil {
         return nil, err
     }
@@ -322,11 +351,18 @@ func CreateExpense(e Expense) error {
     if err != nil {
         return err
     }
-    _, err = tx.Exec(
+    stmt, err := tx.Prepare(
         `INSERT INTO expenses
-    (id, paid_by_user_id, amount, description, paid_on, created_at, split_id, group_id)
-    VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, paid_by_user_id, amount, description, paid_on, created_at, split_id, group_id)
+        VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+    if err != nil {
+        // TODO: what err does Rollback return?
+        tx.Rollback()
+        return err
+    }
+    _, err = stmt.Exec(
         e.Id, e.PaidBy, e.Amount, e.Description,
         (*time.Time)(e.PaidOn), time.Time(e.CreatedAt), e.SplitId, e.GroupId,
         )
@@ -347,9 +383,13 @@ func CreateExpense(e Expense) error {
 
 func createExpenseSideEffects(tx *sql.Tx, e Expense) error {
     portions := make(map[string]float64)
-    rows, err := tx.Query(
+    getUsers, err := tx.Prepare(
         `SELECT user_id, parts, total_parts FROM split_portion_def WHERE split_id = ?`,
-        e.SplitId)
+        )
+    if err != nil {
+        return err
+    }
+    rows, err := getUsers.Query(e.SplitId)
     if err != nil {
         return err
     }
@@ -423,9 +463,14 @@ func DeleteExpense(eid string) error {
         tx.Rollback()
         return err
     }
-    _, err = tx.Exec(
+    stmt, err := tx.Prepare(
         `DELETE FROM expenses WHERE id = ?`,
-        eid)
+        )
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+    _, err = stmt.Exec(eid)
     if err != nil {
         tx.Rollback()
         return err
@@ -437,10 +482,14 @@ func DeleteExpense(eid string) error {
 
 // removes portions and updates owed
 func cleanupExpenseSideEffects(tx *sql.Tx, eid string) error {
-    row := tx.QueryRow(
+    stmt, err := tx.Prepare(
         `SELECT group_id, paid_by_user_id FROM expenses WHERE id = ?`,
-        eid)
-    err := row.Err()
+    );
+    if err != nil {
+        return err
+    }
+    row := stmt.QueryRow(eid)
+    err = row.Err()
     if err != nil {
         return err
     }
@@ -464,9 +513,13 @@ func cleanupExpenseSideEffects(tx *sql.Tx, eid string) error {
 // removes the portions for an expense and returns them
 func removeExpensePortions(tx *sql.Tx, eid string) (map[string]float64, error) {
     defer util.TimeMe(time.Now(), "removeExpensePortions")
-    rows, err := tx.Query(
+    getInfo, err := tx.Prepare(
         `SELECT user_id, total_amount FROM split_portion WHERE expense_id = ?`,
-        eid)
+    );
+    if err != nil {
+        return nil, err
+    }
+    rows, err := getInfo.Query(eid)
     if err != nil {
         return nil, err
     }
@@ -485,22 +538,31 @@ func removeExpensePortions(tx *sql.Tx, eid string) (map[string]float64, error) {
     if err != nil {
         return nil, err
     }
-    _, err = tx.Exec(
+    deletePortion, err := tx.Prepare(
         `DELETE FROM split_portion WHERE expense_id = ?`,
-        eid)
+    )
+    if err != nil {
+        return nil, err
+    }
+    _, err = deletePortion.Exec(eid)
     return portions, err
 }
 
 func GetSplits(userId string) ([]Split, error) {
     defer util.TimeMe(time.Now(), "GetSplits")
-    q := `SELECT s.id, s.name, s.color, sd.user_id, sd.parts, sd.total_parts, s.group_id
-            FROM users AS ou
-            LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
-            RIGHT JOIN splits AS s ON s.group_id = ug.group_id
-            LEFT JOIN split_portion_def AS sd ON sd.split_id = s.id
-            WHERE ou.id = ?
-            ORDER BY s.id`
-    rows, err := conn.Query(q, userId)
+    stmt, err := conn.Prepare(
+        `SELECT s.id, s.name, s.color, sd.user_id, sd.parts, sd.total_parts, s.group_id
+        FROM users AS ou
+        LEFT JOIN users_to_group as ug ON ug.user_id = ou.id
+        RIGHT JOIN splits AS s ON s.group_id = ug.group_id
+        LEFT JOIN split_portion_def AS sd ON sd.split_id = s.id
+        WHERE ou.id = ?
+        ORDER BY s.id`,
+        )
+    if err != nil {
+        return nil, err
+    }
+    rows, err := stmt.Query(userId)
     if err != nil {
         return nil, err
     }
@@ -542,11 +604,10 @@ func createEvenSplit(tx *sql.Tx, id string, groupId string) error {
         return err
     }
 
-    percentage := 1.0 / float64(len(userIds))
-
+    part := 1.0
     portions := make(map[string]float64)
     for _, userId := range userIds {
-        portions[userId] = percentage
+        portions[userId] = part
     }
     split := Split{
         GroupId: groupId,
@@ -561,15 +622,19 @@ func createEvenSplit(tx *sql.Tx, id string, groupId string) error {
 }
 
 func createSplit(tx *sql.Tx, split Split) error {
-    sq := `INSERT INTO splits
-    (id, name, group_id, color)
-    VALUES
-    (?, ?, ?, ?)`
-    _, err := tx.Exec(sq, split.Id, split.Name, split.GroupId, split.Color)
+    stmt, err := tx.Prepare(
+        `INSERT INTO splits
+        (id, name, group_id, color)
+        VALUES
+        (?, ?, ?, ?)`,
+    )
     if err != nil {
         return err
     }
-
+    _, err = stmt.Exec(split.Id, split.Name, split.GroupId, split.Color)
+    if err != nil {
+        return err
+    }
     err = createSplitPortions(tx, split.Id, split.Portions)
     if err != nil {
         return err
@@ -605,12 +670,17 @@ func createSplitPortions(tx *sql.Tx, splitId string, portions map[string]float64
     if allLessThanOne {
         totalParts = 1
     }
-    for userId, parts := range portions {
-        sq := `INSERT INTO split_portion_def
+    stmt, err := tx.Prepare(
+        `INSERT INTO split_portion_def
         (split_id, user_id, parts, total_parts)
         VALUES
-        (?, ?, ?, ?)`
-        _, err := tx.Exec(sq, splitId, userId, parts, totalParts)
+        (?, ?, ?, ?)`,
+        );
+    if (err != nil) {
+        return err
+    }
+    for userId, parts := range portions {
+        _, err := stmt.Exec(splitId, userId, parts, totalParts)
         if err != nil {
             return err
         }
@@ -619,18 +689,31 @@ func createSplitPortions(tx *sql.Tx, splitId string, portions map[string]float64
 }
 
 func CreateInvite(invite Invite) error {
-    q := `INSERT INTO invites (id, email, group_id, created_at, accepted_at, key) VALUES (?, ?, ?, ?, ?, ?)`
-    _, err := conn.Exec(q, invite.Id, invite.Email, invite.GroupId, invite.CreatedAt, invite.AcceptedAt, invite.Key)
+    stmt, err := conn.Prepare(
+        `INSERT INTO invites
+        (id, email, group_id, created_at, accepted_at, key)
+        VALUES
+        (?, ?, ?, ?, ?, ?)`,
+    );
+    if err != nil {
+        return err
+    }
+    _, err = stmt.Exec(invite.Id, invite.Email, invite.GroupId, invite.CreatedAt, invite.AcceptedAt, invite.Key)
     return err
 }
 
 func GetInvites(userId string) ([]Invite, error) {
-    q := `SELECT i.id, i.email, i.group_id, i.created_at, i.accepted_at, i.key
-            FROM users_to_group AS ug
-            RIGHT JOIN users_to_group AS ag ON ag.group_id = ug.group_id
-            RIGHT JOIN invites AS i ON i.group_id = ag.group_id
-            WHERE ug.user_id = ?`
-    rows, err := conn.Query(q, userId)
+    stmt, err := conn.Prepare(
+        `SELECT i.id, i.email, i.group_id, i.created_at, i.accepted_at, i.key
+        FROM users_to_group AS ug
+        RIGHT JOIN users_to_group AS ag ON ag.group_id = ug.group_id
+        RIGHT JOIN invites AS i ON i.group_id = ag.group_id
+        WHERE ug.user_id = ?`,
+        )
+    if err != nil {
+        return nil, err
+    }
+    rows, err := stmt.Query(userId)
     if err != nil {
         return nil, err
     }
