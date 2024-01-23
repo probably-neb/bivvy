@@ -11,7 +11,7 @@ export default function AUTH({ stack }: StackContext) {
 
     const auth = new Auth(stack, "auth", {
         authenticator: {
-            handler: "packages/functions/src/auth.handler",
+            handler: "packages/functions/auth/auth.handler",
             bind: [gcid, gcids, site],
             environment: {
                 SITE_URL: site.url || "localhost:5173",

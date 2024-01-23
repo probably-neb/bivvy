@@ -59,13 +59,13 @@ export default function API({ stack }: StackContext) {
             },
             "GET /invite": {
                 function: {
-                    handler: "packages/functions/src/invite.createHandler",
+                    handler: "packages/functions/auth/invite.createHandler",
                     bind: [],
                 },
             },
             "GET /invite/validate": {
                 function: {
-                    handler: "packages/functions/src/invite.validateHandler",
+                    handler: "packages/functions/auth/invite.validateHandler",
                     bind: [],
                 },
             },
