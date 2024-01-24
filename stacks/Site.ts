@@ -5,9 +5,11 @@ import {
     use,
 } from "sst/constructs";
 import Api from "./Api";
+import DNS from "./DNS";
 
 export default function SITE({ stack, app }: StackContext) {
-    const { api } = use(Api);
+    const { api, apiUrl } = use(Api);
+    const dns = use(DNS);
 
     const site = new StaticSite(stack, "Site", {
         path: "packages/site",
@@ -15,15 +17,24 @@ export default function SITE({ stack, app }: StackContext) {
         buildCommand: "pnpm run build",
         environment: {
             VITE_IS_LOCAL: String(app.local),
-            VITE_API_URL: api.url,
+            VITE_API_URL: apiUrl,
             // FIXME: how to store this in secret instead of .env in repo?
             VITE_REPLICACHE_LICENSE_KEY: process.env.REPLICACHE_LICENSE_KEY!,
         },
+        customDomain: !app.local ? {
+            domainName: dns.domain,
+            hostedZone: dns.zone,
+        } : undefined
     });
+
+    const siteUrl = site.customDomainUrl || site.url;
+
     stack.addOutputs({
-        SiteUrl: site.url,
+        SiteUrl: siteUrl,
     });
+
     return {
         site,
+        url: siteUrl
     };
 }

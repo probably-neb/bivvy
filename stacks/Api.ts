@@ -1,7 +1,9 @@
-import { StackContext, Api, Config, Table, Auth } from "sst/constructs";
+import { StackContext, Api, Config, Table, Auth, use } from "sst/constructs";
+import DNS from "./DNS";
 
 export default function API({ stack }: StackContext) {
     const DB_URL = new Config.Secret(stack, "DB_URL");
+    const dns = use(DNS);
 
     const DSN = new Config.Secret(stack, "DSN");
 
@@ -31,6 +33,10 @@ export default function API({ stack }: StackContext) {
             // TODO: prod url
             allowOrigins: ["*"],
             allowMethods: ["ANY"],
+        },
+        customDomain: {
+            domainName: "api." + dns.domain,
+            hostedZone: dns.zone,
         },
         routes: {
             "POST /pull": {

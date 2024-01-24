@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useCurrentGroupId } from "@/lib/group";
 import { BreadCrumbs } from "./breadcrumbs";
 
+const NAME = "Bivvy";
+
 export default function Layout({ children }: ParentProps) {
     // TODO: current user hook (and store current user at known key in rep)
     // for profile at top right
@@ -21,7 +23,7 @@ export default function Layout({ children }: ParentProps) {
             <main class={`min-h-screen bg-gradient-to-br ${fade}`}>
                 <div class="flex flex-row justify-between items-center px-4 pt-4">
                     <div class="text-white flex items-baseline">
-                        <h1 class="text-4xl font-bold">Paypals</h1>
+                        <h1 class="text-4xl font-bold">{NAME}</h1>
                         <BreadCrumbs />
                     </div>
                     <div class="flex justify-evenly gap-2">
