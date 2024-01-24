@@ -13,6 +13,7 @@ import { DeviceContextProvider } from "@/lib/device";
 const Groups = lazy(() => import("@/groups/groups"));
 const Group = lazy(() => import("@/group/group"));
 const Login = lazy(() => import("@/login/login"));
+const Scan = lazy(() => import("@/scan"));
 
 function ToAuth() {
     return (
@@ -48,6 +49,7 @@ export function App() {
         <Router root={Root}>
             {/* TODO: add home page */ }
             <Route path="/" component={ToAuth} />
+            <Route path="/scan" component={Scan} />
             <Route path={routes.groups} component={EnsureLogin}>
                 <Route path="/" component={Groups} />
                 <Route path=":id" component={Group} />

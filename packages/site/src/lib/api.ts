@@ -20,7 +20,7 @@ const raiseForStatus = (response: Response) => {
     }
     return response;
 };
-async function fetch<T>(path: string, init?: FetchOpts<T>): Promise<T> {
+async function fetch<T = any>(path: string, init?: FetchOpts<T>): Promise<T> {
     if (!path.startsWith("/")) {
         path = `/${path}`;
     }
@@ -87,4 +87,12 @@ export async function getAuthProviders() {
 
 export function authUrl(provider: string) {
     return `${url}/auth/${provider}/authorize`;
+}
+
+export async function scanReceipt(file: File) {
+    const res = await fetch("/scan/receipt", {
+        method: "POST",
+        body: file
+    })
+    return res
 }

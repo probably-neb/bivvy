@@ -57,6 +57,18 @@ export default function API({ stack }: StackContext) {
                     },
                 },
             },
+            "POST /scan/receipt": {
+                function: {
+                    handler: "packages/functions/lambdas/scan/scan.go",
+                    runtime: "go",
+                    // bind: [clientTable, DSN],
+                    permissions: ["ssm", "textract:AnalyzeExpense"],
+                    // environment: {
+                    //     CLIENT_TABLE_NAME: clientTable.tableName,
+                    //     SST_REGION: stack.region,
+                    // },
+                },
+            },
             "GET /invite": {
                 function: {
                     handler: "packages/functions/auth/invite.createHandler",
