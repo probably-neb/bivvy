@@ -90,9 +90,11 @@ export default function API({ stack }: StackContext) {
         },
     });
 
+    const apiUrl = api.customDomainUrl || api.url
+
     stack.addOutputs({
-        ApiEndpoint: api.url,
+        ApiEndpoint: apiUrl,
         ApiEndpoints: "\n     " + api.routes.join("\n     "),
     });
-    return { api };
+    return { api, apiUrl };
 }

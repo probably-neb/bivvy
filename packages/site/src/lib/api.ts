@@ -24,6 +24,9 @@ async function fetch<T = any>(path: string, init?: FetchOpts<T>): Promise<T> {
     if (!path.startsWith("/")) {
         path = `/${path}`;
     }
+    if (!url || url.length === 0) {
+        throw new Error("Missing API URL");
+    }
     if (!path.startsWith(url)) {
         path = `${url}${path}`;
     }
