@@ -3,13 +3,14 @@ import { Api } from "./lib/api";
 
 export default function Scan() {
     const [file, setFile] = createSignal<File | null>(null);
-    const [res] = createResource(file, (file) => {
+    const [res, {refetch}] = createResource(file, (file) => {
         return Api.scanReceipt(file)
     })
     createEffect(() => {
         console.log(res())
     })
     return <div>
+        <button onClick={() => refetch()}>refetch</button>
         <input type="file" capture="environment" onChange={
             (e) => {
                 const files = e.target.files;
