@@ -16,9 +16,9 @@ export function CreateInviteForm(props: {
 
     async function generate() {
         const groupId = props.groupId;
-        const key = await Api.getInviteKey(groupId);
+        const token = await Api.getInviteToken(groupId);
         // await mutations.createInvite({ key, groupId })
-        return inviteUrl(key);
+        return inviteUrl(token);
     }
     const [invite] = createResource(shouldGenerate, generate);
 
@@ -60,7 +60,7 @@ function GenerateInviteButton(props: { generate: () => void }) {
 }
 
 function inviteUrl(key: string) {
-    return `${window.location.origin}/invite?key=${key}`;
+    return `${window.location.origin}/invite?token=${key}`;
 }
 
 function CopyToClipboardButton(props: { url: string }) {

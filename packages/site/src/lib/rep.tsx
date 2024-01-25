@@ -66,12 +66,9 @@ const mutators = {
         tx.set(P.invite.id(invite.id), invite);
     },
     async acceptInvite(tx: WriteTransaction, inviteId: Invite["id"]) {
-        let invite = await tx.get<Invite>(P.invite.id(inviteId));
-        if (!invite) {
-            throw new Error("invite not found");
-        }
-        invite = { ...invite, acceptedAt: new Date().getTime() };
-        tx.set(P.invite.id(invite.id), invite);
+        const invite = await tx.get<Invite>(P.invite.id(inviteId));
+        const updated = { ...invite,id: inviteId, accepted: true, acceptedAt: new Date().getTime() };
+        tx.set(P.invite.id(inviteId), updated);
     },
 };
 
@@ -147,10 +144,28 @@ export function initReplicache(s: InitSession) {
         pullURL: import.meta.env.VITE_API_URL + "/pull",
         // TODO: client id + auth (will involve waiting to create Replicache or recreating it on login)
     });
+    // TODO: figure out a better place to put this so error/success ui can be displayed
+    acceptPendingInvites(rep);
     return rep;
 }
 
 export type Rep = ReturnType<typeof initReplicache>;
+
+async function acceptPendingInvites(rep: Rep) {
+    const key = "invite"
+    // TODO: scan for multiple invites just in case?
+    const inviteToken = localStorage.getItem(key);
+    if (!inviteToken) return
+
+    try {
+        await rep.mutate.acceptInvite(inviteToken)
+        localStorage.removeItem(key)
+        console.log("accepted invite", inviteToken)
+    } catch (e) {
+        // TODO: how to show success/error ui
+        console.error("failed to accept invite", e)
+    }
+}
 
 // TODO: refactor into set, get, getAll that take Transactions and give type safe result
 // also create filter option that doesn't copy (may need to be called separately but having
@@ -293,6 +308,7 @@ export const inviteSchema = z.object({
     email: z.string().email().nullable(),
     key: z.string(),
     createdAt: unixTimeSchema,
+    accepted: z.boolean().default(false),
     acceptedAt: unixTimeSchema.nullable(),
 });
 
@@ -435,6 +451,9 @@ export function ReplicacheContextProvider(props: ParentProps) {
             );
         },
         async createInvite(i: InviteInput) {
+            // FIXME: separate created invites and recieved invites
+            // created has recieved/accepted by map
+            // recieved has accepted bool
             const ctx = useCtx();
             if (!ctx.isInit) {
                 throw new Error("Replicache not initialized");
@@ -447,6 +466,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 createdAt: new Date().getTime(),
                 id: nanoid(),
                 acceptedAt: null,
+                accepted: false,
                 groupId,
                 email: null,
             }) satisfies Invite;

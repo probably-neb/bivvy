@@ -39,10 +39,11 @@ export default function () {
     const navigate = useNavigate();
     createRenderEffect(
         on(isValid, (valid) => {
-            if (valid) {
-                console.log("has session");
-                navigate(routes.groups);
+            if (!valid) {
+                return
             }
+            console.log("has session");
+            navigate(routes.groups);
         }),
     );
     return (

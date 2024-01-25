@@ -19,7 +19,7 @@ func handle(m Mutation) (bool, error) {
     case createInviteMutation:
         return createInvite(m.Args)
     default:
-        return false, fmt.Errorf("unknown mutation %s", m.Name)
+        return true, fmt.Errorf("unknown mutation %s", m.Name)
     }
 }
 
