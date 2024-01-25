@@ -1,8 +1,8 @@
 import { StackContext } from "sst/constructs";
 
 const MAPPING: Record<string, string> = {
-    production: "prod.bivvy.cc",
-    prod: "prod.bivvy.cc",
+    production: "bivvy.cc",
+    prod: "bivvy.cc",
 }
 
 export default function DNS({ stack, app}: StackContext) {

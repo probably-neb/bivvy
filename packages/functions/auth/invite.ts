@@ -79,12 +79,14 @@ function verify(token: string) {
     try {
         const jwt: Invite = createVerifier({
             algorithms: ["none"],
+            key: ""
         })(token);
         return {
             valid: true as const,
             invite: jwt
         };
     } catch (e) {
+        console.error(e)
         return {
             valid: false as const,
             error: String(e)

@@ -8,7 +8,7 @@ import Api from "./Api";
 import DNS from "./DNS";
 
 export default function SITE({ stack, app }: StackContext) {
-    const { api, apiUrl } = use(Api);
+    const { apiUrl } = use(Api);
     const dns = use(DNS);
 
     const site = new StaticSite(stack, "Site", {
@@ -35,6 +35,6 @@ export default function SITE({ stack, app }: StackContext) {
 
     return {
         site,
-        url: siteUrl
+        siteUrl
     };
 }

@@ -1,47 +1,53 @@
-import { useQueryParam } from "sst/node/api"
-import {AuthHandler, GoogleAdapter, Session, createAdapter} from "sst/node/auth"
+import { useQueryParam } from "sst/node/api";
+import {
+    AuthHandler,
+    GoogleAdapter,
+    Session,
+    createAdapter,
+} from "sst/node/auth";
 import { Config } from "sst/node/config";
 
-const NANOID_ID_LENGTH = 21
+const NANOID_ID_LENGTH = 21;
 
 declare module "sst/node/auth" {
-  export interface SessionTypes {
-    user: {
-      userId: string;
-    };
-  }
+    export interface SessionTypes {
+        user: {
+            userId: string;
+        };
+    }
 }
 
 function queryParams(userId: string) {
     const token = Session.create({
         type: "user",
         properties: {
-            userId: userId
-            }
-    })
-    const searchParams = new URLSearchParams()
-    searchParams.set("userId", userId)
-    searchParams.set("token", token)
-    const SITE_URL = process.env.SITE_URL
+            userId: userId,
+        },
+    });
+    const searchParams = new URLSearchParams();
+    searchParams.set("userId", userId);
+    searchParams.set("token", token);
+    const SITE_URL = process.env.SITE_URL;
     if (SITE_URL === undefined) {
-        throw new Error("Missing SITE_URL")
+        console.log(SITE_URL)
+        throw new Error("Missing SITE_URL");
     }
-    const location = `${SITE_URL}/login?${searchParams.toString()}`
+    const location = `${SITE_URL}/login?${searchParams.toString()}`;
     return {
         statusCode: 302,
         headers: {
-            location: `http://localhost:5173/login?${searchParams.toString()}`
+            location,
         },
-    }
+    };
 }
 
 const localProvider = createAdapter((_config) => async () => {
-    const userId = useQueryParam("userId")
+    const userId = useQueryParam("userId");
     if (!userId) {
-        throw new Error("Missing userId")
+        throw new Error("Missing userId");
     }
-    return queryParams(userId)
-})
+    return queryParams(userId);
+});
 
 export const handler = AuthHandler({
     providers: {
@@ -50,21 +56,20 @@ export const handler = AuthHandler({
             mode: "oidc",
             clientID: Config.GOOGLE_CLIENT_ID,
             onSuccess: async (tokenset) => {
-                const claims = tokenset.claims()
-                const userId = normalizeSub(claims.sub)
+                const claims = tokenset.claims();
+                const userId = normalizeSub(claims.sub);
                 // TODO: upsert user (email + profile pic)
-                return queryParams(userId)
-            }
-        })
-    }
-})
-
+                return queryParams(userId);
+            },
+        }),
+    },
+});
 
 // converts sub from oath claims to 21 char id (matching nanoid)
 // TODO: consider returning "changed" bool
 function normalizeSub(sub: string) {
     if (sub.length > NANOID_ID_LENGTH) {
-        return sub.slice(0, NANOID_ID_LENGTH)
+        return sub.slice(0, NANOID_ID_LENGTH);
     }
-    return sub.padEnd(NANOID_ID_LENGTH, "0")
+    return sub.padEnd(NANOID_ID_LENGTH, "0");
 }
