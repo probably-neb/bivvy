@@ -248,8 +248,6 @@ export const payment_splits = table("payment_splits", {
 export const invites = table("invites", {
     id: id("id"),
     group_id: idRef("group_id").notNull(),
-    email: varchar("email", { length: 255 }),
     created_at: timestamp("created_at").defaultNow().notNull(),
     accepted_at: timestamp("accepted_at"),
-    key: varchar("key", { length: 255 }).notNull(),
 })

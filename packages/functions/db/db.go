@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -58,17 +59,14 @@ type Debt struct {
 type Invite struct {
     Id string `json:"id"`
     GroupId string `json:"groupId"`
-    Email *string `json:"email"`
     CreatedAt unixTimestamp `json:"createdAt"`
     AcceptedAt *unixTimestamp `json:"acceptedAt"`
-    Key string `json:"key"`
 }
 
 type unixTimestamp time.Time
 
-// TODO: these may need to be divided by 1000 because
-// js gives unix in ms not s
 func (ut unixTimestamp) MarshalJSON() ([]byte, error) {
+    // unixMilli to mirror js Date.getTime()
     s := strconv.Itoa(int(time.Time(ut).UnixMilli()))
     return []byte(s), nil
 }
@@ -172,6 +170,31 @@ func addUserToGroup(tx *sql.Tx, userId string, groupId string) error {
         return err
     }
     _, err = stmt.Exec(userId, groupId)
+    if err != nil {
+        return err
+    }
+    err = addUserToGroupOwed(tx, userId, groupId)
+    return err
+}
+
+func addUserToGroupOwed(tx *sql.Tx, userId string, groupId string) error {
+    userIds, err := getGroupUserIds(tx, groupId)
+    if err != nil {
+        return err
+    }
+    owedStmt := `INSERT INTO owed (from_user_id, to_user_id, group_id, amount) VALUES`
+    for i, otherUserId := range userIds {
+        if otherUserId == userId {
+            continue
+        }
+        leadingComma := ""
+        if i > 0 {
+            leadingComma = ","
+        }
+        owedStmt += fmt.Sprintf("%s('%s', '%s', '%s', 0),",leadingComma, userId, otherUserId, groupId)
+        owedStmt += fmt.Sprintf("('%s', '%s', '%s', 0)", otherUserId, userId, groupId)
+    }
+    _, err = tx.Exec(owedStmt)
     return err
 }
 
@@ -691,20 +714,20 @@ func createSplitPortions(tx *sql.Tx, splitId string, portions map[string]float64
 func CreateInvite(invite Invite) error {
     stmt, err := conn.Prepare(
         `INSERT INTO invites
-        (id, email, group_id, created_at, accepted_at, key)
+        (id, group_id, created_at, accepted_at)
         VALUES
-        (?, ?, ?, ?, ?, ?)`,
+        (?, ?, ?, ?)`,
     );
     if err != nil {
         return err
     }
-    _, err = stmt.Exec(invite.Id, invite.Email, invite.GroupId, invite.CreatedAt, invite.AcceptedAt, invite.Key)
+    _, err = stmt.Exec(invite.Id, invite.GroupId, time.Time(invite.CreatedAt), (*time.Time)(invite.AcceptedAt))
     return err
 }
 
 func GetInvites(userId string) ([]Invite, error) {
     stmt, err := conn.Prepare(
-        `SELECT i.id, i.email, i.group_id, i.created_at, i.accepted_at, i.key
+        `SELECT i.id, i.group_id, i.created_at, i.accepted_at
         FROM users_to_group AS ug
         RIGHT JOIN users_to_group AS ag ON ag.group_id = ug.group_id
         RIGHT JOIN invites AS i ON i.group_id = ag.group_id
@@ -721,7 +744,7 @@ func GetInvites(userId string) ([]Invite, error) {
     invites := make([]Invite, 0)
     for rows.Next() {
         var i Invite
-        err = rows.Scan(&i.Id, &i.Email, &i.GroupId, &i.CreatedAt, &i.AcceptedAt, &i.Key)
+        err = rows.Scan(&i.Id, &i.GroupId, &i.CreatedAt, &i.AcceptedAt)
         if err != nil {
             return nil, err
         }
@@ -729,4 +752,92 @@ func GetInvites(userId string) ([]Invite, error) {
     }
     err = rows.Err()
     return invites, err
+}
+
+func AcceptInvite(userId string, inviteId string) error {
+    tx, err := conn.Begin()
+    if err != nil {
+        return err
+    }
+    invite, err := getInvite(tx, inviteId)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+    alreadyInGroup, err := isUserMemberOfGroup(tx, userId, invite.GroupId)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+    if alreadyInGroup {
+        tx.Rollback()
+        return fmt.Errorf("user %s is already a member of group %s", userId, invite.GroupId)
+    }
+    err = addUserToGroup(tx, userId, invite.GroupId)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+    err = markInviteAccepted(tx, inviteId, userId)
+    if err != nil {
+        tx.Rollback()
+        return err
+    }
+
+    err = tx.Commit()
+    return err
+}
+
+func markInviteAccepted(tx *sql.Tx, inviteId string, userId string) error {
+    // TODO: create seperate table for invite accepts
+    q := `UPDATE invites SET accepted_at = ? WHERE id = ?`
+    stmt, err := tx.Prepare(q)
+    if err != nil {
+        return err
+    }
+    _, err = stmt.Exec(time.Now(), inviteId)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
+func isUserMemberOfGroup(tx *sql.Tx, userId string, groupId string) (bool, error) {
+    q := `SELECT COUNT(*) FROM users_to_group WHERE user_id = ? AND group_id = ?`
+    stmt, err := tx.Prepare(q)
+    if err != nil {
+        return false, err
+    }
+    row := stmt.QueryRow(userId, groupId)
+    err = row.Err()
+    if err != nil {
+        return false, err
+    }
+    var count int
+    err = row.Scan(&count)
+    if err != nil {
+        return false, err
+    }
+    return count > 0, nil
+}
+
+func getInvite(tx *sql.Tx, inviteId string) (Invite, error) {
+    var invite Invite
+
+    stmt, err := tx.Prepare(
+        `SELECT id, group_id FROM invites WHERE id = ?`,
+    )
+    if err != nil {
+        return invite, err
+    }
+    row := stmt.QueryRow(inviteId)
+    err = row.Err()
+    if err != nil {
+        return invite, err
+    }
+    err = row.Scan(&invite.Id, &invite.GroupId)
+    if err != nil {
+        return invite, err
+    }
+    return invite, nil
 }

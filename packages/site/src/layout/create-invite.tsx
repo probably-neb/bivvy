@@ -4,7 +4,8 @@ import {
     TextFieldInput,
 } from "@/components/ui/textfield";
 import { Api } from "@/lib/api";
-import { Group } from "@/lib/rep";
+import { Group, useMutations } from "@/lib/rep";
+import { nanoid } from "nanoid";
 import { OcCheckcircle3, OcCopy3 } from "solid-icons/oc";
 import { createResource, createSignal, Match, Show, Switch } from "solid-js";
 
@@ -12,12 +13,13 @@ export function CreateInviteForm(props: {
     onSubmit: () => void;
     groupId: Group["id"];
 }) {
-    const [shouldGenerate, setShouldGenerate] = createSignal(false);
+    const mutations = useMutations();
 
+    const [shouldGenerate, setShouldGenerate] = createSignal(false);
     async function generate() {
         const groupId = props.groupId;
-        const token = await Api.getInviteToken(groupId);
-        // await mutations.createInvite({ key, groupId })
+        const token = nanoid()
+        await mutations.createInvite({ id: token, groupId })
         return inviteUrl(token);
     }
     const [invite] = createResource(shouldGenerate, generate);

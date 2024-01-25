@@ -32,6 +32,7 @@ const (
     createSplitMutation = "createSplit"
     createGroupMutation = "createGroup"
     createInviteMutation = "createInvite"
+    acceptInviteMutation = "acceptInvite"
 )
 
 func ParseArgs(mutation string, args json.RawMessage) any {
@@ -55,6 +56,8 @@ func ParseArgs(mutation string, args json.RawMessage) any {
         return tryParse(parseCreateGroup)
     case createInviteMutation:
         return tryParse(parseCreateInvite)
+    case acceptInviteMutation:
+        return tryParse(parseAcceptInvite)
     default:
         return Invalid(InvalidReasonUnknown)
     }
@@ -114,4 +117,12 @@ func parseCreateInvite(args json.RawMessage) (any, error) {
         return nil, err
     }
     return invite, nil
+}
+
+func parseAcceptInvite(args json.RawMessage) (any, error) {
+    var id string
+    if err := json.Unmarshal(args, &id); err != nil {
+        return nil, err
+    }
+    return id, nil
 }

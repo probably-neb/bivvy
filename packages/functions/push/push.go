@@ -78,7 +78,7 @@ func doMutations(push PushEvent, session db.UserSession) error {
             log.Println("creating new client", m.ClientId)
             cg.AddClient(m.ClientId)
         }
-        ok, err := handle(m)
+        ok, err := handle(m, session)
         if err != nil {
             log.Println("error handling mutation [",m.Name,"]", err)
         }

@@ -7,24 +7,10 @@ export * as Api from "./api";
 
 const url = import.meta.env.VITE_API_URL;
 
-export async function getInviteToken(groupId: Group["id"]) {
-    if (!groupId) {
-        throw new Error("Missing groupId");
-    }
-    const response = await fetch("/invite", {
-        validator: z.object({
-            token: z.string(),
-        }),
-        params: {
-            groupId,
-        },
-    });
-    return response.token;
-}
-
-export async function validateInviteToken(key: string) {
+// FIXME: create ExpireAt field in token and use backend to check expiration
+export async function validateInviteToken(token: string) {
     const response = await fetch("/invite/validate", {
-        params: { token: key },
+        params: { token: token },
         // FIXME: validate
         validator: z.object({
             ok: z.boolean(),

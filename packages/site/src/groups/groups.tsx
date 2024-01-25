@@ -5,7 +5,6 @@ import { A } from "@solidjs/router";
 import {
     Accessor,
     For,
-    createEffect,
     createMemo,
     createSignal,
 } from "solid-js";
@@ -16,6 +15,7 @@ import { Pattern, randomPattern } from "@/lib/patterns";
 
 export default function Groups() {
     const groups = useGroups();
+
     // TODO: overview card with total owed in all groups
     return (
         <div class="flex flex-wrap gap-4">
@@ -30,13 +30,11 @@ function GroupCard(props: { group: Group }) {
     // TODO: useTotalOwed in this card here
     const otherUsers = useNumUsers(groupId);
     const pattern = randomPattern();
-    console.log(pattern, props.group.name)
+    console.log(pattern, props.group.name);
     return (
         <Card class="hover:scale-105 border-none w-64 h-32 grow-0 shrink-0">
             <A href={routes.group(props.group.id)}>
-                <CardHeader
-                    class="w-full h-16 p-0 rounded-t-xl"
-                >
+                <CardHeader class="w-full h-16 p-0 rounded-t-xl">
                     <Pattern name={pattern} />
                 </CardHeader>
                 <CardContent class="pt-2 px-2 flex items-center justify-between">

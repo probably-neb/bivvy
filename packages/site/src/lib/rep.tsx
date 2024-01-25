@@ -67,7 +67,7 @@ const mutators = {
     },
     async acceptInvite(tx: WriteTransaction, inviteId: Invite["id"]) {
         const invite = await tx.get<Invite>(P.invite.id(inviteId));
-        const updated = { ...invite,id: inviteId, accepted: true, acceptedAt: new Date().getTime() };
+        const updated = { ...invite, id: inviteId, accepted: true, acceptedAt: new Date().getTime() };
         tx.set(P.invite.id(inviteId), updated);
     },
 };
@@ -134,6 +134,8 @@ type Mutators = typeof mutators;
 
 export function initReplicache(s: InitSession) {
     const licenseKey = import.meta.env.VITE_REPLICACHE_LICENSE_KEY;
+    const IS_LOCAL = import.meta.env.VITE_IS_LOCAL === "true"
+    const logLevel = IS_LOCAL ? "debug" : "error"
 
     const rep = new Replicache<Mutators>({
         name: s.userId,
@@ -142,6 +144,7 @@ export function initReplicache(s: InitSession) {
         mutators,
         pushURL: import.meta.env.VITE_API_URL + "/push",
         pullURL: import.meta.env.VITE_API_URL + "/pull",
+        logLevel
         // TODO: client id + auth (will involve waiting to create Replicache or recreating it on login)
     });
     // TODO: figure out a better place to put this so error/success ui can be displayed
@@ -305,17 +308,14 @@ export type GroupInput = z.infer<typeof groupInputSchema>;
 export const inviteSchema = z.object({
     id: idSchema,
     groupId: groupSchema.shape.id,
-    email: z.string().email().nullable(),
-    key: z.string(),
     createdAt: unixTimeSchema,
-    accepted: z.boolean().default(false),
     acceptedAt: unixTimeSchema.nullable(),
 });
 
 export type Invite = z.infer<typeof inviteSchema>;
 
 export const inviteInputSchema = inviteSchema.pick({
-    key: true,
+    id: true,
     groupId: true,
 });
 
@@ -458,17 +458,15 @@ export function ReplicacheContextProvider(props: ParentProps) {
             if (!ctx.isInit) {
                 throw new Error("Replicache not initialized");
             }
-            const groupId = ctx.groupId;
-            if (!groupId) {
+            if (!i.groupId) {
                 throw new Error("Group not set");
+            }
+            if (!i.id) {
+                throw new Error("no invite id")
             }
             const invite = Object.assign({}, i, {
                 createdAt: new Date().getTime(),
-                id: nanoid(),
                 acceptedAt: null,
-                accepted: false,
-                groupId,
-                email: null,
             }) satisfies Invite;
             await ctx.rep.mutate.createInvite(inviteSchema.parse(invite));
         },
