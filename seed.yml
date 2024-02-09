@@ -3,4 +3,5 @@ before_compile:
   - echo 'export PATH="$HOME/.bun/bin:$PATH"' >> $BASH_ENV
 compile:
   - cd packages/kobalte && pnpm install && bun run build -F core
+  - cd packages/solid-color && pnpm install && bun run build
   - cd packages/site && pnpm install && bun run build
