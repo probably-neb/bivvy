@@ -26,7 +26,7 @@ import {
     UserRenderer,
 } from "@/components/renderers";
 import { Size, useDeviceContext } from "@/lib/device";
-import { TiPlus, TiUpload } from "solid-icons/ti";
+import { TiPlus } from "solid-icons/ti";
 import { Button } from "@/components/ui/button";
 import { CreateSplitDialog } from "./create-split";
 import { createStore } from "solid-js/store";
@@ -214,28 +214,31 @@ function CreateSplitButton() {
 
 function UploadExpensesButton() {
     const navigate = useNavigate();
-    const groupId = useCurrentGroupId()
+    const groupId = useCurrentGroupId();
 
     function onClick() {
         const gid = groupId();
         if (!gid) {
-            console.error("No group id")
-            return
+            console.error("No group id");
+            return;
         }
         const path = routes.scan(gid);
         navigate(path);
     }
 
-    return <div>
-        <Button variant="outline" class="gap-2 uppercase" onClick={onClick}>
-            <FiUpload /> Upload
-        </Button>
-    </div>
+    return (
+        <div>
+            <Button variant="outline" class="gap-2 uppercase" onClick={onClick}>
+                <FiUpload /> Upload
+            </Button>
+        </div>
+    );
 }
 
-type AddExpenseButtonProps = {disabled: Accessor<boolean>, onClick: () => void}
-
-
+type AddExpenseButtonProps = {
+    disabled: Accessor<boolean>;
+    onClick: () => void;
+};
 
 function AddExpenseButton(props: AddExpenseButtonProps) {
     return (

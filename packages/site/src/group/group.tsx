@@ -45,7 +45,7 @@ export function setExpenseCardMode(mode: ExpenseCardMode) {
 
 export type ViewExpense = (expenseId: Expense["id"]) => void;
 
-function AddExpenseButtonProps() {
+function getAddExpenseButtonProps() {
     const device = useQueries();
     const disabled = createMemo(() => {
         // if the expense card will be shown in a modal,
@@ -90,7 +90,8 @@ export default function GroupPage() {
         setExpenseCardMode({ mode: "view", id });
     };
 
-    const addExpenseButtonProps = createMemo(AddExpenseButtonProps);
+    // wrap in tracking scope
+    const addExpenseButtonProps = createMemo(getAddExpenseButtonProps);
 
     // TODO: move header to layout
     return (

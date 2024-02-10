@@ -1,8 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     TextField,
-    TextFieldErrorMessage,
     TextFieldInput,
     TextFieldLabel,
 } from "@/components/ui/textfield";
@@ -14,9 +12,9 @@ import {
 } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { For, Setter, createMemo, createSignal, onMount } from "solid-js";
+import { For, Setter, createMemo, createSignal, from, onMount } from "solid-js";
 import z from "zod";
-import { createEffect, on } from "solid-js";
+import { on } from "solid-js";
 import { UserRenderer } from "@/components/renderers";
 import { BlockPicker, ColorResult } from "solid-color";
 import {
@@ -27,6 +25,8 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import "./no-spinners.css";
 import { AiOutlineMinus, AiOutlinePlus } from "solid-icons/ai";
+import { reconcile } from "solid-js/store";
+import { not } from "@/lib/utils";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
 
@@ -176,46 +176,84 @@ function ColorPicker(props: {
 
 const zParts = z.number().min(0).max(100);
 
+function useTotalPortions(form: SplitForm) {
+    const portions = subscribeToField(form, (values) =>
+        Object.values(values.portions ?? {}),
+    );
+    const total = createMemo(() => {
+        const total = portions()?.reduce((acc, val) => acc + val, 0) ?? 0.0;
+        return total;
+    });
+    return total;
+}
+
 function PortionParts(props: { form: SplitForm }) {
     // TODO: store portions, total in portion types + db
     // i.e. calculate owed as parts * amount / numParts
     // where for pecentage numparts is 1.0 (25% * amount / 1.0)
     const users = useUsers();
+
+    const totalPortions = useTotalPortions(props.form);
+
+    const usersList = (
+        <For each={users()}>
+            {(user) => (
+                <UserPortionParts
+                    form={props.form}
+                    userId={user.id}
+                    totalPortions={totalPortions()}
+                />
+            )}
+        </For>
+    );
+
     return (
         <div class="flex">
-            <div class="shrink grid grid-cols-2">
-                <For each={users()}>
-                    {(user) => {
-                        const id = `portions.${user.id}` as const;
-                        if (
-                            props.form.state.values.portions?.[user.id] ===
-                            undefined
-                        ) {
-                            props.form.setFieldValue(id, 1);
-                        }
-                        return (
-                            <props.form.Field
-                                name={id}
-                                validators={{
-                                    onChange: zParts,
-                                }}
-                            >
-                                {(field) => (
-                                    <>
-                                        <UserRenderer userId={user.id} />
-                                        <Incrementer
-                                            value={field().state.value}
-                                            onChange={field().handleChange}
-                                        />
-                                    </>
-                                )}
-                            </props.form.Field>
-                        );
-                    }}
-                </For>
+            <div class="shrink grid grid-cols-3 items-center gap-4">
+                {usersList}
             </div>
         </div>
     );
+}
+
+function UserPortionParts(props: {
+    form: SplitForm;
+    userId: string;
+    totalPortions: number;
+}) {
+    const id = `portions.${props.userId}` as const;
+
+    const values = props.form.state.values;
+    const portion = values.portions?.[props.userId];
+    if (not(portion)) {
+        props.form.setFieldValue(id, 1);
+    }
+
+    return (
+        <props.form.Field name={id} validators={{ onChange: zParts }}>
+            {(field) => (
+                <>
+                    <UserRenderer userId={props.userId} />
+                    <Incrementer
+                        value={field().state.value}
+                        onChange={field().handleChange}
+                    />
+                    <PercentagePreview
+                        total={props.totalPortions}
+                        value={field().state.value}
+                    />
+                </>
+            )}
+        </props.form.Field>
+    );
+}
+
+function PercentagePreview(props: { total: number; value: number }) {
+    const percent = createMemo(() => {
+        const value = (props.value / props.total) * 100;
+        return `${value.toFixed(2)}%`;
+    });
+    return <div class="text-slate-600 italic">{percent()}</div>;
 }
 
 function Incrementer(props: { value: number; onChange: Setter<number> }) {
@@ -241,6 +279,21 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
             </button>
         </div>
     );
+}
+
+function subscribeToField<T, Form extends FormApi<any, any>>(
+    form: Form,
+    selector: (values: Form["state"]["values"]) => T,
+) {
+    return from<T>((set) => {
+        const unsubscribe = form.store.subscribe(() => {
+            if (not(form.state.values)) {
+                return
+            }
+            set(reconcile(selector(form.state.values)));
+        });
+        return unsubscribe;
+    });
 }
 
 type FieldOf<Form extends FormApi<any, any>> = Form["fieldInfo"] extends Record<

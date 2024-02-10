@@ -25,3 +25,9 @@ export function removeKeys<T, K extends keyof T>(obj: T, keys: K[]) {
         removed as Simplify<Pick<T, K>>,
     ] as const;
 }
+
+// allows for a more concise way to check for undefined or null
+// without accidentally passing other falsey values (i.e. false and 0)
+export function not<T>(val?: T | null | undefined): val is undefined | null {
+    return val === undefined || val === null
+}
