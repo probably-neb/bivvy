@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -59,11 +60,11 @@ type Item struct {
 }
 
 type ReceiptSummary struct {
-    Total float64 `json:"total"`
-    Tax float64 `json:"tax"`
-    Date string `json:"date"`
-    Vendor string `json:"vendor"`
-    VendorAddress string `json:"vendorAddress"`
+    Total *float64 `json:"total"`
+    Tax *float64 `json:"tax"`
+    Date *string `json:"date"`
+    Vendor *string `json:"vendor"`
+    VendorAddress *string `json:"vendorAddress"`
 }
 
 type Receipt struct {
@@ -77,6 +78,16 @@ func scanFloat64(dest *float64, str string) error {
         return err
     }
     *dest = val
+    return nil
+}
+
+func scanFloat64Ref(dest **float64, str string) error {
+    val := 0.0
+    err := scanFloat64(&val, str)
+    if err != nil {
+        return err
+    }
+    *dest = &val
     return nil
 }
 
@@ -182,7 +193,8 @@ func getExpenseFieldValue(field textractTypes.ExpenseField) (string, bool) {
 
 type SummaryField int
 const (
-    SummaryTotal SummaryField = iota
+    SummaryOther SummaryField = iota
+    SummaryTotal
     SummaryTax
     SummaryDate
     SummaryVendor
@@ -191,29 +203,25 @@ const (
 
 func identifySummaryField(label string) (SummaryField, bool) {
     var (
-        field SummaryField
-        ok = false
+        field = SummaryOther
     )
 
-    labelMap := map[string]SummaryField{
-        "TOTAL": SummaryTotal,
-        "TAX": SummaryTax,
-        "INVOICE_RECEIPT_DATE": SummaryDate,
-        "VENDOR_NAME": SummaryVendor,
-        "VENDOR_ADDRESS": SummaryVendorAddress,
+    switch label {
+    case "TOTAL":
+        field = SummaryTotal
+    case "TAX":
+        field = SummaryTax
+    case "INVOICE_RECEIPT_DATE":
+        field = SummaryDate
+    case "VENDOR_NAME":
+        field = SummaryVendor
+    case "VENDOR_ADDRESS":
+        field = SummaryVendorAddress
+    default:
+        return field, false
     }
-
-    for key, value := range labelMap {
-        if key != label {
-            continue
-        }
-        log.Println("identified summary field", key, label)
-        field = value
-        ok = true
-        break
-    }
-
-    return field, ok
+    log.Println("identified summary field", label, field)
+    return field, true
 }
 
 func parseSummaryField(summary *ReceiptSummary, label string, value string) {
@@ -223,34 +231,29 @@ func parseSummaryField(summary *ReceiptSummary, label string, value string) {
     }
     switch field {
     case SummaryTotal:
-        err := scanFloat64(&summary.Total, value)
+        err := scanFloat64Ref(&summary.Total, value)
         if err != nil {
             log.Println("error parsing summary total", err)
             return
         }
     case SummaryTax:
-        err := scanFloat64(&summary.Tax, value)
+        err := scanFloat64Ref(&summary.Tax, value)
         if err != nil {
             log.Println("error parsing summary tax", err)
             return
         }
     case SummaryDate:
-        summary.Date = value
+        summary.Date = &value
     case SummaryVendor:
-        summary.Vendor = value
+        summary.Vendor = &value
     case SummaryVendorAddress:
-        summary.VendorAddress = value
+        value = strings.ReplaceAll(value, "\n", " ")
+        summary.VendorAddress = &value
     }
 }
 
 func parseSummary(summaryFields []textractTypes.ExpenseField) (ReceiptSummary, error) {
-    summary := ReceiptSummary{
-        Total: 0.0,
-        Tax: 0.0,
-        Date: "",
-        Vendor: "",
-        VendorAddress: "",
-    }
+    summary := ReceiptSummary{ }
     for _, field := range summaryFields {
         label, ok := getExpenseFieldLabel(field)
         if !ok {
