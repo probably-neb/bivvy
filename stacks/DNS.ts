@@ -7,7 +7,7 @@ const MAPPING: Record<string, string> = {
     dev: "dev.bivvy.cc",
 }
 
-export default function DNS({ stack, app}: StackContext) {
+export default function DNS({ app }: StackContext) {
     const stage = app.stage
     const zone = MAPPING[stage] || "dev.bivvy.cc"
     const domain = MAPPING[stage] || `${stage}.dev.bivvy.cc`

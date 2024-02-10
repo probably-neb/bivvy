@@ -16,7 +16,7 @@ import { Expense, useExpense, useMutations } from "@/lib/rep";
 import { useQueries } from "@/lib/device";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
-import { useSession, useUserId } from "@/lib/session";
+import { useUserId } from "@/lib/session";
 
 type ExpenseCardView = { mode: "view"; id: Expense["id"] };
 // TODO:
@@ -45,7 +45,7 @@ export function setExpenseCardMode(mode: ExpenseCardMode) {
 
 export type ViewExpense = (expenseId: Expense["id"]) => void;
 
-function AddExpenseButton() {
+function AddExpenseButtonProps() {
     const device = useQueries();
     const disabled = createMemo(() => {
         // if the expense card will be shown in a modal,
@@ -55,15 +55,11 @@ function AddExpenseButton() {
         }
         return expenseCardMode().mode == "add";
     });
-    return (
-        <Button
-            variant="outline"
-            onClick={[setExpenseCardMode, { mode: "add" }]}
-            disabled={disabled()}
-        >
-            Add Expense
-        </Button>
-    );
+    const onClick = () => setExpenseCardMode({ mode: "add" });
+    return {
+        disabled,
+        onClick
+    }
 }
 
 function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
@@ -88,10 +84,13 @@ function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
     );
 }
 
+
 export default function GroupPage() {
     const viewExpense = (id: Expense["id"]) => {
         setExpenseCardMode({ mode: "view", id });
     };
+
+    const addExpenseButtonProps = createMemo(AddExpenseButtonProps);
 
     // TODO: move header to layout
     return (
@@ -104,7 +103,7 @@ export default function GroupPage() {
                 <section class="w-full lg:w-2/3">
                     <ExpensesTable
                         viewExpense={viewExpense}
-                        addExpenseButton={<AddExpenseButton />}
+                        addExpenseButtonProps={addExpenseButtonProps()}
                     />
                 </section>
             </div>

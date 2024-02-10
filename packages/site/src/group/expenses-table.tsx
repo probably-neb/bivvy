@@ -10,6 +10,7 @@ import {
 import { ViewExpense } from "@/group/group";
 import { useExpenses, type Expense } from "@/lib/rep";
 import {
+    Accessor,
     Component,
     For,
     JSX,
@@ -25,13 +26,15 @@ import {
     UserRenderer,
 } from "@/components/renderers";
 import { Size, useDeviceContext } from "@/lib/device";
-import { TiPlus } from "solid-icons/ti";
+import { TiPlus, TiUpload } from "solid-icons/ti";
 import { Button } from "@/components/ui/button";
 import { CreateSplitDialog } from "./create-split";
 import { createStore } from "solid-js/store";
 import { useNavigate } from "@solidjs/router";
 import { routes } from "@/routes";
 import { useCurrentGroupId } from "@/lib/group";
+import { FiUpload } from "solid-icons/fi";
+import { AiOutlinePlus } from "solid-icons/ai";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -102,7 +105,7 @@ function watchShow() {
 
 export function ExpensesTable(props: {
     viewExpense: ViewExpense;
-    addExpenseButton: JSX.Element;
+    addExpenseButtonProps: AddExpenseButtonProps;
 }) {
     watchShow();
     return (
@@ -110,7 +113,7 @@ export function ExpensesTable(props: {
             <CardHeader class="flex flex-row justify-between items-center p-3 pl-6">
                 <CardTitle>Expenses</CardTitle>
                 <div class="flex flex-row gap-2">
-                    {props.addExpenseButton}
+                    <AddExpenseButton {...props.addExpenseButtonProps} />
                     <UploadExpensesButton />
                 </div>
             </CardHeader>
@@ -224,9 +227,25 @@ function UploadExpensesButton() {
     }
 
     return <div>
-        <Button variant="outline" onClick={onClick}>
-            Upload Expenses
+        <Button variant="outline" class="gap-2 uppercase" onClick={onClick}>
+            <FiUpload /> Upload
         </Button>
     </div>
 }
 
+type AddExpenseButtonProps = {disabled: Accessor<boolean>, onClick: () => void}
+
+
+
+function AddExpenseButton(props: AddExpenseButtonProps) {
+    return (
+        <Button
+            class="gap-2 uppercase"
+            variant="outline"
+            onClick={props.onClick}
+            disabled={props.disabled()}
+        >
+            <AiOutlinePlus /> Add
+        </Button>
+    );
+}
