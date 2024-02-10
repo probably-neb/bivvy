@@ -47,6 +47,8 @@ func analyze(ctx context.Context, txt *textract.Client, image []byte) (*textract
         },
     }
     resp, err := txt.AnalyzeExpense(ctx, &cmd)
+    // jsn, _ := json.Marshal(resp)
+    // log.Println("response", string(jsn))
     return resp, err
 }
 
@@ -58,6 +60,7 @@ type Item struct {
 
 type ReceiptSummary struct {
     Total float64 `json:"total"`
+    Tax float64 `json:"tax"`
     Date string `json:"date"`
     Vendor string `json:"vendor"`
     VendorAddress string `json:"vendorAddress"`
@@ -66,6 +69,15 @@ type ReceiptSummary struct {
 type Receipt struct {
     ReceiptSummary
     Items []Item `json:"items"`
+}
+
+func scanFloat64(dest *float64, str string) error {
+    val, err := strconv.ParseFloat(str, 64)
+    if err != nil {
+        return err
+    }
+    *dest = val
+    return nil
 }
 
 func parseLineItemExpense(fields []textractTypes.ExpenseField) (Item, error) {
@@ -84,8 +96,7 @@ func parseLineItemExpense(fields []textractTypes.ExpenseField) (Item, error) {
         var err error
         switch label {
             case "PRICE":
-                amount, err := strconv.ParseFloat(value, 64)
-                item.Amount = amount
+                err = scanFloat64(&item.Amount, value)
                 if err != nil {
                     return item, err
                 }
@@ -138,13 +149,123 @@ func parseLineItemGroups(groups []textractTypes.LineItemGroup) ([]Item, error) {
     return items, nil
 }
 
+func getExpenseFieldLabel(field textractTypes.ExpenseField) (string, bool) {
+    var (
+        label string
+        ok = false
+    )
+
+    if field.LabelDetection != nil && field.LabelDetection.Text != nil {
+        label = *field.LabelDetection.Text
+        ok = true
+    }
+    if field.Type != nil && field.Type.Text != nil {
+        label = *field.Type.Text
+        ok = true
+        log.Println("field type", *field.Type.Text)
+    }
+
+    return label, ok
+}
+
+func getExpenseFieldValue(field textractTypes.ExpenseField) (string, bool) {
+    var (
+        value string
+        ok = false
+    )
+    if field.ValueDetection != nil && field.ValueDetection.Text != nil {
+        value = *field.ValueDetection.Text
+        ok = true
+    }
+    return value, ok
+}
+
+type SummaryField int
+const (
+    SummaryTotal SummaryField = iota
+    SummaryTax
+    SummaryDate
+    SummaryVendor
+    SummaryVendorAddress
+)
+
+func identifySummaryField(label string) (SummaryField, bool) {
+    var (
+        field SummaryField
+        ok = false
+    )
+
+    labelMap := map[string]SummaryField{
+        "TOTAL": SummaryTotal,
+        "TAX": SummaryTax,
+        "INVOICE_RECEIPT_DATE": SummaryDate,
+        "VENDOR_NAME": SummaryVendor,
+        "VENDOR_ADDRESS": SummaryVendorAddress,
+    }
+
+    for key, value := range labelMap {
+        if key != label {
+            continue
+        }
+        log.Println("identified summary field", key, label)
+        field = value
+        ok = true
+        break
+    }
+
+    return field, ok
+}
+
+func parseSummaryField(summary *ReceiptSummary, label string, value string) {
+    field, ok := identifySummaryField(label)
+    if !ok {
+        return
+    }
+    switch field {
+    case SummaryTotal:
+        err := scanFloat64(&summary.Total, value)
+        if err != nil {
+            log.Println("error parsing summary total", err)
+            return
+        }
+    case SummaryTax:
+        err := scanFloat64(&summary.Tax, value)
+        if err != nil {
+            log.Println("error parsing summary tax", err)
+            return
+        }
+    case SummaryDate:
+        summary.Date = value
+    case SummaryVendor:
+        summary.Vendor = value
+    case SummaryVendorAddress:
+        summary.VendorAddress = value
+    }
+}
+
 func parseSummary(summaryFields []textractTypes.ExpenseField) (ReceiptSummary, error) {
-    return ReceiptSummary{
+    summary := ReceiptSummary{
         Total: 0.0,
+        Tax: 0.0,
         Date: "",
         Vendor: "",
         VendorAddress: "",
-    }, nil
+    }
+    for _, field := range summaryFields {
+        label, ok := getExpenseFieldLabel(field)
+        if !ok {
+            continue
+        }
+
+        value, ok := getExpenseFieldValue(field)
+        if !ok {
+            continue
+        }
+        log.Printf("found summary field [%v]: %v", label, value)
+        parseSummaryField(&summary, label, value)
+
+    }
+    return summary, nil
 }
 
 func parse(resp *textract.AnalyzeExpenseOutput) (*Receipt, error) {
@@ -159,26 +280,30 @@ func parse(resp *textract.AnalyzeExpenseOutput) (*Receipt, error) {
 
     receipt := Receipt{}
 
-    items, err := parseLineItemGroups(doc.LineItemGroups)
-    if err != nil {
-        log.Println("error parsing line item groups", err)
-    }
-    receipt.Items = items
-
     summary, err := parseSummary(doc.SummaryFields)
     if err != nil {
         log.Println("error parsing summary", err)
     }
     receipt.ReceiptSummary = summary
 
+    items, err := parseLineItemGroups(doc.LineItemGroups)
+    if err != nil {
+        log.Println("error parsing line item groups", err)
+    }
+    receipt.Items = items
+
     return &receipt, nil
 }
 
 func handler(ctx context.Context, req Request) (*Response, error) {
     image, err := base64.StdEncoding.DecodeString(req.Body)
+    if err != nil {
+        return nil, err
+    }
     txt := getTextract(ctx)
     info, err := analyze(ctx, txt, image)
     if err != nil {
+        log.Print("error analyzing receipt", err)
         return nil, err
     }
     receipt, err := parse(info)
@@ -190,7 +315,7 @@ func handler(ctx context.Context, req Request) (*Response, error) {
     status := 200
     if err != nil {
         status = 500
-        receiptJson = []byte(`{"error": "` + err.Error() + `"}`)
+        receiptJson, _ = json.Marshal(map[string]string{"error": err.Error()})
     }
     res := Response {
         StatusCode: status,
@@ -199,6 +324,7 @@ func handler(ctx context.Context, req Request) (*Response, error) {
             "Content-Type": "application/json",
         },
     }
+    log.Println("response", res.StatusCode, res.Body)
     return &res, err
 }
 
