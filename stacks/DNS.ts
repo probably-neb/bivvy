@@ -3,6 +3,8 @@ import { StackContext } from "sst/constructs";
 const MAPPING: Record<string, string> = {
     production: "bivvy.cc",
     prod: "bivvy.cc",
+    development: "dev.bivvy.cc",
+    dev: "dev.bivvy.cc",
 }
 
 export default function DNS({ stack, app}: StackContext) {
