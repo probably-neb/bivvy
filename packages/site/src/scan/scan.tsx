@@ -1,6 +1,9 @@
 import { createSignal, createResource, createEffect, createMemo, Show } from "solid-js";
 import { Api } from "@/lib/api";
 
+// TODO: support document extract reciept from image
+// https://github.com/ColonelParrot/jscanify
+
 export default function Scan() {
     const [file, setFile] = createSignal<File | null>(null);
     const [res, { refetch }] = createResource(file, (file) => {
