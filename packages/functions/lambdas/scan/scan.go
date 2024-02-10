@@ -91,41 +91,70 @@ func scanFloat64Ref(dest **float64, str string) error {
     return nil
 }
 
+func getFieldLabel(field textractTypes.ExpenseField) (label string, ok bool) {
+    if field.Type != nil && field.Type.Text != nil {
+        label = *field.Type.Text
+        ok = true
+    }
+    return
+}
+
+func getFieldValue(field textractTypes.ExpenseField) (value string, ok bool) {
+    if field.ValueDetection != nil && field.ValueDetection.Text != nil {
+        value = *field.ValueDetection.Text
+        ok = true
+    }
+    return
+}
+
+func getFieldLabelAndValue(field textractTypes.ExpenseField) (label string, value string, ok bool) {
+    label, ok = getFieldLabel(field)
+    if !ok {
+        return
+    }
+    value, ok = getFieldValue(field)
+    return
+}
+
 func parseLineItemExpense(fields []textractTypes.ExpenseField) (Item, error) {
     item := Item{}
     item.Confidence = 1.0
+
+    productCode := ""
+
     for _, field := range fields {
-        if field.Type == nil || field.ValueDetection == nil {
-            return item, fmt.Errorf("field missing type or value detection")
+        label, value, ok := getFieldLabelAndValue(field)
+        if !ok {
+            continue
         }
-        if field.Type.Text == nil || field.ValueDetection.Text == nil {
-            return item, fmt.Errorf("field type or value detection missing text")
-        }
+
         used := true
-        label := *field.Type.Text
-        value := *field.ValueDetection.Text
-        var err error
         switch label {
-            case "PRICE":
-                err = scanFloat64(&item.Amount, value)
-                if err != nil {
-                    return item, err
-                }
-            case "ITEM":
-                item.Name = value
+        case "PRICE":
+            err := scanFloat64(&item.Amount, value)
+            if err != nil {
+                log.Println("error parsing price", err)
+            }
+        case "ITEM":
+            item.Name = value
+        case "PRODUCT_CODE":
+            productCode = value
+            used = false
         default:
             used = false
             log.Println("unused field", label, value)
         // TODO: PRODUCT_CODE and replace in ITEM if found
-        }
-        if err != nil {
-            return item, err
         }
         log.Println("parsed field", label, value, *field.ValueDetection.Confidence, *field.Type.Confidence )
         if used {
             item.Confidence *= (*field.ValueDetection.Confidence / 100.0)
             item.Confidence *= (*field.Type.Confidence / 100.0)
         }
+    }
+    // sometimes the product code is in the item name
+    if productCode != "" && item.Name != "" {
+        item.Name = strings.ReplaceAll(item.Name, productCode, "")
+        item.Name = strings.TrimSpace(item.Name)
     }
     log.Println("parsed item", item)
     return item, nil
