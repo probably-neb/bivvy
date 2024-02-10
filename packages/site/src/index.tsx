@@ -14,7 +14,7 @@ const Groups = lazy(() => import("@/groups/groups"));
 const Group = lazy(() => import("@/group/group"));
 const Login = lazy(() => import("@/login/login"));
 const Invite = lazy(() => import("@/login/invite"));
-const Scan = lazy(() => import("@/scan"));
+const Scan = lazy(() => import("@/scan/scan"));
 
 function ToAuth() {
     return (
@@ -45,15 +45,14 @@ function Root(props: ParentProps) {
 }
 
 export function App() {
-    console.log("App");
     return (
         <Router root={Root}>
             {/* TODO: add home page */ }
             <Route path="/" component={ToAuth} />
-            <Route path="/scan" component={Scan} />
             <Route path={routes.groups} component={EnsureLogin}>
                 <Route path="/" component={Groups} />
                 <Route path=":id" component={Group} />
+                <Route path=":id/scan" component={Scan} />
             </Route>
             <Route path={routes.auth} component={Login} />
             <Route path="/invite" component={Invite} />

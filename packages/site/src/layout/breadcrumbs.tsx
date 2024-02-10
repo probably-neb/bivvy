@@ -34,6 +34,20 @@ function useCrumb(path: string) {
     return params;
 }
 
+function useCrumbWithParam<Param extends string, Res>(fn: (param: string) => string, val: Param, mapFn: (paramVal: string) => Res) {
+    const param = ":" + val;
+    const crumb = useCrumb(fn(param));
+    const res = createMemo(on(crumb, (crumb) => {
+        if (!crumb) return;
+        if (!crumb[val]) {
+            console.error("crumb has no " + val, crumb);
+            return
+        }
+        return mapFn(crumb[val])
+    }))
+    return res
+}
+
 const groupsCrumb = () => <Crumb name="Groups" path={routes.groups} />;
 const loginCrumb = () => <Crumb name="Login" path={routes.auth} />;
 
@@ -42,35 +56,37 @@ const groupCrumb =
         <Crumb name={props.name() ?? ""} path={routes.group(props.id)} />
     );
 
+const scanCrumb = (props: {id: string}) => () => <Crumb name="Upload" path={routes.scan(props.id)} />
+
+function getGroupInfo(groupId: string) {
+    const group = useGroup(() => groupId);
+    return {
+        id: groupId,
+        name: () => group()?.name,
+    }
+}
+
 function useCrumbs() {
     const login = useCrumb(routes.auth + "/*");
     const groups = useCrumb(routes.groups);
-    const groupMatch = useCrumb(routes.group(":id"));
-    const group = createMemo(
-        on(groupMatch, (groupMatch) => {
-            if (!groupMatch) return;
-            if (!groupMatch.id) {
-                console.error("group match has no id", groupMatch);
-                return;
-            }
-
-            const group = useGroup(() => groupMatch.id);
-            return {
-                id: groupMatch.id,
-                name: () => group()?.name,
-            };
-        }),
-    );
+    const group = useCrumbWithParam(routes.group, "id" as const, getGroupInfo)
+    const scan = useCrumbWithParam(routes.scan, "id" as const, getGroupInfo)
 
     const crumbs = createMemo(
-        on([login, groups, group], ([login, groups, group]) => {
+        on([login, groups, group, scan], ([login, groups, group, scan]) => {
             switch (true) {
                 case !!login:
                     return [loginCrumb];
+                case !!scan:
+                    return [
+                        groupsCrumb,
+                        groupCrumb(scan),
+                        scanCrumb(scan)
+                    ]
                 case !!group:
                     return [
                         groupsCrumb,
-                        groupCrumb({ id: group.id, name: group.name }),
+                        groupCrumb(group),
                     ];
                 case !!groups:
                     return [groupsCrumb];

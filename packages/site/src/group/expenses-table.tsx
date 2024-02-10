@@ -10,13 +10,11 @@ import {
 import { ViewExpense } from "@/group/group";
 import { useExpenses, type Expense } from "@/lib/rep";
 import {
-    Accessor,
     Component,
     For,
     JSX,
     Show,
     createEffect,
-    createMemo,
     createSignal,
     on,
 } from "solid-js";
@@ -31,6 +29,9 @@ import { TiPlus } from "solid-icons/ti";
 import { Button } from "@/components/ui/button";
 import { CreateSplitDialog } from "./create-split";
 import { createStore } from "solid-js/store";
+import { useNavigate } from "@solidjs/router";
+import { routes } from "@/routes";
+import { useCurrentGroupId } from "@/lib/group";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -108,7 +109,10 @@ export function ExpensesTable(props: {
         <Card class="mt-6">
             <CardHeader class="flex flex-row justify-between items-center p-3 pl-6">
                 <CardTitle>Expenses</CardTitle>
-                {props.addExpenseButton}
+                <div class="flex flex-row gap-2">
+                    {props.addExpenseButton}
+                    <UploadExpensesButton />
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -204,3 +208,25 @@ function CreateSplitButton() {
         </>
     );
 }
+
+function UploadExpensesButton() {
+    const navigate = useNavigate();
+    const groupId = useCurrentGroupId()
+
+    function onClick() {
+        const gid = groupId();
+        if (!gid) {
+            console.error("No group id")
+            return
+        }
+        const path = routes.scan(gid);
+        navigate(path);
+    }
+
+    return <div>
+        <Button variant="outline" onClick={onClick}>
+            Upload Expenses
+        </Button>
+    </div>
+}
+

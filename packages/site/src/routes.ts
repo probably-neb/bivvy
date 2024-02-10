@@ -5,5 +5,8 @@ export const routes = {
     group(id: string) {
         return `/groups/${id}`;
     },
+    scan(groupId: string) {
+        return `${routes.group(groupId)}/scan`
+    }
 };
 
