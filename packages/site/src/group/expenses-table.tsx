@@ -35,6 +35,13 @@ import { routes } from "@/routes";
 import { useCurrentGroupId } from "@/lib/group";
 import { FiUpload } from "solid-icons/fi";
 import { AiOutlinePlus } from "solid-icons/ai";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { RiSystemShareBoxLine } from "solid-icons/ri";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -216,21 +223,36 @@ function UploadExpensesButton() {
     const navigate = useNavigate();
     const groupId = useCurrentGroupId();
 
-    function onClick() {
+    function onClick(kind: "receipt" | "table") {
         const gid = groupId();
         if (!gid) {
             console.error("No group id");
             return;
         }
-        const path = routes.scan(gid);
+        let path = routes.scanReceipt(gid);
+        if (kind === "table") {
+            path = routes.scanSpreadsheet(gid);
+        }
         navigate(path);
     }
 
     return (
         <div>
-            <Button variant="outline" class="gap-2 uppercase" onClick={onClick}>
-                <FiUpload /> Upload
-            </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger>
+                    <Button variant="outline" class="gap-2 uppercase">
+                        <FiUpload /> Upload
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onClick={[onClick, "receipt"]}>
+                        Receipt
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={[onClick, "table"]}>
+                        Spreadsheet
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
     );
 }

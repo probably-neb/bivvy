@@ -40,6 +40,17 @@ export async function scanReceipt(file: File) {
     return res
 }
 
+export async function scanSpreadsheet(file: File) {
+    const res = await fetch("/scan/spreadsheet", {
+        method: "POST",
+        body: file,
+        headers: {
+            "content-type": file.type
+        }
+    })
+    return res
+}
+
 type QueryParams = ConstructorParameters<typeof URLSearchParams>[0];
 
 type FetchOpts<T> = RequestInit & {

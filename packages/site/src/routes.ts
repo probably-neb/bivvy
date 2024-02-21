@@ -5,8 +5,12 @@ export const routes = {
     group(id: string) {
         return `/groups/${id}`;
     },
-    scan(groupId: string) {
-        return `${routes.group(groupId)}/scan`
-    }
+    scanReceipt(groupId: string) {
+        return `${routes.group(groupId)}/scan/receipt`
+    },
+    scanSpreadsheet(groupId: string) {
+        return `${routes.group(groupId)}/scan/table`
+    },
+
 };
 

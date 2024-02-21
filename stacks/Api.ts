@@ -1,6 +1,7 @@
 import { StackContext, Api, Config, Table, Auth, use } from "sst/constructs";
 import DNS from "./DNS";
 
+
 export default function API({ stack }: StackContext) {
     const DB_URL = new Config.Secret(stack, "DB_URL");
     const dns = use(DNS);
@@ -65,14 +66,16 @@ export default function API({ stack }: StackContext) {
             },
             "POST /scan/receipt": {
                 function: {
-                    handler: "packages/functions/lambdas/scan/scan.go",
+                    handler: "packages/functions/lambdas/scan/receipt/receipt.go",
                     runtime: "go",
-                    // bind: [clientTable, DSN],
                     permissions: ["ssm", "textract:AnalyzeExpense"],
-                    // environment: {
-                    //     CLIENT_TABLE_NAME: clientTable.tableName,
-                    //     SST_REGION: stack.region,
-                    // },
+                },
+            },
+            "POST /scan/spreadsheet": {
+                function: {
+                    handler: "packages/functions/lambdas/scan/table/table.go",
+                    runtime: "go",
+                    permissions: ["ssm"],
                 },
             },
             "GET /invite": {

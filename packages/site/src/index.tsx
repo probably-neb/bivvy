@@ -14,7 +14,8 @@ const Groups = lazy(() => import("@/groups/groups"));
 const Group = lazy(() => import("@/group/group"));
 const Login = lazy(() => import("@/login/login"));
 const Invite = lazy(() => import("@/login/invite"));
-const Scan = lazy(() => import("@/scan/scan"));
+const ScanReceipt = lazy(() => import("@/scan/receipt"));
+const ScanSpreadsheet = lazy(() => import("@/scan/table"));
 
 function ToAuth() {
     return (
@@ -52,7 +53,10 @@ export function App() {
             <Route path={routes.groups} component={EnsureLogin}>
                 <Route path="/" component={Groups} />
                 <Route path=":id" component={Group} />
-                <Route path=":id/scan" component={Scan} />
+                <Route path=":id/scan/">
+                    <Route path="receipt" component={ScanReceipt} />
+                    <Route path="table" component={ScanSpreadsheet} />
+                </Route>
             </Route>
             <Route path={routes.auth} component={Login} />
             <Route path="/invite" component={Invite} />

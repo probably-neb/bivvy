@@ -56,7 +56,7 @@ const groupCrumb =
         <Crumb name={props.name() ?? ""} path={routes.group(props.id)} />
     );
 
-const scanCrumb = (props: {id: string}) => () => <Crumb name="Upload" path={routes.scan(props.id)} />
+const scanCrumb = (props: {id: string}) => () => <Crumb name="Upload" path={routes.scanReceipt(props.id)} />
 
 function getGroupInfo(groupId: string) {
     const group = useGroup(() => groupId);
@@ -70,14 +70,17 @@ function useCrumbs() {
     const login = useCrumb(routes.auth + "/*");
     const groups = useCrumb(routes.groups);
     const group = useCrumbWithParam(routes.group, "id" as const, getGroupInfo)
-    const scan = useCrumbWithParam(routes.scan, "id" as const, getGroupInfo)
+    const scanReceipt = useCrumbWithParam(routes.scanReceipt, "id" as const, getGroupInfo)
+    const scanSpreadsheet = useCrumbWithParam(routes.scanSpreadsheet, "id" as const, getGroupInfo)
 
     const crumbs = createMemo(
-        on([login, groups, group, scan], ([login, groups, group, scan]) => {
+        on([login, groups, group, scanReceipt, scanSpreadsheet], ([login, groups, group, scanReceipt, scanSpreadsheet]) => {
             switch (true) {
                 case !!login:
                     return [loginCrumb];
-                case !!scan:
+                case !!scanSpreadsheet:
+                case !!scanReceipt:
+                    const scan = scanReceipt ?? scanSpreadsheet!
                     return [
                         groupsCrumb,
                         groupCrumb(scan),
