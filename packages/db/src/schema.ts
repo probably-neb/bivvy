@@ -45,6 +45,8 @@ export const users = table(
         id: id("id"),
         name: varchar("name", { length: 255 }).notNull(),
         created_at: timestamp("created_at").defaultNow(),
+        email: varchar("email", { length: 255 }),
+        profileUrl: varchar("profile_url", { length: 512 }),
     },
     (t) => ({
         pk_idx: index("pk_idx").on(t.id),

@@ -17,48 +17,15 @@ declare module "sst/node/auth" {
     }
 }
 
-function queryParams(userId: string) {
-    const token = Session.create({
-        type: "user",
-        properties: {
-            userId: userId,
-        },
-    });
-    const searchParams = new URLSearchParams();
-    searchParams.set("userId", userId);
-    searchParams.set("token", token);
-    const SITE_URL = process.env.SITE_URL;
-    if (SITE_URL === undefined) {
-        console.log(SITE_URL)
-        throw new Error("Missing SITE_URL");
-    }
-    const location = `${SITE_URL}/login?${searchParams.toString()}`;
-    return {
-        statusCode: 302,
-        headers: {
-            location,
-        },
-    };
-}
-
-const localProvider = createAdapter((_config) => async () => {
-    const userId = useQueryParam("userId");
-    if (!userId) {
-        throw new Error("Missing userId");
-    }
-    return queryParams(userId);
-});
-
 export const handler = AuthHandler({
     providers: {
-        local: localProvider({}),
+        local: createLocalAdapter(),
         google: GoogleAdapter({
             mode: "oidc",
             clientID: Config.GOOGLE_CLIENT_ID,
             onSuccess: async (tokenset) => {
                 const claims = tokenset.claims();
-                const userId = normalizeSub(claims.sub);
-                // TODO: upsert user (email + profile pic)
+                const userId = await upsertUser(claims);
                 return queryParams(userId);
             },
         }),
@@ -72,4 +39,78 @@ function normalizeSub(sub: string) {
         return sub.slice(0, NANOID_ID_LENGTH);
     }
     return sub.padEnd(NANOID_ID_LENGTH, "0");
+}
+
+function queryParams(userId: string) {
+    const token = Session.create({
+        type: "user",
+        properties: {
+            userId: userId,
+        },
+    });
+    const searchParams = new URLSearchParams();
+    searchParams.set("userId", userId);
+    searchParams.set("token", token);
+    const SITE_URL = process.env.SITE_URL;
+    if (SITE_URL === undefined) {
+        console.log(SITE_URL);
+        throw new Error("Missing SITE_URL");
+    }
+    const location = `${SITE_URL}/login?${searchParams.toString()}`;
+    return {
+        statusCode: 302,
+        headers: {
+            location,
+        },
+    };
+}
+
+function createLocalAdapter() {
+    const localAdapter = async () => {
+        const userId = useQueryParam("userId");
+        if (!userId) {
+            throw new Error("Missing userId");
+        }
+        return queryParams(userId);
+    };
+    return createAdapter(() => localAdapter)();
+}
+
+type IdTokenClaims = ReturnType<
+    Parameters<
+        import("sst/node/auth/adapter/oidc").OidcBasicConfig["onSuccess"]
+    >[0]["claims"]
+>;
+
+import { db, schema } from "@paypals/db";
+
+async function upsertUser(claims: IdTokenClaims) {
+    const id = normalizeSub(claims.sub);
+    const email = claims.email ?? null;
+    const name =
+        claims.name ||
+        claims.nickname ||
+        claims.preferred_username ||
+        claims.email ||
+        claims.given_name ||
+        claims.family_name ||
+        "unknown";
+    const profileUrl = claims.picture ?? null;
+
+    await db
+        .insert(schema.users)
+        .values({
+            id,
+            name,
+            profileUrl,
+            email,
+        })
+        .onDuplicateKeyUpdate({
+            set: {
+                profileUrl,
+                name,
+                email,
+            },
+        });
+    return id;
 }

@@ -48,6 +48,9 @@ importers:
 
   packages/functions:
     dependencies:
+      '@paypals/db':
+        specifier: workspace:^
+        version: link:../db
       '@trpc/server':
         specifier: ^10.44.1
         version: 10.44.1

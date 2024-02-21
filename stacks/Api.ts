@@ -1,9 +1,10 @@
 import { StackContext, Api, Config, Table, Auth, use } from "sst/constructs";
 import DNS from "./DNS";
+import { DB } from "./DB";
 
 
 export default function API({ stack }: StackContext) {
-    const DB_URL = new Config.Secret(stack, "DB_URL");
+    const {dbUrl: DB_URL} = use(DB);
     const dns = use(DNS);
 
     const DSN = new Config.Secret(stack, "DSN");

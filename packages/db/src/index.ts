@@ -7,6 +7,6 @@ export * as schema from "./schema"
 
 export * as DB from './index';
 
-export const connection = connect({url: Config.DB_URL})
+export const connection = connect({url: Config.DB_URL!})
 
 export const db = drizzle(connection, {schema})
