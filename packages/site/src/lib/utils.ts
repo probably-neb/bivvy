@@ -31,3 +31,7 @@ export function removeKeys<T, K extends keyof T>(obj: T, keys: K[]) {
 export function not<T>(val?: T | null | undefined): val is undefined | null {
     return val === undefined || val === null
 }
+
+export function isLocal() {
+    return import.meta.env.VITE_IS_LOCAL === "true"
+}
