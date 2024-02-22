@@ -135,6 +135,7 @@ func CreateGroup(g Group, ownerId string, defaultSplitId string) error {
     if err != nil {
         return err
     }
+
     gq := `INSERT INTO groups
             (id, name)
             VALUES
@@ -182,6 +183,13 @@ func addUserToGroupOwed(tx *sql.Tx, userId string, groupId string) error {
     if err != nil {
         return err
     }
+
+    noUserIds := len(userIds) == 0
+    onlyOwner := len(userIds) == 1 && userIds[0] == userId
+    if noUserIds || onlyOwner {
+        return nil
+    }
+
     owedStmt := `INSERT INTO owed (from_user_id, to_user_id, group_id, amount) VALUES`
     for i, otherUserId := range userIds {
         if otherUserId == userId {
