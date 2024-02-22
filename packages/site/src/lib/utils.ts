@@ -35,3 +35,7 @@ export function not<T>(val?: T | null | undefined): val is undefined | null {
 export function isLocal() {
     return import.meta.env.VITE_IS_LOCAL === "true"
 }
+
+export function isDev() {
+    return isLocal() || window.location.hostname.startsWith("dev")
+}
