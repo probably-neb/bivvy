@@ -42,6 +42,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RiSystemShareBoxLine } from "solid-icons/ri";
+import { isDev } from "@/lib/utils";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -121,7 +122,9 @@ export function ExpensesTable(props: {
                 <CardTitle>Expenses</CardTitle>
                 <div class="flex flex-row gap-2">
                     <AddExpenseButton {...props.addExpenseButtonProps} />
-                    <UploadExpensesButton />
+                    <Show when={isDev()}>
+                        <UploadExpensesButton />
+                    </Show>
                 </div>
             </CardHeader>
             <CardContent>
