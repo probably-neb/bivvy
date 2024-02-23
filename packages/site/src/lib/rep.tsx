@@ -3,6 +3,7 @@ import {
     ParentProps,
     createContext,
     createEffect,
+    createResource,
     createMemo,
     from,
     on,
@@ -67,7 +68,12 @@ const mutators = {
     },
     async acceptInvite(tx: WriteTransaction, inviteId: Invite["id"]) {
         const invite = await tx.get<Invite>(P.invite.id(inviteId));
-        const updated = { ...invite, id: inviteId, accepted: true, acceptedAt: new Date().getTime() };
+        const updated = {
+            ...invite,
+            id: inviteId,
+            accepted: true,
+            acceptedAt: new Date().getTime(),
+        };
         tx.set(P.invite.id(inviteId), updated);
     },
 };
@@ -113,10 +119,13 @@ async function updateOwed(
         .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
         .values()
         .toArray();
-    const totalParts = Math.max(Math.abs(Object.values(portions).reduce((a, b) => a + b, 0)), 1.0);
-    console.log("totalParts", totalParts, "portions", portions)
+    const totalParts = Math.max(
+        Math.abs(Object.values(portions).reduce((a, b) => a + b, 0)),
+        1.0,
+    );
+    console.log("totalParts", totalParts, "portions", portions);
     for (const user of groupUsers) {
-        const portion = total * (portions[user.userId] ?? 0) / totalParts;
+        const portion = (total * (portions[user.userId] ?? 0)) / totalParts;
         let owed = user.owed ?? 0;
         if (user.userId === paidById) {
             owed = owed + total - portion;
@@ -134,8 +143,8 @@ type Mutators = typeof mutators;
 
 export function initReplicache(s: InitSession) {
     const licenseKey = import.meta.env.VITE_REPLICACHE_LICENSE_KEY;
-    const IS_LOCAL = import.meta.env.VITE_IS_LOCAL === "true"
-    const logLevel = IS_LOCAL ? "debug" : "error"
+    const IS_LOCAL = import.meta.env.VITE_IS_LOCAL === "true";
+    const logLevel = IS_LOCAL ? "debug" : "error";
 
     const rep = new Replicache<Mutators>({
         name: s.userId,
@@ -144,30 +153,43 @@ export function initReplicache(s: InitSession) {
         mutators,
         pushURL: import.meta.env.VITE_API_URL + "/push",
         pullURL: import.meta.env.VITE_API_URL + "/pull",
-        logLevel
+        logLevel,
         // TODO: client id + auth (will involve waiting to create Replicache or recreating it on login)
     });
-    // TODO: figure out a better place to put this so error/success ui can be displayed
-    acceptPendingInvites(rep);
     return rep;
 }
 
 export type Rep = ReturnType<typeof initReplicache>;
 
-async function acceptPendingInvites(rep: Rep) {
-    const key = "invite"
-    // TODO: scan for multiple invites just in case?
-    const inviteToken = localStorage.getItem(key);
-    if (!inviteToken) return
+export const INVITE_PREFIX = "invite"
 
-    try {
-        await rep.mutate.acceptInvite(inviteToken)
-        localStorage.removeItem(key)
-        console.log("accepted invite", inviteToken)
-    } catch (e) {
-        // TODO: how to show success/error ui
-        console.error("failed to accept invite", e)
+async function acceptPendingInvites(rep: Rep) {
+    // TODO: scan for multiple invites just in case?
+    // FIXME: NOT WORKING IN PROD
+
+    // get all invites
+    const invites = new Array<[string, string]>();
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key == null || !key.startsWith(INVITE_PREFIX)) {
+            continue;
+        }
+        const invite = localStorage.getItem(key);
+        if (!invite) {
+            console.log(`invite with key: '${key}' was null`);
+            continue;
+        }
+        invites.push([key, invite]);
     }
+
+    const acceptTasks = invites.map(async ([key, invite]) => {
+            await rep.mutate.acceptInvite(invite);
+            localStorage.removeItem(key);
+            console.log("accepted invite", key);
+            return invite
+    })
+    const results = await Promise.allSettled(acceptTasks)
+    return results
 }
 
 // TODO: refactor into set, get, getAll that take Transactions and give type safe result
@@ -356,6 +378,15 @@ export function ReplicacheContextProvider(props: ParentProps) {
         }
         return initReplicache(session);
     });
+
+    const [acceptedInvites] = createResource(rep, (rep) => acceptPendingInvites(rep))
+    createEffect(on(acceptedInvites, (results) => {
+        if (results == null) {
+            return
+        }
+        console.log("invite results: ", results)
+    }))
+
     const groupId = useGroupId();
     const userId = useUserId();
 
@@ -462,7 +493,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 throw new Error("Group not set");
             }
             if (!i.id) {
-                throw new Error("no invite id")
+                throw new Error("no invite id");
             }
             const invite = Object.assign({}, i, {
                 createdAt: new Date().getTime(),
@@ -502,11 +533,8 @@ export function useGroups() {
 }
 
 export function useGroup(group: Accessor<Group["id"]>) {
-    return use(
-        tx => tx.get<Group>(P.group.id(group())),
-    )
+    return use((tx) => tx.get<Group>(P.group.id(group())));
 }
-
 
 export function fetchGroup(groupId: Group["id"]) {
     const rep = useRep();
