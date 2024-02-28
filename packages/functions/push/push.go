@@ -17,7 +17,7 @@ type Mutation struct {
     Id        int         `json:"id"`
     Name      string      `json:"name"`
     Args      interface{} `json:"args"`
-    Timestamp int         `json:"timestamp"`
+    Timestamp float32         `json:"timestamp"`
     ClientId  string      `json:"clientID"`
 }
 
