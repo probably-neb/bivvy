@@ -191,17 +191,25 @@ func addUserToGroupOwed(tx *sql.Tx, userId string, groupId string) error {
     }
 
     owedStmt := `INSERT INTO owed (from_user_id, to_user_id, group_id, amount) VALUES`
-    for i, otherUserId := range userIds {
+
+    addedOnePair := false
+
+    for _, otherUserId := range userIds {
         if otherUserId == userId {
             continue
         }
-        leadingComma := ""
-        if i > 0 {
-            leadingComma = ","
+
+        leadingComma := ","
+        if !addedOnePair {
+            leadingComma = ""
         }
+
         owedStmt += fmt.Sprintf("%s('%s', '%s', '%s', 0),",leadingComma, userId, otherUserId, groupId)
         owedStmt += fmt.Sprintf("('%s', '%s', '%s', 0)", otherUserId, userId, groupId)
+
+        addedOnePair = true
     }
+    log.Println(owedStmt)
     _, err = tx.Exec(owedStmt)
     return err
 }
@@ -775,24 +783,33 @@ func AcceptInvite(userId string, inviteId string) error {
     alreadyInGroup, err := isUserMemberOfGroup(tx, userId, invite.GroupId)
     if err != nil {
         tx.Rollback()
+        log.Println("failed to check if user is already in group", err)
         return err
     }
     if alreadyInGroup {
         tx.Rollback()
-        return fmt.Errorf("user %s is already a member of group %s", userId, invite.GroupId)
+        err = fmt.Errorf("user %s is already a member of group %s", userId, invite.GroupId)
+        log.Println(err);
+        return err
     }
     err = addUserToGroup(tx, userId, invite.GroupId)
     if err != nil {
         tx.Rollback()
+        log.Println("failed to add user to group", err)
         return err
     }
-    err = markInviteAccepted(tx, inviteId, userId)
-    if err != nil {
-        tx.Rollback()
-        return err
-    }
+    // err = markInviteAccepted(tx, inviteId, userId, invite.GroupId)
+    // err = markInviteAccepted(tx, inviteId, userId)
+    // if err != nil {
+    //     tx.Rollback()
+    //     log.Println("failed to mark invite as accepted", err)
+    //     return err
+    // }
 
     err = tx.Commit()
+    if err != nil {
+        log.Println("failed to commit transaction accepting invite", err)
+    }
     return err
 }
 
@@ -849,3 +866,4 @@ func getInvite(tx *sql.Tx, inviteId string) (Invite, error) {
     }
     return invite, nil
 }
+
