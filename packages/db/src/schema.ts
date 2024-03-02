@@ -178,17 +178,18 @@ export const splits = table(
     }),
 );
 
-export const splitRelations = relations(splits, ({ one }) => ({
+export const splitRelations = relations(splits, ({many, one }) => ({
     group: one(groups, {
         fields: [splits.group_id],
         references: [groups.id],
     }),
+    portions: many(split_portion_def)
 }));
 
 export const split_portion_def = table("split_portion_def", {
     split_id: idRef("split_id").notNull(),
     parts: parts("parts").notNull(),
-    user_id: idRef("user_id"),
+    user_id: idRef("user_id").notNull(),
     total_parts: parts("total_parts").notNull().default("1.0"),
 });
 

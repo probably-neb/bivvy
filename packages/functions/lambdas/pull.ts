@@ -1,6 +1,7 @@
 import { alias, and, db, eq, schema, sql } from "@paypals/db";
+import { ClientGroupTable } from "lib/client-table";
 import type { ClientID, JSONValue, ReadonlyJSONValue } from "replicache";
-import { ApiHandler, useHeader } from "sst/node/api";
+import { ApiHandler } from "sst/node/api";
 import { useSession } from "sst/node/auth";
 import Parser from "util/parser";
 import z from "zod";
@@ -14,7 +15,8 @@ type PullRequest = {
 };
 
 const zPullRequest = z.object({
-    pullVersion: z.literal(1),
+    // NOTE: should always be 1, but don't want to fail if it's not for now
+    pullVersion: z.number(),
     clientGroupID: z.string(),
     cookie: z.number().gte(0).nullable(),
     ProfileID: z.string().optional(),
@@ -28,7 +30,7 @@ export type PullResponse =
 
 export type PullResponseOK = {
     cookie: Cookie;
-    lastMutationIDChanges: Record<ClientID, number>;
+    lastMutationIDChanges: Record<ClientID, number> | Map<ClientID, number>;
     patch: PatchOperation[];
 };
 
@@ -104,32 +106,43 @@ export const handler = ApiHandler(async (req) => {
         console.error("Invalid session", session);
         return errResponse({ ok: false, error: "Invalid session" });
     }
-    const pullRequest = body.data;
-    const patches = await constructPatches(session.properties.userId);
-    const cookie = pullRequest.cookie != null ? pullRequest.cookie + 1 : 0;
+    const userID = session.properties.userId;
+
+    const { clientGroupID, schemaVersion, cookie } = body.data;
+
     const response: PullResponse = {
-        cookie,
-        lastMutationIDChanges: {},
-        patch: patches,
+        cookie: calculateNextCookie(cookie),
+        lastMutationIDChanges: await getLastMutations(clientGroupID, userID),
+        patch: await constructPatches(userID),
     };
+
     return okResponse(response);
 });
 
+function calculateNextCookie(cookie: number | null) {
+    if (cookie == null) {
+        return 0;
+    }
+    return cookie + 1;
+}
+
 async function constructPatches(profileID: string) {
     const expenses = await getExpensesForUser(profileID);
-    const {unique: users, group: groupUsers} = await getUsersForUser(profileID)
+    const { unique: users, group: groupUsers } =
+        await getUsersForUser(profileID);
     const splits = await getSplitsForUser(profileID);
     const groups = await getGroupsForUser(profileID);
 
-    let numPatches = expenses.length + users.length + splits.length + groups.length
+    let numPatches =
+        expenses.length + users.length + splits.length + groups.length;
     for (const groupUserArr of groupUsers.values()) {
-        numPatches += groupUserArr.length
+        numPatches += groupUserArr.length;
     }
 
-    const patches = new Array<PatchOperation>(numPatches + 1)
-    patches[0] = CLEAR_OP
+    const patches = new Array<PatchOperation>(numPatches + 1);
+    patches[0] = CLEAR_OP;
 
-    let i = 0;
+    let i = 1;
     for (const expense of expenses) {
         patches[i++] = expenseToPatch(expense);
     }
@@ -147,7 +160,10 @@ async function constructPatches(profileID: string) {
     for (const group of groups) {
         patches[i++] = groupToPatch(group);
     }
-    console.assert(patches.every((p) => p != null), "forgot to include some patches or numPatches computed incorrectly")
+    console.assert(
+        patches.every((p) => p != null),
+        "forgot to include some patches or numPatches computed incorrectly",
+    );
 
     return patches;
 }
@@ -358,7 +374,7 @@ async function getUsersForUser(userID: string) {
         unique: uniqueUsersArray,
         group: groupUsers,
     };
-    return res
+    return res;
 }
 
 type User = ReturnType<typeof parseUser> & { owed: number };
@@ -378,7 +394,11 @@ async function getSplitsForUser(userID: string) {
                     group: {
                         columns: {},
                         with: {
-                            splits: true,
+                            splits: {
+                                with: {
+                                    portions: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -388,7 +408,20 @@ async function getSplitsForUser(userID: string) {
     if (!rows) {
         throw new Error("User not found");
     }
-    return rows.user_to_group.flatMap((r) => r.group.splits);
+    return rows.user_to_group.flatMap((r) => r.group.splits).map(parseSplit);
+}
+
+type DBSplit = typeof schema.splits.$inferSelect & {
+    portions: Array<typeof schema.split_portion_def.$inferSelect>;
+};
+
+function parseSplit(s: DBSplit) {
+    return new Parser(s)
+        .reassign(
+            "portions",
+            (portions) => Object.fromEntries(portions.map((p) => [p.user_id, parseInt(p.parts)])),
+        )
+        .value();
 }
 
 async function getGroupsForUser(userID: string) {
@@ -408,4 +441,15 @@ async function getGroupsForUser(userID: string) {
         throw new Error("User not found");
     }
     return rows.user_to_group.map((r) => r.group);
+}
+
+async function getLastMutations(clientGroupId: string, userId: string) {
+    const ct = new ClientGroupTable(clientGroupId);
+    await ct.get();
+    const ctOwnerId = ct.ownerUserId;
+    if (ctOwnerId != null && ctOwnerId !== userId) {
+        throw new Error("client group does not belong to user");
+    }
+    const lastMutations = ct.getLastMutations();
+    return lastMutations;
 }

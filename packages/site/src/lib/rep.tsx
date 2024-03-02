@@ -103,7 +103,6 @@ async function cleanupExpenseSideEffects(
         const userIds = await groupUserIds(tx, groupId);
         split = createEvenSplit(userIds, expense.splitId, groupId);
     }
-    // const portions = invertPortions(split.portions);
     const total = -expense.amount;
     await updateOwed(tx, expense.paidBy, groupId, total, split.portions);
 }
@@ -123,7 +122,6 @@ async function updateOwed(
         Math.abs(Object.values(portions).reduce((a, b) => a + b, 0)),
         1.0,
     );
-    console.log("totalParts", totalParts, "portions", portions);
     for (const user of groupUsers) {
         const portion = (total * (portions[user.id] ?? 0)) / totalParts;
         let owed = user.owed ?? 0;
@@ -432,7 +430,6 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 groupId: ctx.groupId,
                 id,
             };
-            console.log("addExpense", e);
             await rep()!.mutate.addExpense(expenseSchema.parse(e));
         },
         async deleteExpense(id: Expense["id"]) {
@@ -623,16 +620,16 @@ export function useOwed() {
             total: 0,
             to: {},
         };
-        for await (const gu of tx
+        const groupUsers = tx
             .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
-            .values()) {
+            .values()
+        for await (const gu of groupUsers) {
             if (gu.id === userId) {
                 owed.total = gu.owed ?? 0;
                 continue;
             }
             owed.to[gu.id] = gu.owed ?? 0;
         }
-        console.log("owed", owed);
         return owed;
     });
     return info;
