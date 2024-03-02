@@ -125,14 +125,14 @@ async function updateOwed(
     );
     console.log("totalParts", totalParts, "portions", portions);
     for (const user of groupUsers) {
-        const portion = (total * (portions[user.userId] ?? 0)) / totalParts;
+        const portion = (total * (portions[user.id] ?? 0)) / totalParts;
         let owed = user.owed ?? 0;
-        if (user.userId === paidById) {
+        if (user.id === paidById) {
             owed = owed + total - portion;
         } else {
             owed = owed + portion;
         }
-        await tx.set(P.groupUser.id(groupId, user.userId), {
+        await tx.set(P.groupUser.id(groupId, user.id), {
             ...user,
             owed,
         });
@@ -148,7 +148,7 @@ export function initReplicache(s: InitSession) {
 
     const rep = new Replicache<Mutators>({
         name: s.userId,
-        auth: s.token,
+        auth: `Bearer ${s.token}`,
         licenseKey,
         mutators,
         pushURL: import.meta.env.VITE_API_URL + "/push",
@@ -264,7 +264,7 @@ export const userSchema = z.object({
 export type User = z.infer<typeof userSchema>;
 
 export const groupUserSchema = z.object({
-    userId: userSchema.shape.id,
+    id: userSchema.shape.id,
     owed: z.number().default(0),
 });
 export type GroupUser = z.infer<typeof groupUserSchema>;
@@ -626,11 +626,11 @@ export function useOwed() {
         for await (const gu of tx
             .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
             .values()) {
-            if (gu.userId === userId) {
+            if (gu.id === userId) {
                 owed.total = gu.owed ?? 0;
                 continue;
             }
-            owed.to[gu.userId] = gu.owed ?? 0;
+            owed.to[gu.id] = gu.owed ?? 0;
         }
         console.log("owed", owed);
         return owed;

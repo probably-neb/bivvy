@@ -43,8 +43,7 @@ export default function API({ stack }: StackContext) {
         routes: {
             "POST /pull": {
                 function: {
-                    handler: "packages/functions/lambdas/pull/pull.go",
-                    runtime: "go",
+                    handler: "packages/functions/lambdas/pull.handler",
                     bind: [clientTable, DSN],
                     permissions: ["ssm"],
                     environment: {
