@@ -42,6 +42,17 @@ export class ClientGroupTable {
         this.TABLE_NAME = Table.clientTable.tableName;
     }
 
+    createNewClientGroup(userId: string) {
+        if (this.cg != null) {
+            console.error('ClientGroup already exists');
+        }
+        this.cg = {
+            Id: this.clientGroupId,
+            UserId: userId,
+            Clients: new Map(),
+        }
+    }
+
     private addClient(clientId: string, lastMutationId: number, expireAt: number = 0) {
         if (this.cg == null) {
             return
@@ -55,7 +66,7 @@ export class ClientGroupTable {
         this.cg.Clients.set(clientId, client)
     }
 
-    addNewClient(clientId: string, lastMutationId: number) {
+    addNewClient(clientId: string, lastMutationId: number = 0) {
         if (this.cg == null) {
             return;
         }
@@ -92,6 +103,13 @@ export class ClientGroupTable {
         return lastMutations;
     }
 
+    hasClient(clientId: string) {
+        if (this.cg == null) {
+            return false
+        }
+        return this.cg.Clients.has(clientId);
+    }
+
     get ownerUserId() {
         if (this.cg == null) {
             return null;
@@ -113,7 +131,7 @@ export class ClientGroupTable {
 
         if (items == null || items.length == 0) {
             console.error('No ClientGroup found');
-            return;
+            return false;
         }
         const ClientGroupId = items[0].ClientGroupId;
         const UserId = items[0].UserId;
@@ -137,7 +155,7 @@ export class ClientGroupTable {
             this.addClient(clientId, lastMutationId, item.ExpireAt ?? undefined);
         }
 
-        return
+        return true
     }
 
     private async saveClientUpdate(clientId: string) {

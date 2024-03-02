@@ -191,7 +191,7 @@ function groupKey(groupId: string) {
 function expenseToPatch(expense: ReturnType<typeof parseExpense>) {
     return {
         op: "put",
-        key: expenseKey(expense.group_id, expense.id),
+        key: expenseKey(expense.groupId, expense.id),
         value: expense,
     } satisfies PatchOperation;
 }
@@ -212,19 +212,12 @@ function groupUserToPatch(groupId: string, user: User) {
     } satisfies PatchOperation;
 }
 
-function groupUsersToPatches(
-    users: Awaited<ReturnType<typeof getUsersForUser>>["group"],
-) {
-    const patches = new Array<PatchOperation>();
-    return patches;
-}
-
 function splitToPatch(
     split: Awaited<ReturnType<typeof getSplitsForUser>>[number],
 ) {
     return {
         op: "put",
-        key: splitKey(split.group_id, split.id),
+        key: splitKey(split.groupId, split.id),
         value: split,
     } satisfies PatchOperation;
 }
@@ -269,7 +262,9 @@ function parseExpense(e: typeof schema.expenses.$inferSelect) {
     return new Parser(e)
         .replace("reimbursed_at", "status", () => "paid" as "paid" | "unpaid")
         .default("status", "unpaid")
+        .rename("paid_by_user_id", "paidBy")
         .allDatesTOUnixMillis()
+        .allKeysToCamelCase()
         .value();
 }
 
@@ -379,7 +374,10 @@ async function getUsersForUser(userID: string) {
 type User = ReturnType<typeof parseUser> & { owed: number };
 
 function parseUser(u: typeof schema.users.$inferSelect) {
-    return new Parser(u).allDatesTOUnixMillis().value();
+    return new Parser(u)
+        .allDatesTOUnixMillis()
+        .allKeysToCamelCase()
+        .value()
 }
 
 async function getSplitsForUser(userID: string) {
@@ -420,6 +418,7 @@ function parseSplit(s: DBSplit) {
             "portions",
             (portions) => Object.fromEntries(portions.map((p) => [p.user_id, parseFloat(p.parts)])),
         )
+        .rename("group_id", "groupId")
         .value();
 }
 

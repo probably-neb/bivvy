@@ -63,6 +63,9 @@ importers:
       fast-jwt:
         specifier: ^3.3.2
         version: 3.3.2
+      lodash-es:
+        specifier: ^4.17.21
+        version: 4.17.21
       replicache:
         specifier: ^14.0.3
         version: 14.0.3

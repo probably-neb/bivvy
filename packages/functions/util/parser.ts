@@ -1,3 +1,8 @@
+import { camelCase } from "lodash-es";
+
+/**
+ * Returns T | null if OtherT is null or undefined, otherwise returns T
+ */
 type NullableIfOtherNullable<T, OtherT> = OtherT extends null
     ? T | null
     : OtherT extends undefined
@@ -6,11 +11,19 @@ type NullableIfOtherNullable<T, OtherT> = OtherT extends null
 
 type KeysOf<T> = Extract<keyof T, string>;
 
+/**
+ * Just a nicer way to write `T | null | undefined`
+ */
 type Maybe<T> = T | null | undefined;
 
 export default class Parser<T extends object> {
     constructor(private obj: T) {}
 
+    /**
+     *
+     * Replace the first key with a new key and the value of `getNew(oldValue)`
+     * if oldValue != null (value of newKey will be null if oldValue was null)
+     */
     replace<NewType, KRemove extends keyof T, KAdd extends string>(
         key: KRemove,
         newKey: KAdd,
@@ -28,6 +41,9 @@ export default class Parser<T extends object> {
         >;
     }
 
+    /**
+     * Change the value of a key given some mapping fn `oldValue => newValue`
+     */
     reassign<V, K extends KeysOf<T>>(
         key: K,
         getNew: (old: NonNullable<T[K]>) => V,
@@ -44,6 +60,10 @@ export default class Parser<T extends object> {
         }>;
     }
 
+    /**
+     * Rename a key to a new name
+     * the value of the key will remain unchanged
+     */
     rename<KOld extends KeysOf<T>, KNew extends string>(
         key: KOld,
         newKey: KNew,
@@ -78,6 +98,28 @@ export default class Parser<T extends object> {
         }>;
     }
 
+    // TODO: replace with `convertToCamelCase(keys: string[])` + `ensureAllSnakeCase()` pair
+    // for better runtime performance (no search for `_` in keys)
+    allKeysToCamelCase() {
+        const obj = this.obj as any;
+        for (const key in obj) {
+            if (!key.includes("_")) continue;
+            const newKey = camelCase(key);
+            obj[newKey] = obj[key];
+            delete obj[key];
+        }
+        type CamelCaseKeys = Extract<keyof T, `${string}_${string}`>;
+
+        type CamelCase<T extends string> = T extends `${infer F}_${infer R}`
+            ? `${F}${Capitalize<CamelCase<R>>}`
+            : T;
+
+        return this as Parser<
+            Omit<T, CamelCaseKeys> & {
+                [key in CamelCaseKeys as CamelCase<key>]: T[key];
+            }
+        >;
+    }
     allDatesTOUnixMillis() {
         const obj = this.obj as any;
         for (const [key, val] of Object.entries(obj)) {
@@ -86,11 +128,11 @@ export default class Parser<T extends object> {
             }
         }
 
-        return this as Parser<
-            {
-                [key in keyof T]: Date extends T[key] ? NullableIfOtherNullable<number, T[key]> : T[key];
-            }
-        >;
+        return this as Parser<{
+            [key in keyof T]: Date extends T[key]
+                ? NullableIfOtherNullable<number, T[key]>
+                : T[key];
+        }>;
     }
 
     /**
@@ -159,9 +201,9 @@ export default class Parser<T extends object> {
     }
 
     add<K extends string, V>(key: K, value: V) {
-        const obj = this.obj as any
-        obj[key] = value
-        return this as Parser<T & {[key in K]: V}>
+        const obj = this.obj as any;
+        obj[key] = value;
+        return this as Parser<T & { [key in K]: V }>;
     }
 
     value() {
@@ -169,10 +211,12 @@ export default class Parser<T extends object> {
     }
 }
 
-type FieldWithType<T, Type> = {[key in keyof T]: T[key] extends Type ? key : never}[keyof T]
+type FieldWithType<T, Type> = {
+    [key in keyof T]: T[key] extends Type ? key : never;
+}[keyof T];
 
-type Foo = {a: 1, b: "2"}
-type Bar = FieldWithType<Foo, number> // "a"
+type Foo = { a: 1; b: "2" };
+type Bar = FieldWithType<Foo, number>; // "a"
 
 export type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
 
