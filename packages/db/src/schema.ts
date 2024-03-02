@@ -148,7 +148,7 @@ export const expenses = table(
     }),
 );
 
-export const expenseRelations = relations(expenses, ({ one }) => ({
+export const expenseRelations = relations(expenses, ({ one, many}) => ({
     paid_by: one(users, {
         fields: [expenses.paid_by_user_id],
         references: [users.id],
@@ -157,6 +157,7 @@ export const expenseRelations = relations(expenses, ({ one }) => ({
         fields: [expenses.split_id],
         references: [splits.id],
     }),
+    portions: many(split_portion),
     group: one(groups, {
         fields: [expenses.group_id],
         references: [groups.id],
