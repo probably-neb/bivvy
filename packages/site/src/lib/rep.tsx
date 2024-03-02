@@ -189,6 +189,9 @@ async function acceptPendingInvites(rep: Rep) {
             return invite
     })
     const results = await Promise.allSettled(acceptTasks)
+    if (results.length != 0) {
+        await rep.pull()
+    }
     return results
 }
 
