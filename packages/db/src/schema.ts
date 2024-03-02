@@ -53,6 +53,10 @@ export const users = table(
     }),
 );
 
+export const userRelations = relations(users, ({ many }) => ({
+    user_to_group: many(users_to_group)
+}));
+
 export const users_to_group = table(
     "users_to_group",
     {
@@ -119,6 +123,12 @@ export const groups = table(
     }),
 );
 
+export const groupRelations = relations(groups, ({ many }) => ({
+    users_to_group: many(users_to_group),
+    expenses: many(expenses),
+    splits: many(splits),
+}))
+
 export const expenses = table(
     "expenses",
     {
@@ -147,6 +157,10 @@ export const expenseRelations = relations(expenses, ({ one }) => ({
         fields: [expenses.split_id],
         references: [splits.id],
     }),
+    group: one(groups, {
+        fields: [expenses.group_id],
+        references: [groups.id],
+    })
 }));
 
 export const splits = table(
