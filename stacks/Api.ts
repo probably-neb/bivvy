@@ -54,8 +54,7 @@ export default function API({ stack }: StackContext) {
             },
             "POST /push": {
                 function: {
-                    handler: "packages/functions/lambdas/push/push.go",
-                    runtime: "go",
+                    handler: "packages/functions/lambdas/push.handler",
                     bind: [clientTable, DSN],
                     permissions: ["ssm"],
                     environment: {

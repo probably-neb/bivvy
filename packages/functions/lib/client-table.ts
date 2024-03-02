@@ -110,6 +110,22 @@ export class ClientGroupTable {
         return this.cg.Clients.has(clientId);
     }
 
+    markMutationProcessed(clientID: string, mutationId: number) {
+        if (this.cg == null) {
+            return;
+        }
+        const client = this.cg.Clients.get(clientID);
+        if (client == null) {
+            console.error('Client not found');
+            return;
+        }
+        client.LastMutationID = Math.max(mutationId, client.LastMutationID);
+        if (client.status === ClientStatus.FOUND) {
+            client.ExpireAt = getExpireAt();
+            client.status = ClientStatus.CHANGED;
+        }
+    }
+
     get ownerUserId() {
         if (this.cg == null) {
             return null;
@@ -183,11 +199,11 @@ export class ClientGroupTable {
         const cmd = new PutCommand({
             TableName: this.TABLE_NAME,
             Item: {
-                ClientGroupId: ATTR.String(this.cg.Id),
-                ClientId: ATTR.String(clientId),
-                UserId: ATTR.String(this.cg.UserId),
-                LastMutationId: ATTR.Number(client.LastMutationID),
-                ExpireAt: ATTR.Number(client.ExpireAt),
+                ClientGroupId: this.cg.Id,
+                ClientId: clientId,
+                UserId: this.cg.UserId,
+                LastMutationId: client.LastMutationID,
+                ExpireAt: client.ExpireAt,
             }
         })
         const res = await this.client.send(cmd);

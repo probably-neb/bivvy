@@ -55,7 +55,7 @@ export type ExpenseInput = z.infer<typeof zExpenseInput>;
 
 export const zDeleteExpenseInput = z.object({
     groupId: zGroup.shape.id,
-    expenseId: zExpense.shape.id,
+    id: zExpense.shape.id,
     userId: zUser.shape.id,
 });
 
@@ -186,6 +186,7 @@ const zBodyParser = z
 enum ErrorReason {
     InvalidRequest = 400,
     AuthError = 401,
+    InternalError = 500
 }
 function errResponse(reason: ErrorReason) {
     return {
@@ -212,7 +213,13 @@ export const handler = ApiHandler(async (req) => {
         userID: session.properties.userId,
         clientGroupID: body.data.clientGroupID,
     };
-    await handleMutations(body.data.mutations, opts);
+    try {
+        await handleMutations(body.data.mutations, opts);
+    } catch (e) {
+        console.error("WARN: uncaught exception while handling mutations", e);
+        return errResponse(ErrorReason.InternalError)
+    }
+    return okResponse()
 });
 
 async function handleMutations(
@@ -229,7 +236,7 @@ async function handleMutations(
     for (let i = 0; i < mutations.length; i++) {
         const parsed = zMutation.safeParse(mutations[i]);
         if (!parsed.success) {
-            console.error("Invalid mutation", parsed);
+            console.dir({error: `Invalid mutation`, data:  parsed.error}, {depth: null});
             processed[i] = true;
             continue;
         }
@@ -319,7 +326,7 @@ async function deleteExpense(args: DeleteExpenseInput) {
     }
     await db.delete(schema.expenses).where(
         and(
-            eq(ex.id, args.expenseId),
+            eq(ex.id, args.id),
             eq(ex.group_id, args.groupId),
             // By having this here and checking the
             // args.userId = session.userId we ensure

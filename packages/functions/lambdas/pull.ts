@@ -501,7 +501,11 @@ async function getOwedForUser(userID: string) {
     }
 }
 
-function getTotalParts(portions: Array<{parts: string}>) {
+export function calculatePortion({amount, partsOwed, totalParts}: {amount: number, partsOwed: number, totalParts: number}) {
+        return (amount * partsOwed) / totalParts
+}
+
+export function getTotalParts(portions: Array<{parts: string}>) {
     let total = 0;
     for (const p of portions) {
         total += parseFloat(p.parts);
@@ -523,7 +527,7 @@ function calculateOwed(userID: string, paidByUserID: string, amount: number, por
 
         // by default, portion equals to the amount owed by the current user
         // to another user who paid for the expense
-        const portion = (amount * partsOwed) / totalParts
+        const portion = calculatePortion({amount, partsOwed, totalParts})
 
 
         const portionIsForUser = pDef.user_id === userID
@@ -571,6 +575,7 @@ async function getLastMutations(clientGroupId: string, userId: string) {
     if (ctOwnerId != null && ctOwnerId !== userId) {
         throw new Error("client group does not belong to user");
     }
-    const lastMutations = ct.getLastMutations();
+    const lastMutationsMap = ct.getLastMutations();
+    const lastMutations = Object.fromEntries(lastMutationsMap);
     return lastMutations;
 }
