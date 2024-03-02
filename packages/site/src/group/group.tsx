@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
     Switch,
@@ -14,7 +14,13 @@ import { AddExpenseCard } from "@/group/add-expense";
 import { ViewExpenseCard } from "@/group/view-expense";
 import { Expense, useExpense, useMutations } from "@/lib/rep";
 import { useQueries } from "@/lib/device";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Card,
+    CardContent,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
 import { useUserId } from "@/lib/session";
 
@@ -58,8 +64,8 @@ function getAddExpenseButtonProps() {
     const onClick = () => setExpenseCardMode({ mode: "add" });
     return {
         disabled,
-        onClick
-    }
+        onClick,
+    };
 }
 
 function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
@@ -83,7 +89,6 @@ function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
         </Show>
     );
 }
-
 
 export default function GroupPage() {
     const viewExpense = (id: Expense["id"]) => {
@@ -141,6 +146,11 @@ function ExpenseCardModal(props: { title: string }) {
                     <DialogTitle>{props.title}</DialogTitle>
                 </ExpenseCardHeader>
                 <ExpenseCardInner />
+            <Show when={expenseCardMode().mode === "view"}>
+                <DialogFooter>
+                    <ViewExpenseCardFooter expenseId={expenseCardMode().id!} />
+                </DialogFooter>
+            </Show>
             </DialogContent>
         </Dialog>
     );
@@ -157,6 +167,11 @@ function ExpenseCard(props: { title: string }) {
             <CardContent class="px-10">
                 <ExpenseCardInner />
             </CardContent>
+            <Show when={expenseCardMode().mode === "view"}>
+                <CardFooter>
+                    <ViewExpenseCardFooter expenseId={expenseCardMode().id!} />
+                </CardFooter>
+            </Show>
         </Card>
     );
 }
@@ -169,9 +184,16 @@ function ExpenseCardHeader(props: ParentProps) {
         >
             <div class="flex justify-between items-center">
                 {props.children}
-                <DeleteExpenseButton expenseId={expenseCardMode().id!} />
             </div>
         </Show>
+    );
+}
+
+function ViewExpenseCardFooter(props: { expenseId: Expense["id"] }) {
+    return (
+        <div class="w-full flex justify-evenly">
+            <DeleteExpenseButton expenseId={props.expenseId} />
+        </div>
     );
 }
 
