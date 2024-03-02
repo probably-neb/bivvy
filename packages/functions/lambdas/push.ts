@@ -152,9 +152,9 @@ const zMutation = z
     .discriminatedUnion("name", [
         mutationValidator("addExpense", zExpense),
         mutationValidator("deleteExpense", zDeleteExpenseInput),
-        mutationValidator("createSplit", zSplitInput),
-        mutationValidator("createGroup", zGroupInput),
-        mutationValidator("createInvite", zInviteInput),
+        mutationValidator("createSplit", zSplit),
+        mutationValidator("createGroup", zCreateGroupInput),
+        mutationValidator("createInvite", zInvite),
         mutationValidator("acceptInvite", zInvite.shape.id),
     ])
     .and(zMutationBase);
@@ -186,7 +186,7 @@ const zBodyParser = z
 enum ErrorReason {
     InvalidRequest = 400,
     AuthError = 401,
-    InternalError = 500
+    InternalError = 500,
 }
 function errResponse(reason: ErrorReason) {
     return {
@@ -217,9 +217,9 @@ export const handler = ApiHandler(async (req) => {
         await handleMutations(body.data.mutations, opts);
     } catch (e) {
         console.error("WARN: uncaught exception while handling mutations", e);
-        return errResponse(ErrorReason.InternalError)
+        return errResponse(ErrorReason.InternalError);
     }
-    return okResponse()
+    return okResponse();
 });
 
 async function handleMutations(
@@ -236,7 +236,10 @@ async function handleMutations(
     for (let i = 0; i < mutations.length; i++) {
         const parsed = zMutation.safeParse(mutations[i]);
         if (!parsed.success) {
-            console.dir({error: `Invalid mutation`, data:  parsed.error}, {depth: null});
+            console.dir(
+                { error: `Invalid mutation`, data: parsed.error },
+                { depth: null },
+            );
             processed[i] = true;
             continue;
         }
@@ -339,16 +342,132 @@ async function deleteExpense(args: DeleteExpenseInput) {
     return true;
 }
 
-async function createSplit(args: SplitInput) {
+async function createSplit(args: Split) {
+    await db.transaction(async (db) => {
+        await _createSplit(db, args);
+    });
     return true;
 }
 
-async function createGroup(args: GroupInput) {
+async function _createSplit(tx: Tx, args: Split) {
+    const portions = { ...args.portions };
+    const s = new Parser(args)
+        .remove("portions")
+        .rename("groupId", "group_id")
+        // FIXME: add created_at col
+        .replace("createdAt", "created_at", (c) => new Date(c))
+        .value();
+    await tx.insert(schema.splits).values(s);
+
+    const portionEntries = Object.entries(portions);
+    const numPortions = portionEntries.length;
+    type PDef = typeof schema.split_portion_def.$inferInsert;
+    const pdefs = new Array<PDef>(numPortions);
+    for (let i = 0; i < numPortions; i++) {
+        const [user_id, parts] = portionEntries[i];
+        const pdef = {
+            user_id,
+            split_id: args.id,
+            parts: parts.toString(),
+        };
+        pdefs[i] = pdef;
+    }
+    await tx.insert(schema.split_portion_def).values(pdefs);
+}
+
+async function createGroup(args: CreateGroupInput) {
+    await db.transaction(async (db) => {
+        const groupID = args.id;
+        const ownerID = args.ownerId;
+        const g = {
+            id: groupID,
+            name: args.name,
+        };
+        await db.insert(schema.groups).values(g);
+        await addUserToGroup(db, groupID, ownerID);
+    });
     return true;
 }
-async function createInvite(args: InviteInput) {
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function addUserToGroup(tx: Tx, groupId: string, userId: string) {
+    await tx.insert(schema.users_to_group).values({
+        user_id: userId,
+        group_id: groupId,
+    });
+}
+
+async function createEvenSplit(tx: Tx, id: string, groupID: string) {
+    const userIDs = await tx
+        .select({ id: schema.users.id })
+        .from(schema.users_to_group)
+        .rightJoin(
+            schema.users,
+            eq(schema.users.id, schema.users_to_group.user_id),
+        )
+        .where(eq(schema.users_to_group.group_id, groupID))
+        .then((rows) => rows.map((row) => row.id));
+    const numUsers = userIDs.length;
+    const parts = 1.0;
+    const portions = Object.fromEntries(
+        new Array(numUsers).fill(parts).map((p, i) => [userIDs[i], p]),
+    );
+    const split = {
+        id,
+        name: "Evenly",
+        groupId: groupID,
+        portions,
+        createdAt: Date.now(),
+        color: null
+    };
+    await _createSplit(tx, split)
+    return split;
+}
+
+async function createInvite(args: Invite) {
+    const invite = new Parser(args)
+        .intToDate("createdAt")
+        .rename("createdAt", "created_at")
+        .intToDate("acceptedAt")
+        .rename("acceptedAt", "accepted_at")
+        .rename("groupId", "group_id")
+        .value()
+    await db.insert(schema.invites)
+        .values(invite)
     return true;
 }
 async function acceptInvite(args: string) {
+    await db.transaction(async tx => {
+        const sess = useSession()
+        if (sess.type !== "user") {
+            throw new Error("invalid session")
+        }
+        const userID = sess.properties.userId
+        const inviteID = args
+        const invite = await tx.query.invites.findFirst({
+            where: eq(schema.invites.id, inviteID)
+        })
+        if (invite == null) {
+            throw new Error(`Invite with id: ${inviteID} not found`)
+        }
+        const groupID = invite.group_id
+
+        const alreadyInGroup = await isUserMemberOfGroup(tx,groupID, userID)
+        if (alreadyInGroup) {
+            throw new Error(`User: ${userID} is already a member of group: ${groupID}`)
+        }
+        await addUserToGroup(tx, groupID, userID)
+    })
     return true;
+}
+
+async function isUserMemberOfGroup(tx: Tx, groupID: string, userID: string) {
+    const user = await tx.query.users_to_group.findFirst({
+        where: and(
+            eq(schema.users_to_group.group_id, groupID),
+            eq(schema.users_to_group.user_id, userID)
+        )
+    })
+    return user != null
 }

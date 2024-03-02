@@ -278,7 +278,6 @@ async function getUsersForUser(userID: string) {
     const rows = await db
         .select({
             user: schema.users,
-            owed: schema.owed.amount,
             groupID: user_groups_users_to_group.group_id,
         })
         .from(schema.users_to_group)
@@ -292,14 +291,6 @@ async function getUsersForUser(userID: string) {
         .rightJoin(
             schema.users,
             eq(schema.users.id, user_groups_users_to_group.user_id),
-        )
-        .leftJoin(
-            schema.owed,
-            and(
-                eq(schema.owed.from_user_id, schema.users.id),
-                eq(schema.owed.to_user_id, userID),
-                eq(schema.owed.group_id, schema.users_to_group.group_id),
-            ),
         )
         .where(eq(schema.users_to_group.user_id, userID));
 
@@ -317,11 +308,6 @@ async function getUsersForUser(userID: string) {
 
     for (let i = 0; i < numRows; i++) {
         const row = rows[i];
-        if (row.owed == null && row.user.id != userID) {
-            console.error(
-                `no owed between ${userID} and ${row.user.id} in ${row.groupID}`,
-            );
-        }
         if (row.groupID == null) {
             console.error(`no group for user ${row.user.id}`);
             continue;

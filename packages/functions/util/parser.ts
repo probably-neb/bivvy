@@ -75,6 +75,14 @@ export default class Parser<T extends object> {
         return this as Parser<Omit<T, KOld> & { [key in KNew]: T[KOld] }>;
     }
 
+    remove<K extends keyof T>(...keys: Array<K>) {
+        const obj = this.obj as any;
+        for (const key of keys) {
+            delete obj[key];
+        }
+        return this as Parser<Omit<T, (typeof keys)[number]>>;
+    }
+
     renameAll<Keys extends string, Rep extends Record<keyof T & Keys, string>>(
         replacements: Rep,
     ) {
@@ -120,6 +128,7 @@ export default class Parser<T extends object> {
             }
         >;
     }
+
     allDatesTOUnixMillis() {
         const obj = this.obj as any;
         for (const [key, val] of Object.entries(obj)) {
@@ -139,13 +148,13 @@ export default class Parser<T extends object> {
      * Converts a string field to a boolean.
      *  using `T[key] === "true"`
      */
-    strToBool<K extends keyof T>(key: K) {
+    strToBool<K extends KeyOfFieldWithType<T, string>>(key: K) {
         const obj = this.obj as any;
         const val = obj[key];
         if (val != null) obj[key] = obj[key] === "true";
-        return this as unknown as T[K] extends Maybe<string>
-            ? Parser<{ [key in keyof T]: key extends K ? boolean : T[key] }>
-            : never;
+        return this as Parser<{
+            [key in keyof T]: key extends K ? boolean : T[key];
+        }>;
     }
 
     /**
@@ -153,17 +162,26 @@ export default class Parser<T extends object> {
      *  0 => `false`
      *  _ => `true`
      */
-    intToBool<K extends keyof T>(key: K) {
+    intToBool<K extends KeyOfFieldWithType<T, number>>(key: K) {
         const obj = this.obj as any;
         const val = obj[key];
         if (val != null) obj[key] = obj[key] !== 0;
-        return this as unknown as T[K] extends Maybe<number>
-            ? Parser<{
-                  [key in keyof T]: key extends K
-                      ? NullableIfOtherNullable<boolean, T[key]>
-                      : T[key];
-              }>
-            : never;
+        return this as Parser<{
+            [key in keyof T]: key extends K
+                ? NullableIfOtherNullable<boolean, T[key]>
+                : T[key];
+        }>;
+    }
+
+    intToDate<K extends KeyOfFieldWithType<T, number>>(key: K) {
+        const obj = this.obj as any;
+        const val = obj[key];
+        if (val != null) obj[key] = new Date(val);
+        return this as Parser<{
+            [key in keyof T]: key extends K
+                ? NullableIfOtherNullable<Date, T[key]>
+                : T[key];
+        }>;
     }
 
     b64Decode<K extends keyof T>(key: K) {
@@ -211,12 +229,9 @@ export default class Parser<T extends object> {
     }
 }
 
-type FieldWithType<T, Type> = {
-    [key in keyof T]: T[key] extends Type ? key : never;
+type KeyOfFieldWithType<T, Type> = {
+    [key in keyof T]: T[key] extends Maybe<Type> ? key : never;
 }[keyof T];
-
-type Foo = { a: 1; b: "2" };
-type Bar = FieldWithType<Foo, number>; // "a"
 
 export type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
 
