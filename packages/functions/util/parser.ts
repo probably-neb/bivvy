@@ -1,6 +1,3 @@
-import { Simplify, b64Decode } from "../utils";
-import { camelCase } from "lodash-es";
-
 type NullableIfOtherNullable<T, OtherT> = OtherT extends null
     ? T | null
     : OtherT extends undefined
@@ -8,10 +5,6 @@ type NullableIfOtherNullable<T, OtherT> = OtherT extends null
     : T;
 
 type KeysOf<T> = Extract<keyof T, string>;
-
-type KeyWithType<Obj, Type> = keyof {
-    [Key in keyof Obj]: Obj[Key] extends Type ? Key : never;
-};
 
 type Maybe<T> = T | null | undefined;
 
@@ -85,25 +78,17 @@ export default class Parser<T extends object> {
         }>;
     }
 
-    // TODO: replace with `convertToCamelCase(keys: string[])` + `ensureAllSnakeCase()` pair
-    // for better runtime performance (no search for `_` in keys)
-    allKeysToCamelCase() {
+    allDatesTOUnixMillis() {
         const obj = this.obj as any;
-        for (const key in obj) {
-            if (!key.includes("_")) continue;
-            const newKey = camelCase(key);
-            obj[newKey] = obj[key];
-            delete obj[key];
+        for (const [key, val] of Object.entries(obj)) {
+            if (val instanceof Date) {
+                obj[key] = val.getTime();
+            }
         }
-        type CamelCaseKeys = Extract<keyof T, `${string}_${string}`>;
-
-        type CamelCase<T extends string> = T extends `${infer F}_${infer R}`
-            ? `${F}${Capitalize<CamelCase<R>>}`
-            : T;
 
         return this as Parser<
-            Omit<T, CamelCaseKeys> & {
-                [key in CamelCaseKeys as CamelCase<key>]: T[key];
+            {
+                [key in keyof T]: Date extends T[key] ? NullableIfOtherNullable<number, T[key]> : T[key];
             }
         >;
     }
@@ -173,10 +158,21 @@ export default class Parser<T extends object> {
         }>;
     }
 
+    add<K extends string, V>(key: K, value: V) {
+        const obj = this.obj as any
+        obj[key] = value
+        return this as Parser<T & {[key in K]: V}>
+    }
+
     value() {
         return this.obj as Simplify<T>;
     }
 }
+
+type FieldWithType<T, Type> = {[key in keyof T]: T[key] extends Type ? key : never}[keyof T]
+
+type Foo = {a: 1, b: "2"}
+type Bar = FieldWithType<Foo, number> // "a"
 
 export type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
 

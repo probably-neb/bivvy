@@ -1,6 +1,6 @@
 import { alias, and, db, eq, schema, sql } from "@paypals/db";
 import type { ClientID, JSONValue, ReadonlyJSONValue } from "replicache";
-import { ApiHandler } from "sst/node/api";
+import { ApiHandler, useHeader } from "sst/node/api";
 import { useSession } from "sst/node/auth";
 import Parser from "util/parser";
 import z from "zod";
@@ -16,8 +16,8 @@ type PullRequest = {
 const zPullRequest = z.object({
     pullVersion: z.literal(1),
     clientGroupID: z.string(),
-    cookie: z.number().positive(),
-    ProfileID: z.string(),
+    cookie: z.number().gte(0).nullable(),
+    ProfileID: z.string().optional(),
     schemaVersion: z.string(),
 });
 
@@ -106,8 +106,9 @@ export const handler = ApiHandler(async (req) => {
     }
     const pullRequest = body.data;
     const patches = await constructPatches(session.properties.userId);
+    const cookie = pullRequest.cookie != null ? pullRequest.cookie + 1 : 0;
     const response: PullResponse = {
-        cookie: pullRequest.cookie + 1,
+        cookie,
         lastMutationIDChanges: {},
         patch: patches,
     };
@@ -115,17 +116,40 @@ export const handler = ApiHandler(async (req) => {
 });
 
 async function constructPatches(profileID: string) {
-    const expenses = await getExpensesForUser(profileID).then((expenses) =>
-        expenses.map(expenseToPatch),
-    );
-    const users = await getUsersForUser(profileID).then((users) => users.map(userToPatch));
-    const splits = await getSplitsForUser(profileID).then((splits) => splits.map(splitToPatch));
-    const groups = await getGroupsForUser(profileID).then((groups) => groups.map(groupToPatch));
+    const expenses = await getExpensesForUser(profileID);
+    const {unique: users, group: groupUsers} = await getUsersForUser(profileID)
+    const splits = await getSplitsForUser(profileID);
+    const groups = await getGroupsForUser(profileID);
 
-    // @ts-ignore
-    const patches: Array<PatchOperation> = expenses.concat(users).concat(splits).concat(groups);
+    let numPatches = expenses.length + users.length + splits.length + groups.length
+    for (const groupUserArr of groupUsers.values()) {
+        numPatches += groupUserArr.length
+    }
 
-    return patches
+    const patches = new Array<PatchOperation>(numPatches + 1)
+    patches[0] = CLEAR_OP
+
+    let i = 0;
+    for (const expense of expenses) {
+        patches[i++] = expenseToPatch(expense);
+    }
+    for (const split of splits) {
+        patches[i++] = splitToPatch(split);
+    }
+    for (const user of users) {
+        patches[i++] = userToPatch(user);
+    }
+    for (const [groupId, groupUserArr] of groupUsers) {
+        for (const groupUser of groupUserArr) {
+            patches[i++] = groupUserToPatch(groupId, groupUser);
+        }
+    }
+    for (const group of groups) {
+        patches[i++] = groupToPatch(group);
+    }
+    console.assert(patches.every((p) => p != null), "forgot to include some patches or numPatches computed incorrectly")
+
+    return patches;
 }
 
 function groupItemKey(groupId: string, type: string, item: string) {
@@ -156,7 +180,7 @@ function expenseToPatch(expense: ReturnType<typeof parseExpense>) {
     } satisfies PatchOperation;
 }
 
-function userToPatch(user: ReturnType<typeof parseUser>) {
+function userToPatch(user: User) {
     return {
         op: "put",
         key: userKey(user.id),
@@ -164,7 +188,24 @@ function userToPatch(user: ReturnType<typeof parseUser>) {
     } satisfies PatchOperation;
 }
 
-function splitToPatch(split: Awaited<ReturnType<typeof getSplitsForUser>>[number]) {
+function groupUserToPatch(groupId: string, user: User) {
+    return {
+        op: "put",
+        key: groupItemKey(groupId, "user", user.id),
+        value: user,
+    } satisfies PatchOperation;
+}
+
+function groupUsersToPatches(
+    users: Awaited<ReturnType<typeof getUsersForUser>>["group"],
+) {
+    const patches = new Array<PatchOperation>();
+    return patches;
+}
+
+function splitToPatch(
+    split: Awaited<ReturnType<typeof getSplitsForUser>>[number],
+) {
     return {
         op: "put",
         key: splitKey(split.group_id, split.id),
@@ -172,7 +213,9 @@ function splitToPatch(split: Awaited<ReturnType<typeof getSplitsForUser>>[number
     } satisfies PatchOperation;
 }
 
-function groupToPatch(group: Awaited<ReturnType<typeof getGroupsForUser>>[number]) {
+function groupToPatch(
+    group: Awaited<ReturnType<typeof getGroupsForUser>>[number],
+) {
     return {
         op: "put",
         key: groupKey(group.id),
@@ -219,19 +262,15 @@ async function getUsersForUser(userID: string) {
         schema.users_to_group,
         "group_users_to_group",
     );
-    const user_groups_users = alias(schema.users, "group_users");
     // TODO: figure out if (and how to fix) users being returned just a single
     // time with the amount owed across different groups
     const rows = await db
         .select({
-            user: user_groups_users,
+            user: schema.users,
             owed: schema.owed.amount,
+            groupID: user_groups_users_to_group.group_id,
         })
-        .from(schema.users)
-        .leftJoin(
-            schema.users_to_group,
-            eq(schema.users_to_group.user_id, userID),
-        )
+        .from(schema.users_to_group)
         .leftJoin(
             user_groups_users_to_group,
             eq(
@@ -240,44 +279,92 @@ async function getUsersForUser(userID: string) {
             ),
         )
         .rightJoin(
-            user_groups_users,
-            eq(user_groups_users.id, user_groups_users_to_group.user_id),
+            schema.users,
+            eq(schema.users.id, user_groups_users_to_group.user_id),
         )
         .leftJoin(
             schema.owed,
             and(
                 eq(schema.owed.from_user_id, schema.users.id),
                 eq(schema.owed.to_user_id, userID),
-                eq(schema.owed.group_id, user_groups_users_to_group.group_id),
+                eq(schema.owed.group_id, schema.users_to_group.group_id),
             ),
         )
-        .where(eq(schema.users.id, userID));
+        .where(eq(schema.users_to_group.user_id, userID));
 
-    let totalOwed = 0;
+    type GroupId = string;
+    const totalOwedPerGroup = new Map<GroupId, number>();
+    function addOwed(groupID: GroupId, owed: number) {
+        totalOwedPerGroup.set(
+            groupID,
+            (totalOwedPerGroup.get(groupID) ?? 0) + owed,
+        );
+    }
+
     const numRows = rows.length;
 
-    const users: Array<ReturnType<typeof parseUser>> = new Array(numRows);
+    type ParsedRow = {
+        owed: number;
+        groupID: GroupId;
+        user: ReturnType<typeof parseUser>;
+    };
+    const parsedRows: Array<ParsedRow> = new Array(numRows);
 
     for (let i = 0; i < numRows; i++) {
         const row = rows[i];
         if (row.owed == null && row.user.id != userID) {
-            console.error(`no owed between ${userID} and ${row.user.id}`);
+            console.error(
+                `no owed between ${userID} and ${row.user.id} in ${row.groupID}`,
+            );
         }
         const owed = row.owed ?? 0;
-        totalOwed += owed;
-        const user = parseUser(row.user, owed);
-        users[i] = user;
-    }
-    for (let i = 0; i < numRows; i++) {
-        if (users[i].id == userID) {
-            users[i].owed = totalOwed;
+        if (row.groupID == null) {
+            console.error(`no group for user ${row.user.id}`);
+            continue;
         }
+        addOwed(row.groupID, owed);
+        const parsedRow = {
+            owed,
+            groupID: row.groupID,
+            user: parseUser(row.user),
+        };
+        parsedRows[i] = parsedRow;
     }
-    return users;
+
+    const uniqueUsers = new Map<string, User>();
+    const groupUsers = new Map<GroupId, User[]>();
+
+    for (let i = 0; i < numRows; i++) {
+        const row = parsedRows[i];
+        const groupId = row.groupID;
+        const user = Object.assign(row.user, { owed: row.owed });
+        if (user.id == userID) {
+            user.owed = totalOwedPerGroup.get(groupId)!;
+        }
+
+        if (!groupUsers.has(groupId)) {
+            groupUsers.set(groupId, []);
+        }
+        groupUsers.get(row.groupID)?.push(user);
+
+        if (!uniqueUsers.has(user.id)) {
+            uniqueUsers.set(user.id, user);
+            continue;
+        }
+        uniqueUsers.get(user.id)!.owed += user.owed;
+    }
+    const uniqueUsersArray = Array.from(uniqueUsers.values());
+    const res = {
+        unique: uniqueUsersArray,
+        group: groupUsers,
+    };
+    return res
 }
 
-function parseUser(u: typeof schema.users.$inferSelect, owed: number) {
-    return new Parser(u).allDatesTOUnixMillis().add("owed", owed).value();
+type User = ReturnType<typeof parseUser> & { owed: number };
+
+function parseUser(u: typeof schema.users.$inferSelect) {
+    return new Parser(u).allDatesTOUnixMillis().value();
 }
 
 async function getSplitsForUser(userID: string) {
