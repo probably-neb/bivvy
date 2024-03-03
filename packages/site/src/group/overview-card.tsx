@@ -98,7 +98,7 @@ function CardInner(props: { title?: () => JSX.Element; owed?: Owed }) {
     return (
         <div class="flex justify-between items-center">
             <div class="flex flex-col gap-2">
-                <Show when={props.title}>{props.title}</Show>
+                <Show when={props.title}>{(t) => <>{t()}</>}</Show>
                 <For each={otherUsers()}>
                     {(user) => (
                         <div class="grid grid-cols-2 gap-2">

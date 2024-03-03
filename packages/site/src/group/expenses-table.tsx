@@ -41,7 +41,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RiSystemShareBoxLine } from "solid-icons/ri";
 import { isDev } from "@/lib/utils";
 
 // NOTE: order of fields here determines order in table
