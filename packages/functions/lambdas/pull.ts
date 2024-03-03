@@ -127,11 +127,12 @@ function calculateNextCookie(cookie: number | null) {
 }
 
 async function constructPatches(profileID: string) {
-    const expenses = await getExpensesForUser(profileID);
-    const { unique: users, group: groupUsers } =
-        await getUsersForUser(profileID);
-    const splits = await getSplitsForUser(profileID);
-    const groups = await getGroupsForUser(profileID);
+    const getUsers = getUsersForUser(profileID);
+    const getExpenses = getExpensesForUser(profileID);
+    const getSplits = getSplitsForUser(profileID);
+    const getGroups = getGroupsForUser(profileID);
+    const [expenses, { unique: users, group: groupUsers }, splits, groups] =
+        await Promise.all([getExpenses, getUsers, getSplits, getGroups]);
 
     let numPatches =
         expenses.length + users.length + splits.length + groups.length;
@@ -139,33 +140,55 @@ async function constructPatches(profileID: string) {
         numPatches += groupUserArr.length;
     }
 
-    const patches = new Array<PatchOperation>(numPatches + 1);
+    const patches = new Array<PatchOperation>(numPatches + 1)
+        .fill(null as unknown as PatchOperation)
+        .map(createEmptyPutPatch);
+
+    // @ts-ignore
     patches[0] = CLEAR_OP;
 
     let i = 1;
     for (const expense of expenses) {
-        patches[i++] = expenseToPatch(expense);
+        const p = patches[i++];
+        p.key = expenseKey(expense.groupId, expense.id);
+        p.value = expense;
     }
     for (const split of splits) {
-        patches[i++] = splitToPatch(split);
+        const p = patches[i++];
+        p.key = splitKey(split.groupId, split.id);
+        p.value = split;
     }
     for (const user of users) {
-        patches[i++] = userToPatch(user);
+        const p = patches[i++];
+        p.key = userKey(user.id);
+        p.value = user;
     }
     for (const [groupId, groupUserArr] of groupUsers) {
         for (const groupUser of groupUserArr) {
-            patches[i++] = groupUserToPatch(groupId, groupUser);
+            const p = patches[i++];
+            p.key = groupUserKey(groupId, groupUser.id);
+            p.value = groupUser;
         }
     }
     for (const group of groups) {
-        patches[i++] = groupToPatch(group);
+        const p = patches[i++];
+        p.key = groupKey(group.id);
+        p.value = group;
     }
     console.assert(
-        patches.every((p) => p != null),
+        patches.every((p) => p != null && (p.op != "put" || p.key != null)),
         "forgot to include some patches or numPatches computed incorrectly",
     );
 
     return patches;
+}
+
+function createEmptyPutPatch() {
+    return {
+        op: "put",
+        key: null as unknown as string,
+        value: null as JSONValue,
+    } satisfies PatchOperation;
 }
 
 function groupItemKey(groupId: string, type: string, item: string) {
@@ -184,52 +207,12 @@ function userKey(userId: string) {
     return "user/" + userId;
 }
 
+function groupUserKey(groupId: string, userId: string) {
+    return groupItemKey(groupId, "user", userId);
+}
+
 function groupKey(groupId: string) {
     return "groups/" + groupId;
-}
-
-function expenseToPatch(expense: ReturnType<typeof parseExpense>) {
-    return {
-        op: "put",
-        key: expenseKey(expense.groupId, expense.id),
-        value: expense,
-    } satisfies PatchOperation;
-}
-
-function userToPatch(user: User) {
-    return {
-        op: "put",
-        key: userKey(user.id),
-        value: user,
-    } satisfies PatchOperation;
-}
-
-function groupUserToPatch(groupId: string, user: User) {
-    return {
-        op: "put",
-        key: groupItemKey(groupId, "user", user.id),
-        value: user,
-    } satisfies PatchOperation;
-}
-
-function splitToPatch(
-    split: Awaited<ReturnType<typeof getSplitsForUser>>[number],
-) {
-    return {
-        op: "put",
-        key: splitKey(split.groupId, split.id),
-        value: split,
-    } satisfies PatchOperation;
-}
-
-function groupToPatch(
-    group: Awaited<ReturnType<typeof getGroupsForUser>>[number],
-) {
-    return {
-        op: "put",
-        key: groupKey(group.id),
-        value: group,
-    } satisfies PatchOperation;
 }
 
 async function getExpensesForUser(userID: string) {
@@ -253,9 +236,20 @@ async function getExpensesForUser(userID: string) {
     if (!rows) {
         throw new Error("User not found");
     }
-    return rows.user_to_group
-        .flatMap((ug) => ug.group.expenses)
-        .map(parseExpense);
+    let numGroups = rows.user_to_group.length;
+    let numExpenses = 0;
+    for (let i = 0; i < numGroups; i++)
+        numExpenses += rows.user_to_group[i].group.expenses.length;
+
+    const expenses = new Array<ReturnType<typeof parseExpense>>(numExpenses);
+    let i = 0;
+    for (let j = 0; j < numGroups; j++) {
+        const groupExpenses = rows.user_to_group[j].group.expenses;
+        for (let k = 0; k < groupExpenses.length; k++) {
+            expenses[i++] = parseExpense(groupExpenses[k]);
+        }
+    }
+    return expenses
 }
 
 function parseExpense(e: typeof schema.expenses.$inferSelect) {
@@ -275,7 +269,7 @@ async function getUsersForUser(userID: string) {
     );
     // TODO: figure out if (and how to fix) users being returned just a single
     // time with the amount owed across different groups
-    const rows = await db
+    const getRows = db
         .select({
             user: schema.users,
             groupID: user_groups_users_to_group.group_id,
@@ -294,7 +288,8 @@ async function getUsersForUser(userID: string) {
         )
         .where(eq(schema.users_to_group.user_id, userID));
 
-    const owed = await getOwedForUser(userID);
+    const getOwed = getOwedForUser(userID);
+    const [rows, owed] = await Promise.all([getRows, getOwed]);
 
     type GroupId = string;
     const numRows = rows.length;
@@ -342,12 +337,12 @@ async function getUsersForUser(userID: string) {
         uniqueUsers.get(user.id)!.owed += user.owed;
     }
     for (const [owedUserID, owedToUserAmount] of owed.total) {
-        const owedUser = uniqueUsers.get(owedUserID)
+        const owedUser = uniqueUsers.get(owedUserID);
         if (owedUser == null) {
-            console.error("could not find owed user")
-            continue
+            console.error("could not find owed user");
+            continue;
         }
-        owedUser.owed = owedToUserAmount
+        owedUser.owed = owedToUserAmount;
     }
     const uniqueUsersArray = Array.from(uniqueUsers.values());
     const res = {
@@ -360,10 +355,7 @@ async function getUsersForUser(userID: string) {
 type User = ReturnType<typeof parseUser> & { owed: number };
 
 function parseUser(u: typeof schema.users.$inferSelect) {
-    return new Parser(u)
-        .allDatesTOUnixMillis()
-        .allKeysToCamelCase()
-        .value()
+    return new Parser(u).allDatesTOUnixMillis().allKeysToCamelCase().value();
 }
 
 async function getSplitsForUser(userID: string) {
@@ -391,7 +383,20 @@ async function getSplitsForUser(userID: string) {
     if (!rows) {
         throw new Error("User not found");
     }
-    return rows.user_to_group.flatMap((r) => r.group.splits).map(parseSplit);
+    let numSplits = 0;
+    const numGroups = rows.user_to_group.length;
+    for (let i = 0; i < numGroups; i++) {
+        numSplits += rows.user_to_group[i].group.splits.length;
+    }
+    const splits = new Array<ReturnType<typeof parseSplit>>(numSplits);
+    let i = 0;
+    for (let j = 0; j < numGroups; j++) {
+        const groupSplits = rows.user_to_group[j].group.splits;
+        for (let k = 0; k < groupSplits.length; k++) {
+            splits[i++] = parseSplit(groupSplits[k]);
+        }
+    }
+    return splits;
 }
 
 type DBSplit = typeof schema.splits.$inferSelect & {
@@ -400,9 +405,10 @@ type DBSplit = typeof schema.splits.$inferSelect & {
 
 function parseSplit(s: DBSplit) {
     return new Parser(s)
-        .reassign(
-            "portions",
-            (portions) => Object.fromEntries(portions.map((p) => [p.user_id, parseFloat(p.parts)])),
+        .reassign("portions", (portions) =>
+            Object.fromEntries(
+                portions.map((p) => [p.user_id, parseFloat(p.parts)]),
+            ),
         )
         .rename("group_id", "groupId")
         .value();
@@ -424,7 +430,13 @@ async function getGroupsForUser(userID: string) {
     if (!rows) {
         throw new Error("User not found");
     }
-    return rows.user_to_group.map((r) => r.group);
+    type Group = (typeof rows.user_to_group)[number]["group"];
+    const nGroups = rows.user_to_group.length;
+    const groups = new Array<Group>(nGroups);
+    for (let i = 0; i < nGroups; i++) {
+        groups[i] = rows.user_to_group[i].group;
+    }
+    return groups;
 }
 
 async function getOwedForUser(userID: string) {
@@ -437,121 +449,142 @@ async function getOwedForUser(userID: string) {
                         with: {
                             split: {
                                 with: {
-                                    portions: true
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                                    portions: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
         },
     });
     if (!rows) {
         throw new Error("User not found");
     }
 
-    type UserID = string
-    type GroupID = string
+    type UserID = string;
+    type GroupID = string;
 
     const total = new Map<UserID, number>();
     const perGroup = new Map<GroupID, Map<UserID, number>>();
     const updateTotal = (userID: string, amount: number) => {
-        const totalOwed = total.get(userID) ?? 0
-        total.set(userID, totalOwed + amount)
-    }
-    const updatePerGroup = (groupID: string, userID: string, amount: number) => {
-        const groupOwed = perGroup.get(groupID)!.get(userID) ?? 0
-        perGroup.get(groupID)!.set(userID, groupOwed + amount)
-    }
+        const totalOwed = total.get(userID) ?? 0;
+        total.set(userID, totalOwed + amount);
+    };
+    const updatePerGroup = (
+        groupID: string,
+        userID: string,
+        amount: number,
+    ) => {
+        const groupOwed = perGroup.get(groupID)!.get(userID) ?? 0;
+        perGroup.get(groupID)!.set(userID, groupOwed + amount);
+    };
 
     for (const row of rows) {
-        const groupID = row.group.id
+        const groupID = row.group.id;
         if (!perGroup.has(groupID)) {
-            perGroup.set(groupID, new Map())
+            perGroup.set(groupID, new Map());
         }
         for (const expense of row.group.expenses) {
             const amount = expense.amount;
-            const split = expense.split
+            const split = expense.split;
             const paidByUserID = expense.paid_by_user_id;
-            const owed = calculateOwed(userID, paidByUserID, amount, split.portions)
+            const owed = calculateOwed(
+                userID,
+                paidByUserID,
+                amount,
+                split.portions,
+            );
 
             for (const [owedUserID, owedAmount] of owed) {
-                updatePerGroup(groupID, owedUserID, owedAmount)
-                updateTotal(owedUserID, owedAmount)
+                updatePerGroup(groupID, owedUserID, owedAmount);
+                updateTotal(owedUserID, owedAmount);
             }
         }
     }
     return {
         total,
-        perGroup
-    }
+        perGroup,
+    };
 }
 
-export function calculatePortion({amount, partsOwed, totalParts}: {amount: number, partsOwed: number, totalParts: number}) {
-        return (amount * partsOwed) / totalParts
+export function calculatePortion({
+    amount,
+    partsOwed,
+    totalParts,
+}: {
+    amount: number;
+    partsOwed: number;
+    totalParts: number;
+}) {
+    return (amount * partsOwed) / totalParts;
 }
 
-export function getTotalParts(portions: Array<{parts: string}>) {
+export function getTotalParts(portions: Array<{ parts: string }>) {
     let total = 0;
     for (const p of portions) {
         total += parseFloat(p.parts);
     }
-    console.assert(!isNaN(total), "total parts is NaN")
-    console.assert(total > 0, "total parts is <= 0")
-    if (total <= 0 ) {
-        return 1
+    console.assert(!isNaN(total), "total parts is NaN");
+    console.assert(total > 0, "total parts is <= 0");
+    if (total <= 0) {
+        return 1;
     }
-    return total
+    return total;
 }
 
-function calculateOwed(userID: string, paidByUserID: string, amount: number, portionDefs: Array<{parts: string, user_id: string}>) {
-    const totalParts = getTotalParts(portionDefs)
-    const owed = new Array<[string, number]>(portionDefs.length)
+function calculateOwed(
+    userID: string,
+    paidByUserID: string,
+    amount: number,
+    portionDefs: Array<{ parts: string; user_id: string }>,
+) {
+    const totalParts = getTotalParts(portionDefs);
+    const owed = new Array<[string, number]>(portionDefs.length);
     for (let i = 0; i < portionDefs.length; i++) {
-        const pDef = portionDefs[i]
-        const partsOwed = parseFloat(pDef.parts)
+        const pDef = portionDefs[i];
+        const partsOwed = parseFloat(pDef.parts);
 
         // by default, portion equals to the amount owed by the current user
         // to another user who paid for the expense
-        const portion = calculatePortion({amount, partsOwed, totalParts})
+        const portion = calculatePortion({ amount, partsOwed, totalParts });
 
+        const portionIsForUser = pDef.user_id === userID;
+        const paidByUser = paidByUserID === userID;
 
-        const portionIsForUser = pDef.user_id === userID
-        const paidByUser = paidByUserID === userID
+        const doesNotInvolveCurrentUser = !portionIsForUser && !paidByUser;
+        const isPortionOfExpensePaidByCurUser = portionIsForUser && paidByUser;
+        const isOwedToAnotherUser = portionIsForUser && !paidByUser;
+        const isOwedToCurUser = !portionIsForUser && paidByUser;
 
-        const doesNotInvolveCurrentUser = !portionIsForUser && !paidByUser
-        const isPortionOfExpensePaidByCurUser = portionIsForUser && paidByUser
-        const isOwedToAnotherUser = portionIsForUser && !paidByUser
-        const isOwedToCurUser = !portionIsForUser && paidByUser
-
-        let owedToUser = 0
+        let owedToUser = 0;
 
         switch (true) {
             case isPortionOfExpensePaidByCurUser:
                 // if the user paid for the expense and the portion is for the user
                 // then the user is owed the full amount minus their portion
-                owedToUser = amount - portion
-                break
+                owedToUser = amount - portion;
+                break;
             case doesNotInvolveCurrentUser:
                 // if the user didn't pay for the expense and the portion is not for the user
                 // then we don't care!
-                owedToUser = 0
-                break
+                owedToUser = 0;
+                break;
             case isOwedToAnotherUser:
                 // if the user didn't pay for the expense and the portion is for the user
                 // then the current users balance should be reduced by their portion
-                owedToUser = -owedToUser
-                break
+                owedToUser = -owedToUser;
+                break;
             case isOwedToCurUser:
                 // if the user paid for the expense and the portion is for another user
                 // they owe the full portion
-                owedToUser = portion
-                break
+                owedToUser = portion;
+                break;
         }
 
-        owed[i] = [pDef.user_id, owedToUser]
+        owed[i] = [pDef.user_id, owedToUser];
     }
-    return owed
+    return owed;
 }
 
 async function getLastMutations(clientGroupId: string, userId: string) {
