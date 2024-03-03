@@ -249,7 +249,7 @@ async function getExpensesForUser(userID: string) {
             expenses[i++] = parseExpense(groupExpenses[k]);
         }
     }
-    return expenses
+    return expenses;
 }
 
 function parseExpense(e: typeof schema.expenses.$inferSelect) {
@@ -299,7 +299,13 @@ async function getUsersForUser(userID: string) {
         groupID: GroupId;
         user: ReturnType<typeof parseUser>;
     };
-    const parsedRows: Array<ParsedRow> = new Array(numRows);
+    const parsedRows: Array<ParsedRow> = new Array(numRows)
+        .fill(null)
+        .map(() => ({
+            groupID: "",
+            user: null as any,
+            owed: 0,
+        }));
 
     for (let i = 0; i < numRows; i++) {
         const row = rows[i];
@@ -307,12 +313,8 @@ async function getUsersForUser(userID: string) {
             console.error(`no group for user ${row.user.id}`);
             continue;
         }
-        const parsedRow = {
-            groupID: row.groupID,
-            user: parseUser(row.user),
-            owed: 0,
-        };
-        parsedRows[i] = parsedRow;
+        parsedRows[i].groupID = row.groupID;
+        parsedRows[i].user = parseUser(row.user);
     }
 
     const uniqueUsers = new Map<string, User>();
