@@ -47,10 +47,11 @@ export function CreateSplitDialog(props: {
 export function CreateSplit(props: { onSubmit?: () => void }) {
     const { createSplit } = useMutations();
     const form = createForm<SplitInput, typeof zodValidator>(() => ({
-        onSubmit: async ({ value }) => {
+        onSubmit: async ({ value, formApi }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
             await createSplit(value);
+            formApi.reset()
             props.onSubmit?.();
         },
         validatorAdapter: zodValidator,
@@ -68,7 +69,7 @@ export function CreateSplit(props: { onSubmit?: () => void }) {
     return (
         <form.Provider>
             <form
-                class="flex flex-col gap-4"
+                class="flex flex-col gap-4 max-w-fit"
                 lang="en"
                 onSubmit={async (e) => {
                     e.preventDefault();
@@ -93,9 +94,10 @@ export function CreateSplit(props: { onSubmit?: () => void }) {
                     <SplitColorPick form={form} />
                 </div>
                 <PortionParts form={form} />
-                <Button type="submit" disabled={!form.state.canSubmit}>
+                <div class="inline-flex justify-center">
+                <Button type="submit" disabled={!form.state.canSubmit} class="w-20">
                     Create
-                </Button>
+                </Button></div>
             </form>
         </form.Provider>
     );
@@ -187,7 +189,7 @@ function useTotalPortions(form: SplitForm) {
     return total;
 }
 
-function PortionParts(props: { form: SplitForm }) {
+export function PortionParts(props: { form: SplitForm }) {
     // TODO: store portions, total in portion types + db
     // i.e. calculate owed as parts * amount / numParts
     // where for pecentage numparts is 1.0 (25% * amount / 1.0)

@@ -61,10 +61,10 @@ export function MoneyRenderer(props: {
     );
 }
 
-export function SplitRenderer(props: {splitId: Split["id"]}) {
+export function SplitRenderer(props: {splitId: Split["id"], class?: string}) {
     const split = useSplit(() => props.splitId)
     return <Show when={split()}>
-        <Badge style={`background-color: ${split()?.color}`}>{split()?.name}</Badge>
+        <Badge class={props.class} style={`background-color: ${split()?.color}`}>{split()?.name}</Badge>
     </Show>
 }
 

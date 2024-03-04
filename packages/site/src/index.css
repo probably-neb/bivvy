@@ -76,3 +76,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* CREDIT:  https://github.com/tailwindlabs/tailwindcss/discussions/2394#discussioncomment-432070 */
+@layer utilities {
+  @variants responsive {
+    /* Chrome, Safari and Opera */
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-none {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+  }
+}

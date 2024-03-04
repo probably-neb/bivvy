@@ -1,4 +1,9 @@
-import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
     Switch,
@@ -7,12 +12,21 @@ import {
     createSignal,
     Match,
     ParentProps,
+    For,
 } from "solid-js";
 import { OverviewCard } from "@/group/overview-card";
 import { ExpensesTable } from "@/group/expenses-table";
 import { AddExpenseCard } from "@/group/add-expense";
 import { ViewExpenseCard } from "@/group/view-expense";
-import { Expense, useExpense, useMutations } from "@/lib/rep";
+import {
+    Expense,
+    Split,
+    User,
+    useExpense,
+    useMutations,
+    useSplits,
+    useUsers,
+} from "@/lib/rep";
 import { useQueries } from "@/lib/device";
 import {
     Card,
@@ -23,6 +37,9 @@ import {
 } from "@/components/ui/card";
 import { TiTrash } from "solid-icons/ti";
 import { useUserId } from "@/lib/session";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SplitRenderer, UserRenderer } from "@/components/renderers";
+import { CreateSplit } from "./create-split";
 
 type ExpenseCardView = { mode: "view"; id: Expense["id"] };
 // TODO:
@@ -91,31 +108,145 @@ function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
 }
 
 export default function GroupPage() {
+    // TODO: move header to layout
+    return (
+        <Tabs defaultValue="expenses" class="shadow-none">
+            <TabsList class="justify-center">
+                <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                <TabsTrigger value="users">Members</TabsTrigger>
+                <TabsTrigger value="splits">Splits</TabsTrigger>
+            </TabsList>
+            <TabsContent value="expenses">
+                <ExpensesTab />
+            </TabsContent>
+            <TabsContent value="splits">
+                <SplitsTab />
+            </TabsContent>
+            <TabsContent value="users">
+                <UsersTab />
+            </TabsContent>
+        </Tabs>
+    );
+}
+
+function ExpensesTab() {
     const viewExpense = (id: Expense["id"]) => {
         setExpenseCardMode({ mode: "view", id });
     };
 
     // wrap in tracking scope
     const addExpenseButtonProps = createMemo(getAddExpenseButtonProps);
-
-    // TODO: move header to layout
     return (
-        <>
-            <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12 p-6">
-                <aside class="w-full flex flex-col justify-start gap-6 pt-6 lg:w-1/3 lg:order-last">
-                    <OverviewCard />
-                    <ExpenseCardWrapper />
-                </aside>
-                <section class="w-full lg:w-2/3">
-                    <ExpensesTable
-                        viewExpense={viewExpense}
-                        addExpenseButtonProps={addExpenseButtonProps()}
-                    />
-                </section>
-            </div>
-        </>
+        <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12">
+            <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
+                <ExpenseCardWrapper />
+            </aside>
+            <section class="w-full lg:w-2/3">
+                <ExpensesTable
+                    viewExpense={viewExpense}
+                    addExpenseButtonProps={addExpenseButtonProps()}
+                />
+            </section>
+        </div>
     );
 }
+
+function SplitsTab() {
+    const splits = useSplits();
+    const users = useUsers();
+    return (
+        <div class="flex flex-col justify-center lg:flex-row gap-6">
+            <section class="w-full lg:w-2/3 h-[80vh] overflow-y-auto scrollbar-none">
+                <div class="flex flex-wrap gap-4">
+                    <For each={splits()}>
+                        {(split) => <SplitCard split={split} users={users()}/>}
+                    </For>
+                </div>
+            </section>
+            <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
+                <Card class="p-4 max-w-fit">
+                    <CreateSplit />
+                </Card>
+            </aside>
+        </div>
+    );
+}
+
+function SplitCard(props: { split: Split, users?: Array<User>}) {
+    const total = createMemo(() => {
+        let total = 0;
+        for (const portion of Object.values(props.split.portions)) {
+            total += portion;
+        }
+        return total;
+    });
+    return (
+        <Card class="min-w-max max-h-min p-0">
+            <CardHeader>
+                <div class="shrink">
+                    <SplitRenderer
+                        class={"font-medium text-lg shrink"}
+                        splitId={props.split.id}
+                    />
+                </div>
+            </CardHeader>
+            <CardContent class="size-max">
+                <SplitCardPortions
+                    users={props.users}
+                    total={total()}
+                    portions={props.split.portions}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
+function SplitCardPortions(props: {
+    users?: Array<User>;
+    total: number;
+    portions: Record<string, number>;
+}) {
+    return (
+        <div class="flex">
+            <div class="shrink grid grid-cols-3 items-center gap-4">
+                <For each={props.users}>
+                    {(user) => (
+                        <>
+                            <UserRenderer userId={user.id} />
+                            <span class="inline-flex justify-center">{`${
+                                props.portions[user.id]
+                            }/${props.total}`}</span>
+                            <PercentagePreview
+                                total={props.total}
+                                value={props.portions[user.id]}
+                            />
+                        </>
+                    )}
+                </For>
+            </div>
+        </div>
+    );
+}
+
+
+
+function PercentagePreview(props: { total: number; value: number }) {
+    const percent = createMemo(() => {
+        const value = (props.value / props.total) * 100;
+        const isWholeNumber = value % 1 === 0;
+        const decimals = isWholeNumber ? 0 : 2;
+        return value.toFixed(decimals);
+    });
+    return <div class="text-slate-600 italic">{`${percent()}%`}</div>;
+}
+
+function UsersTab() {
+    return (
+        <OverviewCard />
+    )
+}
+
+
 
 function ExpenseCardWrapper() {
     const device = useQueries();
@@ -146,11 +277,13 @@ function ExpenseCardModal(props: { title: string }) {
                     <DialogTitle>{props.title}</DialogTitle>
                 </ExpenseCardHeader>
                 <ExpenseCardInner />
-            <Show when={expenseCardMode().mode === "view"}>
-                <DialogFooter>
-                    <ViewExpenseCardFooter expenseId={expenseCardMode().id!} />
-                </DialogFooter>
-            </Show>
+                <Show when={expenseCardMode().mode === "view"}>
+                    <DialogFooter>
+                        <ViewExpenseCardFooter
+                            expenseId={expenseCardMode().id!}
+                        />
+                    </DialogFooter>
+                </Show>
             </DialogContent>
         </Dialog>
     );
