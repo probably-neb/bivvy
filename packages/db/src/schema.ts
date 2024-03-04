@@ -49,7 +49,6 @@ export const users = table(
         profileUrl: varchar("profile_url", { length: 512 }),
     },
     (t) => ({
-        pk_idx: index("pk_idx").on(t.id),
     }),
 );
 
@@ -65,7 +64,6 @@ export const users_to_group = table(
     },
     (t) => ({
         pk: primaryKey({ columns: [t.user_id, t.group_id] }),
-        pk_idx: index("utg_idx").on(t.user_id, t.group_id),
         gid_idx: index("gid_idx").on(t.group_id),
     }),
 );
@@ -119,7 +117,6 @@ export const groups = table(
         name: varchar("name", { length: 255 }).notNull(),
     },
     (t) => ({
-        pk_idx: index("pk_idx").on(t.id),
     }),
 );
 
@@ -143,7 +140,6 @@ export const expenses = table(
         group_id: idRef("group_id").notNull(),
     },
     (t) => ({
-        pk_idx: index("pk_idx").on(t.id),
         group_idx: index("group_idx").on(t.group_id),
     }),
 );
@@ -173,7 +169,6 @@ export const splits = table(
         color: varchar("color", { length: 7 }),
     },
     (t) => ({
-        pk_idx: index("pk_idx").on(t.id),
         group_idx: index("group_idx").on(t.group_id),
         name_un: unique("name_un").on(t.name, t.group_id),
     }),
