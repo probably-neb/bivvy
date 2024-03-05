@@ -139,18 +139,18 @@ function SplitsTab() {
     const users = useUsers();
     return (
         <div class="flex flex-col justify-center lg:flex-row gap-6">
-            <section class="w-full lg:w-2/3 h-[80vh] overflow-y-auto scrollbar-none">
+            <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
+                <Card class="p-4 max-w-fit">
+                    <CreateSplit />
+                </Card>
+            </aside>
+            <section class="w-full lg:w-2/3 min-h-0 max-h-[80vh] overflow-y-auto scrollbar-none">
                 <div class="flex flex-wrap gap-4">
                     <For each={splits()}>
                         {(split) => <SplitCard split={split} users={users()} />}
                     </For>
                 </div>
             </section>
-            <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
-                <Card class="p-4 max-w-fit">
-                    <CreateSplit />
-                </Card>
-            </aside>
         </div>
     );
 }

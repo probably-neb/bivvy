@@ -12,7 +12,7 @@ import {
 } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { For, Setter, createMemo, createSignal, from, onMount } from "solid-js";
+import { For, Setter, createEffect, createMemo, createSignal, onMount } from "solid-js";
 import z from "zod";
 import { on } from "solid-js";
 import { UserRenderer } from "@/components/renderers";
@@ -25,7 +25,6 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import "./no-spinners.css";
 import { AiOutlineMinus, AiOutlinePlus } from "solid-icons/ai";
-import { reconcile } from "solid-js/store";
 import { not } from "@/lib/utils";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
@@ -50,6 +49,7 @@ export function CreateSplit(props: { onSubmit?: () => void }) {
         onSubmit: async ({ value, formApi }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
+            value.portions = Object.fromEntries(Object.entries(value.portions).map(([k,v]) => [k.trim(),v]))
             await createSplit(value);
             formApi.reset()
             props.onSubmit?.();
@@ -62,7 +62,7 @@ export function CreateSplit(props: { onSubmit?: () => void }) {
             onSubmit: splitInputSchema,
         },
         defaultState: {
-            canSubmit: false,
+            canSubmit: false
         },
     }));
 
@@ -223,11 +223,14 @@ function UserPortionParts(props: {
     userId: string;
     totalPortions: number;
 }) {
-    const id = `portions.${props.userId}` as const;
+    // NOTE: spaces around userId here because form will recognize ids that are valid integers as array indices
+    // see `onSubmit` where we use `trim` to remove the spaces
+    const id = `portions. ${props.userId} ` as const;
 
     const values = props.form.state.values;
     const portion = values.portions?.[props.userId];
     if (not(portion)) {
+        console.dir({"portions": values.portions, portion})
         props.form.setFieldValue(id, 1);
     }
 
@@ -283,19 +286,13 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
     );
 }
 
-function subscribeToField<T, Form extends FormApi<any, any>>(
+function subscribeToField<Form extends FormApi<any, any>,V>(
     form: Form,
-    selector: (values: Form["state"]["values"]) => T,
+    selector: (f: SplitInput) => V,
 ) {
-    return from<T>((set) => {
-        const unsubscribe = form.store.subscribe(() => {
-            if (not(form.state.values)) {
-                return
-            }
-            set(reconcile(selector(form.state.values)));
-        });
-        return unsubscribe;
-    });
+    const formState = form.useStore();
+    const value = createMemo(() => selector(formState().values));
+    return value;
 }
 
 type FieldOf<Form extends FormApi<any, any>> = Form["fieldInfo"] extends Record<
