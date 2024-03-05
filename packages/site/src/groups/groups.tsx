@@ -2,16 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Group, useGroups, useNumUsers } from "@/lib/rep";
 import { routes } from "@/routes";
 import { A } from "@solidjs/router";
-import {
-    Accessor,
-    For,
-    createMemo,
-    createSignal,
-} from "solid-js";
+import { Accessor, For, Show, createMemo, createSignal } from "solid-js";
 import { CreateGroupForm } from "./create-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { TiPlus, TiUserOutline } from "solid-icons/ti";
 import { Pattern, randomPattern } from "@/lib/patterns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Groups() {
     const groups = useGroups();
@@ -19,8 +15,16 @@ export default function Groups() {
     // TODO: overview card with total owed in all groups
     return (
         <div class="flex flex-wrap gap-4">
-            <For each={groups()}>{(group) => <GroupCard group={group} />}</For>
-            <NewGroupCard />
+            <Show when={groups()} fallback={<LoadingCard />}>
+                {(groups) => (
+                    <>
+                        <For each={groups()}>
+                            {(group) => <GroupCard group={group} />}
+                        </For>
+                        <NewGroupCard />
+                    </>
+                )}
+            </Show>
         </div>
     );
 }
@@ -69,6 +73,14 @@ function NewGroupCard() {
                 setOpen={setCreateGroupModalOpen}
             />
         </>
+    );
+}
+
+function LoadingCard() {
+    return (
+        <Card class="w-64 h-32 grow-0 shrink-0 col-span-full hover:scale-105 border-2 border-white flex items-center justify-center bg-white/50">
+            <Skeleton class="w-full h-full" />
+        </Card>
     );
 }
 
