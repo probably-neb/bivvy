@@ -57,7 +57,7 @@ const [expenseCardMode, _setExpenseCardMode] = createSignal<ExpenseCardMode>(
     },
     {
         equals: (a, b) => a.mode === b.mode && a.id === b.id,
-    },
+    }
 );
 export { expenseCardMode as asideCardMode };
 
@@ -137,17 +137,37 @@ function ExpensesTab() {
 function SplitsTab() {
     const splits = useSplits();
     const users = useUsers();
+    const [editingSplit, setEditingSplit] = createSignal<Split | null>(null);
     return (
         <div class="flex flex-col justify-center lg:flex-row gap-6">
             <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
                 <Card class="p-4 max-w-fit">
-                    <CreateSplit />
+                    <Show when={editingSplit()} fallback={<CreateSplit />} keyed>
+                        {(split) => (
+                            <CreateSplit
+                                split={split}
+                                onSubmit={() => setEditingSplit(null)}
+                            />
+                        )}
+                    </Show>
                 </Card>
             </aside>
             <section class="w-full lg:w-2/3 min-h-0 max-h-[80vh] overflow-y-auto scrollbar-none">
                 <div class="flex flex-wrap gap-4">
                     <For each={splits()}>
-                        {(split) => <SplitCard split={split} users={users()} />}
+                        {(split) => (
+                            <SplitCard
+                                split={split}
+                                users={users()}
+                                editSplit={() => {
+                                    if (split.id == editingSplit()?.id) {
+                                        setEditingSplit(null);
+                                        return;
+                                    }
+                                    setEditingSplit(split);
+                                }}
+                            />
+                        )}
                     </For>
                 </div>
             </section>
@@ -155,7 +175,11 @@ function SplitsTab() {
     );
 }
 
-function SplitCard(props: { split: Split; users?: Array<User> }) {
+function SplitCard(props: {
+    split: Split;
+    editSplit: () => void;
+    users?: Array<User>;
+}) {
     const total = createMemo(() => {
         let total = 0;
         for (const portion of Object.values(props.split.portions)) {
@@ -166,11 +190,16 @@ function SplitCard(props: { split: Split; users?: Array<User> }) {
     return (
         <Card class="min-w-max max-h-min p-0">
             <CardHeader>
-                <div class="shrink">
-                    <SplitRenderer
-                        class={"font-medium text-lg shrink"}
-                        splitId={props.split.id}
-                    />
+                <div class="w-full flex justify-between align-center">
+                    <div class="shrink">
+                        <SplitRenderer
+                            class={"font-medium text-lg shrink"}
+                            splitId={props.split.id}
+                        />
+                    </div>
+                    <Button variant="ghost" onClick={props.editSplit}>
+                        <BiRegularEdit size="1.5em" />
+                    </Button>
                 </div>
             </CardHeader>
             <CardContent class="size-max">
@@ -194,17 +223,21 @@ function SplitCardPortions(props: {
             <div class="shrink grid grid-cols-3 items-center gap-4">
                 <For each={props.users}>
                     {(user) => {
-                        const portion = createMemo(() => props.portions[user.id] ?? 0);
-                        return <>
-                            <UserRenderer userId={user.id} />
-                            <span class="inline-flex justify-center">{`${
-                                portion()
-                            }/${props.total}`}</span>
-                            <PercentagePreview
-                                total={props.total}
-                                value={portion()}
-                            />
-                        </>
+                        const portion = createMemo(
+                            () => props.portions[user.id] ?? 0
+                        );
+                        return (
+                            <>
+                                <UserRenderer userId={user.id} />
+                                <span class="inline-flex justify-center">{`${portion()}/${
+                                    props.total
+                                }`}</span>
+                                <PercentagePreview
+                                    total={props.total}
+                                    value={portion()}
+                                />
+                            </>
+                        );
                     }}
                 </For>
             </div>
@@ -327,7 +360,10 @@ function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
     return (
         <Show when={allowed()}>
             <Button variant="destructive" onClick={onClickDelete}>
-                <TiTrash size="1.5em" class="fill-destructive-foreground bg-red" />
+                <TiTrash
+                    size="1.5em"
+                    class="fill-destructive-foreground bg-red"
+                />
             </Button>
         </Show>
     );
@@ -366,7 +402,7 @@ function ExpenseCardInner() {
                     onSubmit={() => setExpenseCardOpen(false)}
                     expense={dbg(
                         "expense",
-                        (expenseCardMode() as ExpenseCardEdit).expense,
+                        (expenseCardMode() as ExpenseCardEdit).expense
                     )}
                 />
             </Match>

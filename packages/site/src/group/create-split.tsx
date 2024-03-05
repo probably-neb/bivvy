@@ -5,6 +5,7 @@ import {
     TextFieldLabel,
 } from "@/components/ui/textfield";
 import {
+    Split,
     SplitInput,
     splitInputSchema,
     useMutations,
@@ -43,28 +44,64 @@ export function CreateSplitDialog(props: {
     );
 }
 
-export function CreateSplit(props: { onSubmit?: () => void }) {
-    const { createSplit } = useMutations();
-    const form = createForm<SplitInput, typeof zodValidator>(() => ({
-        onSubmit: async ({ value, formApi }) => {
+function addSpacesToKeys(obj: Record<string, any>) {
+    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [` ${k} `, v]));
+}
+
+function removeSpacesFromKeys(obj: Record<string, any>) {
+    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k.trim(), v]));
+}
+
+const getDefaultValuesFromSplit = (split: Split) => ({
+    name: split.name,
+    color: split.color,
+    portions: addSpacesToKeys(split.portions),
+})
+
+export function CreateSplit(props: { onSubmit?: () => void, split?: Split }) {
+    const { createSplit, splitEdit } = useMutations();
+
+    const editingSplit = props.split
+    const isEditing = editingSplit != null
+
+    const defaultValues = props.split && getDefaultValuesFromSplit(props.split)
+    const form = createForm(() => ({
+        onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
-            console.log("submit", value);
-            value.portions = Object.fromEntries(Object.entries(value.portions).map(([k,v]) => [k.trim(),v]))
-            await createSplit(value);
-            formApi.reset()
+            const splitInput = Object.assign({}, value, {portions: removeSpacesFromKeys(value.portions)})
+            if (isEditing) {
+                const split = Object.assign({}, editingSplit, splitInput)
+                console.log("edit", split);
+                await splitEdit(split)
+            } else {
+                console.log("create", splitInput);
+                await createSplit(splitInput);
+            }
             props.onSubmit?.();
+            console.log("submiteed", value)
         },
         validatorAdapter: zodValidator,
         onSubmitInvalid: (e) => {
             console.log("invalid", e.formApi.state.errors);
         },
         validators: {
-            onSubmit: splitInputSchema,
+            onSubmit: splitInputSchema.omit({portions: true}).and(z.object({
+                portions: z.record(zParts)
+            })),
         },
+        defaultValues,
         defaultState: {
             canSubmit: false
-        },
+        }
     }));
+    // createEffect(on(() => props.split, (split) => {
+    //     form.setFieldValue("color", split?.color ?? null, {touch: false})
+    //     form.setFieldValue("name", split?.name as any, {touch: false})
+    //     form.setFieldValue("portions", split?.portions && addSpacesToKeys(split.portions) as any, {touch: false})
+    // //     form.update({
+    // //         defaultValues: split && getDefaultValuesFromSplit(split)
+    // //     })
+    // }))
 
     return (
         <form.Provider>
@@ -96,7 +133,7 @@ export function CreateSplit(props: { onSubmit?: () => void }) {
                 <PortionParts form={form} />
                 <div class="inline-flex justify-center">
                 <Button type="submit" disabled={!form.state.canSubmit} class="w-20">
-                    Create
+                        {isEditing ? "Update" : "Create"}
                 </Button></div>
             </form>
         </form.Provider>
@@ -140,7 +177,6 @@ function ColorPicker(props: {
     const color = createMemo(() => props.value || randomHexColor());
     onMount(
         on(color, (color) => {
-            console.log("color", color);
             if (color === null) {
                 props.set(randomHexColor(), { touch: false });
             }
@@ -225,23 +261,24 @@ function UserPortionParts(props: {
 }) {
     // NOTE: spaces around userId here because form will recognize ids that are valid integers as array indices
     // see `onSubmit` where we use `trim` to remove the spaces
-    const id = `portions. ${props.userId} ` as const;
+    const userID = ` ${props.userId} ` as const;
+    const id = `portions.${userID}` as const;
 
-    const values = props.form.state.values;
-    const portion = values.portions?.[props.userId];
+    // For some reason, defaultValue on the Field component does not work
+    // when remounting with a new split to edit
+    const portion = props.form.state.values.portions?.[userID];
     if (not(portion)) {
-        console.dir({"portions": values.portions, portion})
         props.form.setFieldValue(id, 1);
     }
 
     return (
-        <props.form.Field name={id} validators={{ onChange: zParts }}>
+        <props.form.Field name={id}>
             {(field) => (
                 <>
                     <UserRenderer userId={props.userId} />
                     <Incrementer
                         value={field().state.value}
-                        onChange={field().handleChange}
+                        onChange={field().setValue}
                     />
                     <PercentagePreview
                         total={props.totalPortions}
@@ -277,6 +314,7 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
                     type="number"
                     class={`no-spinners w-12 px-0 text-center rounded-full py-0`}
                     value={props.value}
+                    onChange={e => props.onChange(e.target.valueAsNumber)}
                 />
             </TextField>
             <button class={btnclass} type="button" onClick={increment}>
@@ -343,9 +381,10 @@ export function Field(props: FieldProps<typeof splitInputSchema>) {
                     <TextFieldInput
                         type={type}
                         placeholder={placeholder}
+                        value={field().state.value as any}
                         step={step}
                         onChange={(e) =>
-                            field().handleChange(
+                            field().setValue(
                                 props.parse?.(e.target.value) ?? e.target.value,
                             )
                         }

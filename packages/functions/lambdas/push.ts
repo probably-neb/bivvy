@@ -121,6 +121,7 @@ const MUTATIONS = [
     "deleteExpense",
     "expenseEdit",
     "createSplit",
+    "splitEdit",
     "createGroup",
     "createInvite",
     "acceptInvite",
@@ -155,6 +156,7 @@ const zMutation = z
         mutationValidator("deleteExpense", zDeleteExpenseInput),
         mutationValidator("expenseEdit", zExpense),
         mutationValidator("createSplit", zSplit),
+        mutationValidator("splitEdit", zSplit),
         mutationValidator("createGroup", zCreateGroupInput),
         mutationValidator("createInvite", zInvite),
         mutationValidator("acceptInvite", zInvite.shape.id),
@@ -267,6 +269,9 @@ async function handleMutations(
                 case "createSplit":
                     ok = await createSplit(m.args);
                     break;
+                case "splitEdit": 
+                    ok = await splitEdit(m.args);
+                    break
                 case "createGroup":
                     ok = await createGroup(m.args);
                     break;
@@ -414,6 +419,19 @@ async function _createSplit(tx: Tx, args: Split) {
         pdefs[i] = pdef;
     }
     await tx.insert(schema.split_portion_def).values(pdefs);
+}
+
+async function splitEdit(args: Split) {
+    await db.transaction(async (tx) => {
+        await db.delete(schema.split_portion_def).where(
+            eq(schema.split_portion_def.split_id, args.id),
+        )
+        await db.delete(schema.splits).where(
+            and(eq(schema.splits.id, args.id), eq(schema.splits.group_id, args.groupId))
+        )
+        await _createSplit(tx, args)
+    })
+    return true
 }
 
 async function createGroup(args: CreateGroupInput) {

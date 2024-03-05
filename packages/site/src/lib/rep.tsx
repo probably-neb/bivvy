@@ -54,6 +54,9 @@ const mutators = {
     async createSplit(tx: WriteTransaction, split: Split) {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
+    async splitEdit(tx: WriteTransaction, split: Split) {
+        await tx.set(P.split.id(split.groupId, split.id), split);
+    },
     async createGroup(tx: WriteTransaction, input: CreateGroupInput) {
         const [group, { defaultSplitId, ownerId }] = removeKeys(input, [
             "defaultSplitId",
@@ -303,10 +306,9 @@ const zHexString = z
     .regex(/^#[\da-fA-F]{6}/);
 
 export const splitSchema = z.object({
-    name: z.string(),
+    name: z.string().min(1),
     id: idSchema,
     portions: z.record(userSchema.shape.id, portionSchema),
-    createdAt: unixTimeSchema,
     groupId: groupSchema.shape.id,
     color: zHexString.nullable(),
 });
@@ -475,6 +477,14 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 splitInput,
             );
             await ctx.rep.mutate.createSplit(splitSchema.parse(split));
+        },
+        async splitEdit(split: Split) {
+            const ctx = useCtx();
+            if (!ctx.isInit) {
+                throw new Error("Replicache not initialized");
+            }
+            await ctx.rep.mutate.splitEdit(splitSchema.parse(split));
+
         },
         async createGroup(name: Group["name"]) {
             const ctx = useCtx();
