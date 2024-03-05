@@ -52,6 +52,7 @@ export function App() {
             <Route path="/" component={ToAuth} />
             <Route path={routes.groups} component={EnsureLogin}>
                 <Route path="/" component={Groups} />
+                <Route path=":id/:tab" component={Group} />
                 <Route path=":id" component={Group} />
                 <Route path=":id/scan/">
                     <Route path="receipt" component={ScanReceipt} />

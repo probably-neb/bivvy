@@ -13,6 +13,7 @@ import {
     Match,
     ParentProps,
     For,
+    createEffect,
 } from "solid-js";
 import { OverviewCard } from "@/group/overview-card";
 import { ExpensesTable } from "@/group/expenses-table";
@@ -41,6 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SplitRenderer, UserRenderer } from "@/components/renderers";
 import { CreateSplit } from "./create-split";
 import { BiRegularEdit } from "solid-icons/bi";
+import { useLocation, useNavigate, useParams } from "@solidjs/router";
 
 type ExpenseCardView = { mode: "view"; id: Expense["id"] };
 type ExpenseCardEdit = { mode: "edit"; expense: Expense; id?: undefined };
@@ -81,7 +83,7 @@ function getAddExpenseButtonProps() {
         if (!expenseCardOpen() && !device.isAtLeastLg()) {
             return false;
         }
-        return expenseCardMode().mode == "add";
+        return expenseCardMode().mode === "add";
     });
     const onClick = () => setExpenseCardMode({ mode: "add" });
     return {
@@ -92,8 +94,33 @@ function getAddExpenseButtonProps() {
 
 export default function GroupPage() {
     // TODO: move header to layout
+    const loc = useLocation()
+    const params = useParams();
+    const tab = createMemo(() => {
+        const tabParam = params.tab
+        switch (tabParam) {
+            case "users":
+                return "users"
+            case "splits":
+                return "splits"
+            default:
+                return "expenses"
+        }
+    })
+    const navigate = useNavigate();
+    const onChange = (newTab: string) => {
+        let path = loc.pathname
+        const oldTab = tab()
+        if (oldTab !== "expenses") {
+            path = path.replace(new RegExp(`/${oldTab}$`), "")
+        }
+        if (newTab !== "expenses") {
+            path = path + `/${newTab}`
+        }
+        navigate(path)
+    }
     return (
-        <Tabs defaultValue="expenses" class="shadow-none">
+        <Tabs defaultValue="expenses" value={tab()} onChange={onChange} class="shadow-none">
             <TabsList class="justify-center">
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
                 <TabsTrigger value="users">Members</TabsTrigger>
