@@ -4,12 +4,11 @@ import { useRep } from "@/lib/rep";
 import { Show } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { dropAllDatabases } from "replicache";
-import { useMatch } from "@solidjs/router";
-import { routes } from "@/routes";
 import { CreateInviteForm } from "@/layout/create-invite";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useCurrentGroupId } from "@/lib/group";
 import { BreadCrumbs } from "./breadcrumbs";
+import { isDev } from "@/lib/utils";
 
 const NAME = "Bivvy";
 
@@ -62,6 +61,7 @@ function DropDataButton() {
         if (dropped.errors.length > 0) {
             console.error("errors", dropped.errors);
         }
+        location.reload();
     };
     return (
         <Button variant="outline" onClick={onClick}>
@@ -88,7 +88,7 @@ function CreateInviteButton() {
 
 function DevButtons() {
     return (
-        <Show when={import.meta.env.VITE_IS_LOCAL}>
+        <Show when={isDev()}>
             <ForcePullButton />
             <DropDataButton />
         </Show>
