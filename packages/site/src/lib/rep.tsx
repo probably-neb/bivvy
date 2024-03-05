@@ -46,6 +46,11 @@ const mutators = {
         await cleanupExpenseSideEffects(tx, expense, o.groupId);
         await tx.del(P.expense.id(o.groupId, o.id));
     },
+    async expenseEdit(tx: WriteTransaction, e: Expense) {
+        await tx.set(P.expense.id(e.groupId, e.id), e);
+        await cleanupExpenseSideEffects(tx, e, e.groupId);
+        await createExpenseSideEffects(tx, e);
+    },
     async createSplit(tx: WriteTransaction, split: Split) {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
@@ -445,6 +450,13 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 id,
                 userId: ctx.userId,
             });
+        },
+        async expenseEdit(expense: Expense) {
+            const ctx = useCtx()
+            if (!ctx.isInit) {
+                throw new Error("Replicache not initialized");
+            }
+            await ctx.rep.mutate.expenseEdit(expenseSchema.parse(expense))
         },
         async createSplit(splitInput: SplitInput) {
             const ctx = useCtx();

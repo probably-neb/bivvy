@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,27 +16,53 @@ import {
     ComboboxTriggerMode,
 } from "@/components/ui/combobox";
 import { createFilter } from "@kobalte/core";
-import { createForm, FormApi } from "@tanstack/solid-form";
+import { createForm, FormApi, FormState } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import {
     ExpenseInput,
     useMutations,
     expenseInputSchema,
     useSplits,
+    Expense,
 } from "@/lib/rep";
 import { SplitRenderer } from "@/components/renderers";
 
 type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
-export function AddExpenseCard(props: {onSubmit?: () => void}) {
-    const { addExpense } = useMutations();
+export function AddExpenseCard(props: {
+    onSubmit?: () => void;
+    expense?: Expense;
+}) {
+    const { addExpense, expenseEdit } = useMutations();
+
+    const expenseToEdit = props.expense;
+    const isEditing = expenseToEdit != null;
+
+    // this has the nice beneifit of making these values non-reactive so they for sure won't
+    // update if the expense changes while editing
+    const defaultValues = expenseToEdit && {
+        description: expenseToEdit.description,
+        amount: expenseToEdit.amount / 100 + 0.0,
+        paidOn: expenseToEdit.paidOn,
+        splitId: expenseToEdit.splitId,
+    };
+
     const form: Form = createForm(() => ({
-        onSubmit: async ({ value, formApi}) => {
+        onSubmit: async ({ value, formApi }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
+            // convert to cents, since thats what we store everywhere else
+            // spread so the change is not reflected in the visible form state
+            value = { ...value, amount: value.amount * 100 };
             try {
-                await addExpense(value);
-                formApi.reset();
+                if (isEditing) {
+                    const e = Object.assign({}, expenseToEdit, value);
+                    await expenseEdit(e);
+                    formApi.state.isTouched = false
+                } else {
+                    await addExpense(value);
+                    formApi.reset();
+                }
                 props.onSubmit?.();
             } catch (e) {
                 console.error(e);
@@ -46,6 +72,7 @@ export function AddExpenseCard(props: {onSubmit?: () => void}) {
         onSubmitInvalid: (e) => {
             console.log("invalid", e.formApi.state.errors);
         },
+        defaultValues,
         validators: {
             onSubmit: expenseInputSchema,
         },
@@ -59,10 +86,9 @@ export function AddExpenseCard(props: {onSubmit?: () => void}) {
                 onSubmit={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    // console.log("submit", form.state.values)
                     await form
-                    .handleSubmit()
-                    .then(() => console.log("submitted"));
+                        .handleSubmit()
+                        .then(() => console.log("submitted"));
                     // void form.validate("submit");
                     // await addExpense(form.state.values);
                 }}
@@ -96,18 +122,94 @@ export function AddExpenseCard(props: {onSubmit?: () => void}) {
                     form={form}
                 />
 
-                <Button type="submit" disabled={!form.state.canSubmit}>
-                    Add
-                </Button>
+                <SaveButton form={form} isEditing={isEditing} />
             </form>
         </form.Provider>
     );
 }
 
+function SaveButton(props: { form: Form; isEditing: boolean }) {
+    enum State {
+        AddingCanSubmit,
+        AddingCannotSubmit,
+        EditingCannotSubmit,
+        EditingNotTouched,
+        EditingTouched,
+        EditingSaved,
+    }
+    const canSubmit = useFormValue(props.form, (f) => f.canSubmit);
+    const isSubmitted = useFormValue(props.form, (f) => f.isSubmitted);
+    const isTouched = useFormValue(props.form, (f) => f.isTouched);
+    const state = createMemo(() => {
+        if (props.isEditing) {
+            if (!canSubmit()) {
+                return State.EditingCannotSubmit;
+            }
+            // FIXME: this should be isSubmitted && isDirty, but there is no isDirty
+            if (isSubmitted() && !isTouched()) {
+                return State.EditingSaved;
+            }
+            if (isTouched()) {
+                return State.EditingTouched;
+            }
+            return State.EditingNotTouched;
+        }
+        if (canSubmit()) {
+            return State.AddingCanSubmit;
+        }
+        return State.AddingCannotSubmit;
+    });
+    const disabled = createMemo(() => {
+        const s = state();
+        return (
+            s === State.AddingCannotSubmit ||
+            s === State.EditingNotTouched ||
+            s === State.EditingSaved
+        );
+    });
+
+    return (
+        <Button type="submit" disabled={disabled()} >
+            <Switch fallback={"Save"}>
+                <Match
+                    when={
+                        state() == State.AddingCannotSubmit ||
+                        state() === State.AddingCanSubmit
+                    }
+                >
+                    Add
+                </Match>
+                <Match
+                    when={
+                        state() === State.EditingTouched ||
+                        state() === State.EditingNotTouched
+                    }
+                >
+                    Save
+                </Match>
+                <Match when={state() === State.EditingSaved}>Saved</Match>
+            </Switch>
+        </Button>
+    );
+}
+
+function useFormValue<V>(
+    form: Form,
+    selector: (f: FormState<ExpenseInput>) => V,
+) {
+    const formState = form.useStore();
+    const value = createMemo(() => selector(formState()));
+    return value;
+}
+
 function SplitSelect(props: { form: Form }) {
     const splits = useSplits();
     const allOptions = createMemo(() =>
-        (splits() ?? []).map((split) => ({name: split.name, id: split.id, element: () => <SplitRenderer splitId={split.id} />} )),
+        (splits() ?? []).map((split) => ({
+            name: split.name,
+            id: split.id,
+            element: () => <SplitRenderer splitId={split.id} />,
+        })),
     );
     type Option = typeof allOptions extends () => Array<infer O> ? O : never;
 
@@ -121,15 +223,23 @@ function SplitSelect(props: { form: Form }) {
             filter.contains(option.name, value()),
         );
     });
-    const [selected, setSelected] = createSignal<Option | undefined>();
+    const selectedId = useFormValue(
+        props.form,
+        (f) => f.values.splitId as string | undefined,
+    );
+    const selected = createMemo(() => {
+        const id = selectedId();
+        if (id == null || id === "") {
+            return undefined;
+        }
+        return allOptions().find((o) => o.id === id);
+    });
     const onChange = (value: Option | null) => {
         if (!value) {
-            console.log("removing field")
-            return
+            return;
         }
-        console.log("setting field", value)
-        setSelected(value)
-        props.form.setFieldValue("splitId", value.id);
+        console.log("setting field", value);
+        props.form.setFieldValue("splitId", value.id, {touch: true});
     };
 
     const onOpenChange = (
@@ -151,14 +261,15 @@ function SplitSelect(props: { form: Form }) {
             optionValue="id"
             optionLabel="name"
             itemComponent={(props) => {
-                console.log(props)
-                return <ComboboxItem item={props.item}>
-                    <props.item.rawValue.element />
-                </ComboboxItem>
+                return (
+                    <ComboboxItem item={props.item}>
+                        <props.item.rawValue.element />
+                    </ComboboxItem>
+                );
             }}
         >
             <TextFieldLabel>Split</TextFieldLabel>
-                <ComboboxTrigger>
+            <ComboboxTrigger>
                 {/*
                     FIXME: this looks ok but basically just makes it a select. Need to figure out how to
                            restore combobox functionality (search by typing)
@@ -168,7 +279,7 @@ function SplitSelect(props: { form: Form }) {
                 </Show>
                 {/* selected()?.element() ?? <div class="w-full"></div> */}
                 <ComboboxInput hidden />
-                </ComboboxTrigger>
+            </ComboboxTrigger>
             <ComboboxContent />
         </Combobox>
     );
@@ -179,12 +290,10 @@ function parseAmount(value: string) {
     if (isNaN(v)) {
         return undefined;
     }
-    // convert to cents, since thats what we store everywhere else
-    return v * 100;
+    return v;
 }
 
 function parseDate(value: string) {
-    console.log("parse date", value);
     const date = new Date(value);
     return date.getTime();
 }
@@ -223,6 +332,7 @@ export function Field(props: FieldProps) {
                         type={type}
                         placeholder={placeholder}
                         step={step}
+                        value={type === "date" ? formatDate(field().state.value!) : field().state.value!}
                         onChange={(e) =>
                             field().handleChange(
                                 props.parse?.(e.target.value) ?? e.target.value,
@@ -238,4 +348,12 @@ export function Field(props: FieldProps) {
             )}
         </form.Field>
     );
+}
+
+function formatDate(date: number | string | null) {
+    if (date == null) {
+        return undefined
+    }
+    const d = new Date(date);
+    return d.toISOString().split("T")[0];
 }

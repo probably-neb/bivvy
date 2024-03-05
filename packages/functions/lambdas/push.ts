@@ -119,6 +119,7 @@ type MutationName = (typeof MUTATIONS)[number];
 const MUTATIONS = [
     "addExpense",
     "deleteExpense",
+    "expenseEdit",
     "createSplit",
     "createGroup",
     "createInvite",
@@ -152,6 +153,7 @@ const zMutation = z
     .discriminatedUnion("name", [
         mutationValidator("addExpense", zExpense),
         mutationValidator("deleteExpense", zDeleteExpenseInput),
+        mutationValidator("expenseEdit", zExpense),
         mutationValidator("createSplit", zSplit),
         mutationValidator("createGroup", zCreateGroupInput),
         mutationValidator("createInvite", zInvite),
@@ -259,6 +261,9 @@ async function handleMutations(
                 case "deleteExpense":
                     ok = await deleteExpense(m.args);
                     break;
+                case "expenseEdit":
+                    ok = await expenseEdit(m.args);
+                    break;
                 case "createSplit":
                     ok = await createSplit(m.args);
                     break;
@@ -342,6 +347,42 @@ async function deleteExpense(args: DeleteExpenseInput) {
     return true;
 }
 
+async function expenseEdit(args: Expense) {
+    const ex = schema.expenses;
+    const session = useSession();
+    if (session.type !== "user") {
+        throw new Error("Invalid session type");
+    }
+    if (session.properties.userId != args.paidBy) {
+        throw new Error("Cannot edit another user's expense");
+    }
+
+    // FIXME: ensure groupId, paidBy, createdAt are not changed
+    // This is done now with `where` clause, so expense will not be found because one isn't equal
+    // but we lose info about what was changed leading to bad UX
+    const e = new Parser(args)
+        .rename("splitId", "split_id")
+        .rename("groupId", "group_id")
+        .replace("createdAt", "created_at", (d) => new Date(d))
+        .replace("paidOn", "paid_on", (d) => new Date(d))
+        .rename("paidBy", "paid_by_user_id")
+        // FIXME: date reimbursed is lost when changed to status
+        .replace("status", "reimbursed_at", () => null)
+        .value()
+
+    await db
+        .update(schema.expenses)
+        .set(e)
+        .where(
+            and(
+                eq(ex.id, args.id),
+                eq(ex.group_id, e.group_id),
+                eq(ex.paid_by_user_id, e.paid_by_user_id),
+            ),
+        );
+    return true
+}
+
 async function createSplit(args: Split) {
     await db.transaction(async (db) => {
         await _createSplit(db, args);
@@ -419,9 +460,9 @@ async function createEvenSplit(tx: Tx, id: string, groupID: string) {
         groupId: groupID,
         portions,
         createdAt: Date.now(),
-        color: null
+        color: null,
     };
-    await _createSplit(tx, split)
+    await _createSplit(tx, split);
     return split;
 }
 
@@ -432,33 +473,34 @@ async function createInvite(args: Invite) {
         .intToDate("acceptedAt")
         .rename("acceptedAt", "accepted_at")
         .rename("groupId", "group_id")
-        .value()
-    await db.insert(schema.invites)
-        .values(invite)
+        .value();
+    await db.insert(schema.invites).values(invite);
     return true;
 }
 async function acceptInvite(args: string) {
-    await db.transaction(async tx => {
-        const sess = useSession()
+    await db.transaction(async (tx) => {
+        const sess = useSession();
         if (sess.type !== "user") {
-            throw new Error("invalid session")
+            throw new Error("invalid session");
         }
-        const userID = sess.properties.userId
-        const inviteID = args
+        const userID = sess.properties.userId;
+        const inviteID = args;
         const invite = await tx.query.invites.findFirst({
-            where: eq(schema.invites.id, inviteID)
-        })
+            where: eq(schema.invites.id, inviteID),
+        });
         if (invite == null) {
-            throw new Error(`Invite with id: ${inviteID} not found`)
+            throw new Error(`Invite with id: ${inviteID} not found`);
         }
-        const groupID = invite.group_id
+        const groupID = invite.group_id;
 
-        const alreadyInGroup = await isUserMemberOfGroup(tx,groupID, userID)
+        const alreadyInGroup = await isUserMemberOfGroup(tx, groupID, userID);
         if (alreadyInGroup) {
-            throw new Error(`User: ${userID} is already a member of group: ${groupID}`)
+            throw new Error(
+                `User: ${userID} is already a member of group: ${groupID}`,
+            );
         }
-        await addUserToGroup(tx, groupID, userID)
-    })
+        await addUserToGroup(tx, groupID, userID);
+    });
     return true;
 }
 
@@ -466,8 +508,8 @@ async function isUserMemberOfGroup(tx: Tx, groupID: string, userID: string) {
     const user = await tx.query.users_to_group.findFirst({
         where: and(
             eq(schema.users_to_group.group_id, groupID),
-            eq(schema.users_to_group.user_id, userID)
-        )
-    })
-    return user != null
+            eq(schema.users_to_group.user_id, userID),
+        ),
+    });
+    return user != null;
 }

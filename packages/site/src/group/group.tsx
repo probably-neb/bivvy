@@ -40,11 +40,16 @@ import { useUserId } from "@/lib/session";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SplitRenderer, UserRenderer } from "@/components/renderers";
 import { CreateSplit } from "./create-split";
+import { BiRegularEdit } from "solid-icons/bi";
 
 type ExpenseCardView = { mode: "view"; id: Expense["id"] };
+type ExpenseCardEdit = { mode: "edit"; expense: Expense; id?: undefined };
 // TODO:
 // type AsideCardEdit = { mode: "edit"; id: Expense["id"] };
-type ExpenseCardMode = { mode: "add"; id?: undefined } | ExpenseCardView;
+type ExpenseCardMode =
+    | { mode: "add"; id?: undefined }
+    | ExpenseCardView
+    | ExpenseCardEdit;
 
 const [expenseCardMode, _setExpenseCardMode] = createSignal<ExpenseCardMode>(
     {
@@ -83,28 +88,6 @@ function getAddExpenseButtonProps() {
         disabled,
         onClick,
     };
-}
-
-function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
-    const { deleteExpense } = useMutations();
-
-    const userId = useUserId();
-    const expense = useExpense(() => props.expenseId);
-    const allowed = createMemo(() => userId() === expense()?.paidBy);
-
-    const onClickDelete = async () => {
-        // TODO: show confirmation dialog
-        await deleteExpense(props.expenseId);
-        setExpenseCardMode({ mode: "add" });
-        setExpenseCardOpen(false);
-    };
-    return (
-        <Show when={allowed()}>
-            <Button variant="ghost" onClick={onClickDelete}>
-                <TiTrash size="1.5em" class="bg-red" />
-            </Button>
-        </Show>
-    );
 }
 
 export default function GroupPage() {
@@ -159,7 +142,7 @@ function SplitsTab() {
             <section class="w-full lg:w-2/3 h-[80vh] overflow-y-auto scrollbar-none">
                 <div class="flex flex-wrap gap-4">
                     <For each={splits()}>
-                        {(split) => <SplitCard split={split} users={users()}/>}
+                        {(split) => <SplitCard split={split} users={users()} />}
                     </For>
                 </div>
             </section>
@@ -172,7 +155,7 @@ function SplitsTab() {
     );
 }
 
-function SplitCard(props: { split: Split, users?: Array<User>}) {
+function SplitCard(props: { split: Split; users?: Array<User> }) {
     const total = createMemo(() => {
         let total = 0;
         for (const portion of Object.values(props.split.portions)) {
@@ -228,8 +211,6 @@ function SplitCardPortions(props: {
     );
 }
 
-
-
 function PercentagePreview(props: { total: number; value: number }) {
     const percent = createMemo(() => {
         const value = (props.value / props.total) * 100;
@@ -241,12 +222,8 @@ function PercentagePreview(props: { total: number; value: number }) {
 }
 
 function UsersTab() {
-    return (
-        <OverviewCard />
-    )
+    return <OverviewCard />;
 }
-
-
 
 function ExpenseCardWrapper() {
     const device = useQueries();
@@ -254,6 +231,8 @@ function ExpenseCardWrapper() {
         switch (expenseCardMode().mode) {
             case "add":
                 return "New Expense";
+            case "edit":
+                return "Edit Expense";
             case "view":
                 return "Expense Details";
         }
@@ -326,7 +305,49 @@ function ViewExpenseCardFooter(props: { expenseId: Expense["id"] }) {
     return (
         <div class="w-full flex justify-evenly">
             <DeleteExpenseButton expenseId={props.expenseId} />
+            <EditExpenseButton expenseId={props.expenseId} />
         </div>
+    );
+}
+
+function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
+    const { deleteExpense } = useMutations();
+
+    const userId = useUserId();
+    const expense = useExpense(() => props.expenseId);
+    const allowed = createMemo(() => userId() === expense()?.paidBy);
+
+    const onClickDelete = async () => {
+        // TODO: show confirmation dialog
+        await deleteExpense(props.expenseId);
+        setExpenseCardMode({ mode: "add" });
+        setExpenseCardOpen(false);
+    };
+    return (
+        <Show when={allowed()}>
+            <Button variant="destructive" onClick={onClickDelete}>
+                <TiTrash size="1.5em" class="fill-destructive-foreground bg-red" />
+            </Button>
+        </Show>
+    );
+}
+
+function EditExpenseButton(props: { expenseId: Expense["id"] }) {
+    const userId = useUserId();
+    const expense = useExpense(() => props.expenseId);
+    const allowed = createMemo(() => userId() === expense()?.paidBy);
+    return (
+        <Show when={allowed()}>
+            <Button
+                variant="default"
+                onClick={[
+                    setExpenseCardMode,
+                    { mode: "edit", expense: expense()! },
+                ]}
+            >
+                <BiRegularEdit size="1.5em" class="fill-background" />
+            </Button>
+        </Show>
     );
 }
 
@@ -339,6 +360,33 @@ function ExpenseCardInner() {
             <Match when={expenseCardMode().mode === "view"}>
                 <ViewExpenseCard expenseId={expenseCardMode().id!} />
             </Match>
+            <Match when={expenseCardMode().mode === "edit"}>
+                <AddExpenseCard
+                    onSubmit={() => setExpenseCardOpen(false)}
+                    expense={dbg(
+                        "expense",
+                        (expenseCardMode() as ExpenseCardEdit).expense,
+                    )}
+                />
+            </Match>
         </Switch>
     );
+}
+
+function dbg<T>(label: string, v: T) {
+    console.log(label, v);
+    return v;
+}
+
+type Maybe<T> = T | null | undefined;
+
+function check<T>(arg: Maybe<T>, fn: (v: T) => Maybe<boolean>) {
+    if (arg == null) {
+        return null;
+    }
+    const res = fn(arg);
+    if (res == null || !res) {
+        return null;
+    }
+    return arg;
 }
