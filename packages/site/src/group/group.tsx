@@ -193,18 +193,19 @@ function SplitCardPortions(props: {
         <div class="flex">
             <div class="shrink grid grid-cols-3 items-center gap-4">
                 <For each={props.users}>
-                    {(user) => (
-                        <>
+                    {(user) => {
+                        const portion = createMemo(() => props.portions[user.id] ?? 0);
+                        return <>
                             <UserRenderer userId={user.id} />
                             <span class="inline-flex justify-center">{`${
-                                props.portions[user.id]
+                                portion()
                             }/${props.total}`}</span>
                             <PercentagePreview
                                 total={props.total}
-                                value={props.portions[user.id]}
+                                value={portion()}
                             />
                         </>
-                    )}
+                    }}
                 </For>
             </div>
         </div>
