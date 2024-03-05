@@ -1,11 +1,26 @@
 import { untrack } from "solid-js";
-import { Group } from "./rep";
 import { useToken } from "./session";
 import { ZodType, z } from "zod";
 
 export * as Api from "./api";
 
 const url = import.meta.env.VITE_API_URL;
+
+export async function validateSessionToken(token: string) {
+    console.log("validateSessionToken", token);
+    const response = await fetch("/session", {
+        headers: {
+            authorization: `Bearer ${token}`
+        },
+        validator: z.object({
+            session: z.discriminatedUnion("type", [
+                z.object({type: z.literal("user"), properties: z.object({userId: z.string()})}),
+                z.object({type: z.literal("public"), properties: z.object({})})
+            ])
+        }),
+    });
+    return response;
+}
 
 // FIXME: create ExpireAt field in token and use backend to check expiration
 export async function validateInviteToken(token: string) {
@@ -35,9 +50,9 @@ export function authUrl(provider: string) {
 export async function scanReceipt(file: File) {
     const res = await fetch("/scan/receipt", {
         method: "POST",
-        body: file
-    })
-    return res
+        body: file,
+    });
+    return res;
 }
 
 export async function scanSpreadsheet(file: File) {
@@ -45,10 +60,10 @@ export async function scanSpreadsheet(file: File) {
         method: "POST",
         body: file,
         headers: {
-            "content-type": file.type
-        }
-    })
-    return res
+            "content-type": file.type,
+        },
+    });
+    return res;
 }
 
 type QueryParams = ConstructorParameters<typeof URLSearchParams>[0];
@@ -60,6 +75,7 @@ type FetchOpts<T> = RequestInit & {
 
 const raiseForStatus = (response: Response) => {
     if (!response.ok) {
+        console.error(response.statusText);
         throw new Error(response.statusText);
     }
     return response;
@@ -88,15 +104,15 @@ async function fetch<T = any>(path: string, init?: FetchOpts<T>): Promise<T> {
             {
                 authorization: `Bearer ${token}`,
             },
-            init.headers,
+            init.headers
         );
     }
     const res = await window.fetch(path, init);
     raiseForStatus(res);
     const json = await res.json();
+    console.log("fetch", path, json);
     if (init?.validator) {
         return init.validator.parse(json);
     }
     return json;
 }
-

@@ -1,7 +1,9 @@
 import { useNavigate } from "@solidjs/router";
-import { ParentProps, createContext, createRenderEffect, on, splitProps, useContext } from "solid-js";
+import { ParentProps, Show, createContext, createEffect, createRenderEffect, createResource, on, splitProps, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 import { z } from "zod";
+import { isDev } from "./utils";
+import { Api } from "./api";
 
 export const USERS = [
     {
@@ -29,11 +31,13 @@ export type Session = {
     valid: true;
     token: string;
     userId: string;
+    validating: boolean;
     // TODO: make this a url param / component var not session var
 } | {
     valid: false,
     token?: undefined,
     userId?: undefined,
+    validating: boolean;
 };
 
 
@@ -51,31 +55,72 @@ type Functions = {
     isValid: () => boolean,
     initSession: (i: InitSession) => void,
     vars: () => Pick<Session, "token" | "userId"> | undefined,
+    isValidating: () => boolean,
 }
 
 const defaultFns: Functions = {
     isValid: () => false,
     initSession: (_: InitSession) => {},
     vars: () => undefined,
+    isValidating: () => false,
 }
 
 type Ctx = [Session, Functions]
 
-const SessionContext = createContext<Ctx>([{valid: false}, defaultFns])
+const SessionContext = createContext<Ctx>([{valid: false, validating: false}, defaultFns])
 
 export function SessionContextProvider(props: ParentProps) {
-    const [session, setSession] = createStore<Session>({valid: false});
+    const [session, setSession] = createStore<Session>({valid: false, validating: false});
     console.log("initial session", session)
+    const storedToken = getStoredAuthToken()
+    const [storedValid] = createResource(() => session.valid ? null : storedToken, Api.validateSessionToken)
+    createRenderEffect(() => {
+        console.log("begining to validate", session)
+        const state = storedValid.state
+        if (state === "pending") {
+            setSession("validating", true)
+            console.log("pending", session)
+            return
+        }
+        if (state !== "ready") {
+            // FIXME: how to handle other states?
+            setSession("validating", false)
+            console.log("not ready", {state})
+            return
+        }
+        const sesh = storedValid().session
+        if (storedToken == null) {
+            console.error("validated but no token??", {session: {...session}, response: {...sesh}, storedToken})
+            return
+        }
+        if (sesh.type !== "user") {
+            console.error("invalid session type")
+            // FIXME: how to handle this?
+            return
+        }
+        const up = {
+            valid: true as const,
+            token: storedToken,
+            userId: sesh.properties.userId,
+            validating: false,
+        }
+        console.log("validated", up)
+        setSession(up)
+    })
     const fns = {
         initSession(init: InitSession) {
             const up: Session = Object.assign({}, init, {
                 valid: true as const,
+                validating: false
             })
             console.log("initSession", up)
             setSession(up)
         },
         isValid() {
             if (!session.valid) {
+                if (session.validating) {
+                    return false
+                }
                 let init = loadInitFromParams()
                 if (!init) {
                     return false
@@ -83,6 +128,9 @@ export function SessionContextProvider(props: ParentProps) {
                 fns.initSession(init)
             }
             return session.valid
+        },
+        isValidating() {
+            return session.validating
         },
         vars() {
             const [vars] = splitProps(session, ["token", "userId"]);
@@ -109,12 +157,24 @@ function loadInitFromParams() {
         console.log("no token")
         return null;
     }
+    storeAuthToken(token)
     return {userId, token}
 }
 
-function getAuthCookie() {
-    const key = "auth-token"
-    return localStorage.getItem(key)
+const AUTH_TOKEN_KEY = "auth-token"
+
+function getStoredAuthToken() {
+    if (isDev()) {
+        return sessionStorage.getItem(AUTH_TOKEN_KEY)
+    }
+    return localStorage.getItem(AUTH_TOKEN_KEY)
+}
+function storeAuthToken(token: string) {
+    if (isDev()) {
+        sessionStorage.setItem(AUTH_TOKEN_KEY, token)
+        return
+    }
+    localStorage.setItem(AUTH_TOKEN_KEY, token)
 }
 
 export function useSession() {
@@ -124,13 +184,19 @@ export function useSession() {
 export function EnsureLogin(props: ParentProps) {
     const [, session] = useSession()
     const navigate = useNavigate()
-    createRenderEffect(on(session.isValid, (valid) => {
+    createRenderEffect(on([session.isValid, session.isValidating], ([valid, validating]) => {
+        if (validating) {
+            return
+        }
         if (!valid) {
             console.log("not logged in")
             navigate("/login")
         }
     }))
-    return props.children
+    // FIXME: include spinner
+    return <Show when={!session.isValidating()}>
+        {props.children}
+    </Show>
 }
 
 export function useSessionVars() {

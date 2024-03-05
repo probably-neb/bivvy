@@ -77,6 +77,12 @@ export default function API({ stack }: StackContext) {
                     permissions: ["ssm"],
                 },
             },
+            "GET /session": {
+                function: {
+                    handler: "packages/functions/auth/validate-session.handler",
+                    bind: [],
+                }
+            },
             "GET /invite": {
                 function: {
                     handler: "packages/functions/auth/invite.createHandler",

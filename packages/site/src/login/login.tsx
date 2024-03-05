@@ -1,12 +1,5 @@
 import { USERS, User, useSession } from "@/lib/session";
-import {
-    For,
-    JSX,
-    Show,
-    createMemo,
-    createRenderEffect,
-    on,
-} from "solid-js";
+import { For, JSX, Show, createMemo, createRenderEffect, on } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { routes } from "@/routes";
 import { Button } from "@/components/ui/button";
@@ -25,12 +18,12 @@ import { isLocal } from "@/lib/utils";
 type SelectItemProps<T> = { item: CollectionNode<T> };
 
 const AVAILABLE_PROVIDERS = ["google"] as const;
-type Provider = (typeof AVAILABLE_PROVIDERS)[number];
+type Provider = typeof AVAILABLE_PROVIDERS[number];
 
 const DEFAULT_PROVIDERS: Provider[] = ["google"];
 
 const PROVIDERS = Object.fromEntries(
-    DEFAULT_PROVIDERS.map((p) => [p, Api.authUrl(p)]),
+    DEFAULT_PROVIDERS.map((p) => [p, Api.authUrl(p)])
 );
 
 export default function () {
@@ -40,12 +33,13 @@ export default function () {
     const navigate = useNavigate();
     createRenderEffect(
         on(isValid, (valid) => {
+            // TODO: show loading spinner when validating
             if (!valid) {
-                return
+                return;
             }
             console.log("has session");
             navigate(routes.groups);
-        }),
+        })
     );
     return (
         <div class="flex justify-center items-center px-4 pt-4">
@@ -61,11 +55,13 @@ function LoginCard(props: { providers: Record<string, string> }) {
                 <CardTitle>Login</CardTitle>
             </CardHeader>
             <CardContent>
-                {/* TODO: email login */ }
+                {/* TODO: email login */}
                 <Show when={isLocal()}>
                     <GroupMembers />
                 </Show>
-                <div class="px-2 py-4 text-center text-sm text-muted-foreground">Or Continue With</div>
+                <div class="px-2 py-4 text-center text-sm text-muted-foreground">
+                    Continue With
+                </div>
                 <Providers providers={props.providers} />
             </CardContent>
         </Card>
@@ -111,9 +107,7 @@ function GroupMembers() {
     const onChange = async (user: User) => {
         // TODO: handle
         if (!user) return;
-        navigate(
-            url(user.id)
-        );
+        navigate(url(user.id));
     };
 
     function itemComponent(itemProps: SelectItemProps<User>) {
