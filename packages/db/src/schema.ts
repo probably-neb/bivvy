@@ -1,22 +1,21 @@
-import { relations } from "drizzle-orm";
+import { relations, sql} from "drizzle-orm";
 import {
-    mysqlTable as table,
-    varchar,
-    timestamp,
+    sqliteTable as table,
     int,
-    decimal,
+    real as decimal,
     text,
     unique,
     index,
     primaryKey,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/sqlite-core";
 
 function uint(name: string) {
-    return int(name, { unsigned: true });
+    // return int(name, { unsigned: true });
+    return int(name);
 }
 
 function _id(name: string) {
-    return varchar(name, { length: 21 });
+    return text(name, { length: 21 });
 }
 
 function id(name: string) {
@@ -36,20 +35,27 @@ function cents(name: string) {
 }
 
 function parts(name: string) {
-    return decimal(name, { precision: 12, scale: 10 });
+    // return decimal(name, { precision: 12, scale: 10 });
+    return decimal(name);
+}
+
+function timestamp(name: string) {
+    return int(name, {mode: "timestamp"})
+}
+
+function timestampDefaultNow(name: string) {
+    return int(name, {mode: "timestamp"}).default(sql`CURRENT_TIMESTAMP`)
 }
 
 export const users = table(
     "users",
     {
         id: id("id"),
-        name: varchar("name", { length: 255 }).notNull(),
-        created_at: timestamp("created_at").defaultNow(),
-        email: varchar("email", { length: 255 }),
-        profileUrl: varchar("profile_url", { length: 512 }),
+        name: text("name", { length: 255 }).notNull(),
+        created_at: timestampDefaultNow("created_at"),
+        email: text("email", { length: 255 }),
+        profileUrl: text("profile_url", { length: 512 }),
     },
-    (t) => ({
-    }),
 );
 
 export const userRelations = relations(users, ({ many }) => ({
@@ -114,10 +120,8 @@ export const groups = table(
     "groups",
     {
         id: id("id"),
-        name: varchar("name", { length: 255 }).notNull(),
+        name: text("name", { length: 255 }).notNull(),
     },
-    (t) => ({
-    }),
 );
 
 export const groupRelations = relations(groups, ({ many }) => ({
@@ -131,7 +135,7 @@ export const expenses = table(
     {
         id: id("id"),
         description: text("description").notNull(),
-        created_at: timestamp("created_at").defaultNow().notNull(),
+        created_at: timestampDefaultNow("created_at").notNull(),
         paid_on: timestamp("paid_on"),
         paid_by_user_id: idRef("paid_by_user_id").notNull(),
         amount: ucents("amount").notNull(),
@@ -164,9 +168,9 @@ export const splits = table(
     "splits",
     {
         id: id("id"),
-        name: varchar("name", { length: 255 }).notNull(),
+        name: text("name", { length: 255 }).notNull(),
         group_id: idRef("group_id").notNull(),
-        color: varchar("color", { length: 7 }),
+        color: text("color", { length: 7 }),
     },
     (t) => ({
         group_idx: index("group_idx").on(t.group_id),
@@ -186,7 +190,7 @@ export const split_portion_def = table("split_portion_def", {
     split_id: idRef("split_id").notNull(),
     parts: parts("parts").notNull(),
     user_id: idRef("user_id").notNull(),
-    total_parts: parts("total_parts").notNull().default("1.0"),
+    total_parts: parts("total_parts").notNull().default(1.0),
 });
 
 export const splitPortionDefRelations = relations(
@@ -229,7 +233,7 @@ export const splitPortionRelations = relations(split_portion, ({ one }) => ({
 
 export const payments = table("payments", {
     id: id("id"),
-    timestamp: timestamp("timestamp").defaultNow(),
+    timestamp: timestampDefaultNow("timestamp"),
     from_user_id: idRef("from_user_id").notNull(),
     to_user_id: idRef("to_user_id").notNull(),
     group_id: idRef("group_id").notNull(),
@@ -261,6 +265,6 @@ export const payment_splits = table("payment_splits", {
 export const invites = table("invites", {
     id: id("id"),
     group_id: idRef("group_id").notNull(),
-    created_at: timestamp("created_at").defaultNow().notNull(),
+    created_at: timestampDefaultNow("created_at").notNull(),
     accepted_at: timestamp("accepted_at"),
 })
