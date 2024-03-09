@@ -17,3 +17,4 @@ packages/site/public/patterns
 .env
 packages/solid-color/.git.bak
 packages/next
+packages/db/schema

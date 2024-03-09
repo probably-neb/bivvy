@@ -36,7 +36,7 @@ function cents(name: string) {
 
 function parts(name: string) {
     // return decimal(name, { precision: 12, scale: 10 });
-    return decimal(name);
+    return int(name);
 }
 
 function timestamp(name: string) {
@@ -44,7 +44,7 @@ function timestamp(name: string) {
 }
 
 function timestampDefaultNow(name: string) {
-    return int(name, {mode: "timestamp"}).default(sql`CURRENT_TIMESTAMP`)
+    return int(name, {mode: "timestamp"}).default(sql`(datetime('now'))`)
 }
 
 export const users = table(
@@ -70,7 +70,7 @@ export const users_to_group = table(
     },
     (t) => ({
         pk: primaryKey({ columns: [t.user_id, t.group_id] }),
-        gid_idx: index("gid_idx").on(t.group_id),
+        gid_idx: index("utg_group_idx").on(t.group_id),
     }),
 );
 
@@ -84,37 +84,6 @@ export const usersToGroupRelations = relations(users_to_group, ({ one }) => ({
         references: [groups.id],
     }),
 }));
-
-// caches owed amounts between users to avoid having to calculate them
-// constantly
-//
-// the usage is a bit tricky, but it's worth it to avoid having to calculate
-// the `amount` corresponds to what `user_a_id` owes `user_b_id` and can be negative
-// i.e. if `user_a` owes `user_b` then `amount` will be negative
-// there will be two rows in the table, one for each direction and **should** always
-// be the same magnitude but opposite sign
-export const owed = table(
-    "owed",
-    {
-        from_user_id: idRef("from_user_id").notNull(),
-        to_user_id: idRef("to_user_id").notNull(),
-        group_id: idRef("group_id").notNull(),
-        amount: cents("amount").notNull(),
-    },
-    (t) => ({
-        // all possible combinations of `from_user_id`, `to_user_id`, `group_id` should be unique
-        owed_un: unique("owed_un").on(t.from_user_id, t.to_user_id, t.group_id),
-        // when finding the amount owed by a single other user
-        owed_idx: index("owed_idx").on(
-            t.from_user_id,
-            t.to_user_id,
-            t.group_id,
-        ),
-        // when finding the amount owed by the other users in the group
-        // always query using the `to_user_id` col
-        owed_to_idx: index("owed_to_idx").on(t.to_user_id, t.group_id),
-    }),
-);
 
 export const groups = table(
     "groups",
@@ -144,7 +113,7 @@ export const expenses = table(
         group_id: idRef("group_id").notNull(),
     },
     (t) => ({
-        group_idx: index("group_idx").on(t.group_id),
+        group_idx: index("expense_group_idx").on(t.group_id),
     }),
 );
 
@@ -173,8 +142,8 @@ export const splits = table(
         color: text("color", { length: 7 }),
     },
     (t) => ({
-        group_idx: index("group_idx").on(t.group_id),
-        name_un: unique("name_un").on(t.name, t.group_id),
+        group_idx: index("split_group_idx").on(t.group_id),
+        name_un: unique("split_name_un").on(t.name, t.group_id),
     }),
 );
 
@@ -206,61 +175,6 @@ export const splitPortionDefRelations = relations(
         }),
     }),
 );
-
-export const split_portion = table("split_portion", {
-    split_id: idRef("split_id").notNull(),
-    expense_id: idRef("expense_id").notNull(),
-    user_id: idRef("user_id").notNull(),
-    total_amount: ucents("total_amount").notNull(),
-    reimbursed_amount: ucents("reimbursed_amount").default(0),
-    reimbursed_at: timestamp("reimbursed_at"),
-});
-
-export const splitPortionRelations = relations(split_portion, ({ one }) => ({
-    user: one(users, {
-        fields: [split_portion.user_id],
-        references: [users.id],
-    }),
-    split: one(splits, {
-        fields: [split_portion.split_id],
-        references: [splits.id],
-    }),
-    expense: one(expenses, {
-        fields: [split_portion.expense_id],
-        references: [expenses.id],
-    }),
-}));
-
-export const payments = table("payments", {
-    id: id("id"),
-    timestamp: timestampDefaultNow("timestamp"),
-    from_user_id: idRef("from_user_id").notNull(),
-    to_user_id: idRef("to_user_id").notNull(),
-    group_id: idRef("group_id").notNull(),
-    amount: ucents("amount").notNull(),
-});
-
-export const paymentRelations = relations(payments, ({ one }) => ({
-    from_user: one(users, {
-        fields: [payments.from_user_id],
-        references: [users.id],
-    }),
-    to_user: one(users, {
-        fields: [payments.to_user_id],
-        references: [users.id],
-    }),
-    group: one(groups, {
-        fields: [payments.group_id],
-        references: [groups.id],
-    }),
-}));
-
-export const payment_splits = table("payment_splits", {
-    id: id("id"),
-    payment_id: idRef("payment_id").notNull(),
-    split_portion_id: idRef("split_portion_id").notNull(),
-    amount: ucents("amount").notNull(),
-});
 
 export const invites = table("invites", {
     id: id("id"),
