@@ -325,8 +325,37 @@ async function createExpense(args: Expense) {
         .replace("createdAt", "created_at", (d) => new Date(d))
         .or_undefined("created_at")
         .value();
-    await db.insert(schema.expenses).values(e);
+    await db.transaction(async tx => {
+        // TODO: remove checks, add foreign key constraints
+        if (!await itemWithIDExists(tx, "splits", e.split_id)) {
+            throw new Error(`Split with id: ${e.split_id} not found`);
+        }
+        if (!await itemWithIDExists(tx, "groups",  e.group_id)) {
+            throw new Error(`Group with id: ${e.group_id} not found`);
+        }
+        if (!await itemWithIDExists(tx, "users", e.paid_by_user_id)) {
+            throw new Error(`User with id: ${e.paid_by_user_id} not found`);
+        }
+        await tx.insert(schema.expenses).values(e);
+    })
     return true;
+}
+
+type Table = Exclude<keyof typeof schema, `${string}Relations`> // "users" | "splits" | "groups" | "invites";
+
+async function itemWithIDExists<T extends Tx>(tx: T, table: Exclude<Table, "users_to_group" | "split_portion_def">, id: string) {
+    return await itemExists(tx, table, eq(schema[table].id, id));
+}
+
+async function itemExists<T extends Tx, Sql extends any>(tx: T, table: Table, sql: Sql) {
+    // @ts-ignore
+    const val = await tx.query[table].findFirst({
+        where: sql as any
+    })
+    if (val == null) {
+        return false as const;
+    }
+    return val
 }
 
 async function deleteExpense(args: DeleteExpenseInput) {
