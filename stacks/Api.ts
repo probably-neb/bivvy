@@ -60,11 +60,6 @@ export default function API({ stack }: StackContext) {
                     handler: "packages/functions/lambdas/push.handler",
                     bind: [clientTable],
                     permissions: ["ssm"],
-                    runtime: "nodejs20.x",
-                    architecture: "arm_64",
-                    nodejs: {
-                        install: ["@libsql/linux-x86-gnu"],
-                    },
                     environment: {
                         CLIENT_TABLE_NAME: clientTable.tableName,
                         SST_REGION: stack.region,
