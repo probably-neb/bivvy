@@ -126,7 +126,6 @@ export const expenseRelations = relations(expenses, ({ one, many}) => ({
         fields: [expenses.split_id],
         references: [splits.id],
     }),
-    portions: many(split_portion),
     group: one(groups, {
         fields: [expenses.group_id],
         references: [groups.id],

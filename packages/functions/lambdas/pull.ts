@@ -1,4 +1,4 @@
-import { alias, and, db, eq, schema, sql } from "@paypals/db";
+import { alias, db, eq, schema, sql } from "@paypals/db";
 import { ClientGroupTable } from "lib/client-table";
 import type { ClientID, JSONValue, ReadonlyJSONValue } from "replicache";
 import { ApiHandler } from "sst/node/api";
@@ -6,14 +6,13 @@ import { useSession } from "sst/node/auth";
 import Parser from "util/parser";
 import z from "zod";
 
-type PullRequest = {
+/* type PullRequest = {
     pullVersion: 1;
     clientGroupID: string;
     cookie: number;
     profileID: string;
     schemaVersion: string;
-};
-
+}; */
 const zPullRequest = z.object({
     // NOTE: should always be 1, but don't want to fail if it's not for now
     pullVersion: z.number(),
@@ -109,6 +108,7 @@ export const handler = ApiHandler(async (req) => {
     const userID = session.properties.userId;
 
     const { clientGroupID, schemaVersion, cookie } = body.data;
+    // TODO: check schema version
 
     const response: PullResponse = {
         cookie: calculateNextCookie(cookie),
@@ -409,7 +409,7 @@ function parseSplit(s: DBSplit) {
     return new Parser(s)
         .reassign("portions", (portions) =>
             Object.fromEntries(
-                portions.map((p) => [p.user_id, parseFloat(p.parts)]),
+                portions.map((p) => [p.user_id, p.parts]),
             ),
         )
         .rename("group_id", "groupId")
@@ -522,10 +522,10 @@ export function calculatePortion({
     return (amount * partsOwed) / totalParts;
 }
 
-export function getTotalParts(portions: Array<{ parts: string }>) {
+export function getTotalParts(portions: Array<{ parts: number }>) {
     let total = 0;
     for (const p of portions) {
-        total += parseFloat(p.parts);
+        total += p.parts;
     }
     console.assert(!isNaN(total), "total parts is NaN");
     console.assert(total > 0, "total parts is <= 0");
@@ -539,13 +539,13 @@ function calculateOwed(
     userID: string,
     paidByUserID: string,
     amount: number,
-    portionDefs: Array<{ parts: string; user_id: string }>,
+    portionDefs: Array<{ parts: number; user_id: string }>,
 ) {
     const totalParts = getTotalParts(portionDefs);
     const owed = new Array<[string, number]>(portionDefs.length);
     for (let i = 0; i < portionDefs.length; i++) {
         const pDef = portionDefs[i];
-        const partsOwed = parseFloat(pDef.parts);
+        const partsOwed = pDef.parts;
 
         // by default, portion equals to the amount owed by the current user
         // to another user who paid for the expense

@@ -10,6 +10,7 @@
     "dependencies": {
         "@planetscale/database": "^1.11.0",
         "drizzle-orm": "^0.29.0",
+        "libsql-stateless-easy": "^1.5.3",
         "mysql2": "^3.6.5"
     },
     "devDependencies": {

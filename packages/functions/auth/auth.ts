@@ -105,7 +105,8 @@ async function upsertUser(claims: IdTokenClaims) {
             profileUrl,
             email,
         })
-        .onDuplicateKeyUpdate({
+        .onConflictDoUpdate({
+            target: [schema.users.id],
             set: {
                 profileUrl,
                 name,

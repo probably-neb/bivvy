@@ -4,7 +4,7 @@ import { DB } from "./DB";
 
 
 export default function API({ stack }: StackContext) {
-    const {dbUrl: DB_URL} = use(DB);
+    const {dbUrl: DB_URL, dbToken: DB_TOKEN} = use(DB);
     const dns = use(DNS);
 
     const DSN = new Config.Secret(stack, "DSN");
@@ -28,7 +28,7 @@ export default function API({ stack }: StackContext) {
     const api = new Api(stack, "api", {
         defaults: {
             function: {
-                bind: [DB_URL],
+                bind: [DB_URL, DB_TOKEN],
             },
         },
         cors: {
