@@ -491,12 +491,15 @@ async function getOwedForUser(userID: string) {
         for (const expense of row.group.expenses) {
             const amount = expense.amount;
             const split = expense.split;
+            // FIXME: portions should never be null. Expenses should have a check to ensure
+            // the split exists
+            let portions = split == null ? [] : split.portions
             const paidByUserID = expense.paid_by_user_id;
             const owed = calculateOwed(
                 userID,
                 paidByUserID,
                 amount,
-                split.portions,
+                portions,
             );
 
             for (const [owedUserID, owedAmount] of owed) {
