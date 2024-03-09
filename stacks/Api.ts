@@ -30,7 +30,7 @@ export default function API({ stack }: StackContext) {
                 runtime: "nodejs20.x",
                 architecture: "x86_64",
                 nodejs: {
-                    install: ["@libsql/client"],
+                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
                 },
             },
         },
