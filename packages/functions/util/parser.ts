@@ -224,6 +224,16 @@ export default class Parser<T extends object> {
         return this as Parser<T & { [key in K]: V }>;
     }
 
+    or_undefined<K extends keyof T>(key: K) {
+        const obj = this.obj as any;
+        if (obj[key] == null) {
+            obj[key] = undefined;
+        }
+        return this as Parser<{
+            [key in keyof T]: key extends K ? NonNullable<T[key]> | undefined : T[key];
+        }>;
+    }
+
     value() {
         return this.obj as Simplify<T>;
     }

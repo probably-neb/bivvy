@@ -15,6 +15,8 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.525.0",
     "@aws-sdk/lib-dynamodb": "^3.525.0",
+    "@libsql/client": "^0.5.3",
+    "@libsql/linux-x64-gnu": "^0.3.8",
     "@paypals/db": "workspace:^",
     "@trpc/server": "^10.44.1",
     "fast-jwt": "^3.3.2",

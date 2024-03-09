@@ -39,7 +39,7 @@ export const zExpense = z.object({
     amount: z.number().gt(0),
     status: z.enum(["paid", "unpaid"]),
     paidOn: zUnixTime.nullable().default(null),
-    createdAt: zUnixTime.optional(),
+    createdAt: z.optional(zUnixTime),
     groupId: zGroup.shape.id,
     splitId: zId,
 });
@@ -72,7 +72,7 @@ export const zSplit = z.object({
     name: z.string(),
     id: zId,
     portions: z.record(zUser.shape.id, zPortion),
-    createdAt: zUnixTime,
+    createdAt: z.optional(zUnixTime),
     groupId: zGroup.shape.id,
     color: zHexString.nullable(),
 });
@@ -102,7 +102,7 @@ export type GroupInput = z.infer<typeof zGroupInput>;
 export const zInvite = z.object({
     id: zId,
     groupId: zGroup.shape.id,
-    createdAt: zUnixTime.optional(),
+    createdAt: z.optional(zUnixTime),
     acceptedAt: zUnixTime.nullable(),
 });
 
@@ -323,6 +323,7 @@ async function createExpense(args: Expense) {
         .replace("paidOn", "paid_on", (d) => new Date(d))
         .rename("groupId", "group_id")
         .replace("createdAt", "created_at", (d) => new Date(d))
+        .or_undefined("created_at")
         .value();
     await db.insert(schema.expenses).values(e);
     return true;
@@ -369,6 +370,7 @@ async function expenseEdit(args: Expense) {
         .rename("splitId", "split_id")
         .rename("groupId", "group_id")
         .replace("createdAt", "created_at", (d) => new Date(d))
+        .or_undefined("created_at")
         .replace("paidOn", "paid_on", (d) => new Date(d))
         .rename("paidBy", "paid_by_user_id")
         // FIXME: date reimbursed is lost when changed to status
@@ -414,7 +416,7 @@ async function _createSplit(tx: Tx, args: Split) {
         const pdef = {
             user_id,
             split_id: args.id,
-            parts: parts.toString(),
+            parts: parts,
         };
         pdefs[i] = pdef;
     }
@@ -488,6 +490,7 @@ async function createInvite(args: Invite) {
     const invite = new Parser(args)
         .intToDate("createdAt")
         .rename("createdAt", "created_at")
+        .or_undefined("created_at")
         .intToDate("acceptedAt")
         .rename("acceptedAt", "accepted_at")
         .rename("groupId", "group_id")

@@ -8,6 +8,8 @@
         "get-schema": "rm -rf ./schema && sst bind 'drizzle-kit generate:sqlite --config=get-schema.drizzle.config.ts' && cp ./schema/*.sql ./schema.sql"
     },
     "dependencies": {
+        "@libsql/client": "^0.5.3",
+        "@libsql/linux-x64-gnu": "^0.3.8",
         "@planetscale/database": "^1.11.0",
         "drizzle-orm": "^0.29.0",
         "libsql-stateless-easy": "^1.5.3",

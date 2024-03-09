@@ -7,8 +7,6 @@ export default function API({ stack }: StackContext) {
     const {dbUrl: DB_URL, dbToken: DB_TOKEN} = use(DB);
     const dns = use(DNS);
 
-    const DSN = new Config.Secret(stack, "DSN");
-
     const clientTable = new Table(stack, "clientTable", {
         fields: {
             ClientGroupId: "string",
@@ -29,6 +27,11 @@ export default function API({ stack }: StackContext) {
         defaults: {
             function: {
                 bind: [DB_URL, DB_TOKEN],
+                runtime: "nodejs20.x",
+                architecture: "x86_64",
+                nodejs: {
+                    install: ["@libsql/client", "@libsql/linux-x86-gnu"],
+                },
             },
         },
         cors: {
@@ -44,7 +47,7 @@ export default function API({ stack }: StackContext) {
             "POST /pull": {
                 function: {
                     handler: "packages/functions/lambdas/pull.handler",
-                    bind: [clientTable, DSN],
+                    bind: [clientTable],
                     permissions: ["ssm"],
                     environment: {
                         CLIENT_TABLE_NAME: clientTable.tableName,
@@ -55,8 +58,13 @@ export default function API({ stack }: StackContext) {
             "POST /push": {
                 function: {
                     handler: "packages/functions/lambdas/push.handler",
-                    bind: [clientTable, DSN],
+                    bind: [clientTable],
                     permissions: ["ssm"],
+                    runtime: "nodejs20.x",
+                    architecture: "arm_64",
+                    nodejs: {
+                        install: ["@libsql/linux-x86-gnu"],
+                    },
                     environment: {
                         CLIENT_TABLE_NAME: clientTable.tableName,
                         SST_REGION: stack.region,

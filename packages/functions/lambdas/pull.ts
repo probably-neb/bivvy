@@ -390,7 +390,8 @@ async function getSplitsForUser(userID: string) {
     for (let i = 0; i < numGroups; i++) {
         numSplits += rows.user_to_group[i].group.splits.length;
     }
-    const splits = new Array<ReturnType<typeof parseSplit>>(numSplits);
+    type Split = ReturnType<typeof parseSplit>
+    const splits = new Array<Split>(numSplits);
     let i = 0;
     for (let j = 0; j < numGroups; j++) {
         const groupSplits = rows.user_to_group[j].group.splits;

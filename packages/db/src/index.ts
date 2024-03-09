@@ -2,7 +2,7 @@ import {Config} from "sst/node/config"
 import {drizzle} from "drizzle-orm/libsql"
 // TODO: determine whether figuring out @libsql/client error (cant find @libsql/linux-x64-gnu)
 // is worth it for dedicated db connection instead of https requests for each db call
-import {createClient} from "libsql-stateless-easy"
+import {createClient} from "@libsql/client"
 import * as schema from "./schema";
 
 export * as schema from "./schema"
