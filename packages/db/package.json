@@ -5,6 +5,7 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "push": "sst bind drizzle-kit push:mysql",
+        "studio": "sst bind --script --stage=dev drizzle-kit studio",
         "get-schema": "rm -rf ./schema && sst bind 'drizzle-kit generate:sqlite --config=get-schema.drizzle.config.ts' && cp ./schema/*.sql ./schema.sql"
     },
     "dependencies": {
@@ -16,6 +17,6 @@
         "mysql2": "^3.6.5"
     },
     "devDependencies": {
-        "drizzle-kit": "^0.20.4"
+        "drizzle-kit": "^0.20.14"
     }
 }
