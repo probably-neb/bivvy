@@ -40,11 +40,11 @@ function parts(name: string) {
 }
 
 function timestamp(name: string) {
-    return int(name, {mode: "timestamp"})
+    return int(name, {mode: "timestamp_ms"})
 }
 
 function timestampDefaultNow(name: string) {
-    return int(name, {mode: "timestamp"}).default(sql`(datetime('now'))`)
+    return int(name, {mode: "timestamp_ms"}).default(sql`(datetime('now'))`)
 }
 
 export const users = table(

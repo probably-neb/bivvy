@@ -39,7 +39,7 @@ export const zExpense = z.object({
     amount: z.number().gt(0),
     status: z.enum(["paid", "unpaid"]),
     paidOn: zUnixTime.nullable().default(null),
-    createdAt: zUnixTime,
+    createdAt: zUnixTime.optional(),
     groupId: zGroup.shape.id,
     splitId: zId,
 });
@@ -102,7 +102,7 @@ export type GroupInput = z.infer<typeof zGroupInput>;
 export const zInvite = z.object({
     id: zId,
     groupId: zGroup.shape.id,
-    createdAt: zUnixTime,
+    createdAt: zUnixTime.optional(),
     acceptedAt: zUnixTime.nullable(),
 });
 
