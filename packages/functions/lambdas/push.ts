@@ -289,9 +289,11 @@ async function handleMutations(
         } catch (e) {
             // TODO: figure out errors that should be retried and
             // set ok to false in those cases
+            ok = true;
             console.error("Error processing mutation", e);
         }
         processed[i] = ok;
+        console.log({mutation: m.name, args: m.args, ok})
     }
 
     // mark mutations as processed in ClientGroup
