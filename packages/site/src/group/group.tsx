@@ -13,7 +13,6 @@ import {
     Match,
     ParentProps,
     For,
-    createEffect,
 } from "solid-js";
 import { OverviewCard } from "@/group/overview-card";
 import { ExpensesTable } from "@/group/expenses-table";

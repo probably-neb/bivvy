@@ -1,7 +1,7 @@
 import { useGroup } from "@/lib/rep";
 import { routes } from "@/routes";
 import { A, useMatch } from "@solidjs/router";
-import { For, Show, createMemo, on } from "solid-js";
+import { Accessor, For, Show, createMemo, on } from "solid-js";
 
 export function BreadCrumbs() {
     const crumbs = useCrumbs();
@@ -29,76 +29,88 @@ function Divider() {
 }
 
 function useCrumb(path: string) {
+    if (!path.endsWith("/*")) {
+        if (!path.endsWith("/")) {
+            path += "/";
+        }
+        path += "*";
+    }
     const match = useMatch(() => path);
     const params = createMemo(() => match()?.params);
     return params;
 }
 
-function useCrumbWithParam<Param extends string, Res>(fn: (param: string) => string, val: Param, mapFn: (paramVal: string) => Res) {
+function useCrumbWithParam<Param extends string, Res>(
+    fn: (param: string) => string,
+    val: Param,
+    mapFn: (paramVal: string) => Res,
+) {
     const param = ":" + val;
-    const crumb = useCrumb(fn(param));
-    const res = createMemo(on(crumb, (crumb) => {
-        if (!crumb) return;
-        if (!crumb[val]) {
-            console.error("crumb has no " + val, crumb);
-            return
-        }
-        return mapFn(crumb[val])
-    }))
-    return res
-}
-
-const groupsCrumb = () => <Crumb name="Groups" path={routes.groups} />;
-const loginCrumb = () => <Crumb name="Login" path={routes.auth} />;
-
-const groupCrumb =
-    (props: { id: string; name: () => string | undefined }) => () => (
-        <Crumb name={props.name() ?? ""} path={routes.group(props.id)} />
+    const path = fn(param);
+    const crumb = useCrumb(path);
+    const res = createMemo(
+        on(crumb, (crumb) => {
+            if (!crumb) return;
+            if (!crumb[val]) {
+                console.error("crumb has no " + val, crumb);
+                return;
+            }
+            return mapFn(crumb[val]);
+        }),
     );
-
-const scanCrumb = (props: {id: string}) => () => <Crumb name="Upload" path={routes.scanReceipt(props.id)} />
+    return res;
+}
 
 function getGroupInfo(groupId: string) {
     const group = useGroup(() => groupId);
     return {
         id: groupId,
         name: () => group()?.name,
-    }
+    };
 }
 
 function useCrumbs() {
-    const login = useCrumb(routes.auth + "/*");
-    const groups = useCrumb(routes.groups);
-    const group = useCrumbWithParam(routes.group, "id" as const, getGroupInfo)
-    const scanReceipt = useCrumbWithParam(routes.scanReceipt, "id" as const, getGroupInfo)
-    const scanSpreadsheet = useCrumbWithParam(routes.scanSpreadsheet, "id" as const, getGroupInfo)
+    const ID = "id" as const;
+    const r = routes;
+    const ggi = getGroupInfo;
 
-    const crumbs = createMemo(
-        on([login, groups, group, scanReceipt, scanSpreadsheet], ([login, groups, group, scanReceipt, scanSpreadsheet]) => {
-            switch (true) {
-                case !!login:
-                    return [loginCrumb];
-                case !!scanSpreadsheet:
-                case !!scanReceipt:
-                    const scan = scanReceipt ?? scanSpreadsheet!
-                    return [
-                        groupsCrumb,
-                        groupCrumb(scan),
-                        scanCrumb(scan)
-                    ]
-                case !!group:
-                    return [
-                        groupsCrumb,
-                        groupCrumb(group),
-                    ];
-                case !!groups:
-                    return [groupsCrumb];
-                default:
-                    return [];
-            }
-        }),
-    );
-    console.log(crumbs());
+    const login = useCrumb(r.auth + "/*");
+    const groups = useCrumb(r.groups + "/*");
+    const group = useCrumbWithParam(r.group, ID, ggi);
+    const groupUsers = useCrumbWithParam(r.groupUsers, ID, ggi);
+    const groupSplits = useCrumbWithParam(r.groupSplits, ID, ggi);
+    const scanReceipt = useCrumbWithParam(r.scanReceipt, ID, ggi);
+    const scanSpreadsheet = useCrumbWithParam(r.scanSpreadsheet, ID, ggi);
+
+    const crumbs = createMemo(() => {
+        const cs = [];
+        switch (true) {
+            case login() != null:
+                cs.push(CRUMB.Login);
+                break;
+            case groups() != null:
+                cs.push(CRUMB.Groups);
+                const g = group();
+                if (g != null) {
+                    cs.push(CRUMB.GROUP.Group(g.name, g.id));
+                    switch (true) {
+                        case groupUsers() != null:
+                            cs.push(CRUMB.GROUP.Users(g.id));
+                            break;
+                        case groupSplits() != null:
+                            cs.push(CRUMB.GROUP.Splits(g.id));
+                            break;
+                        case scanReceipt() != null:
+                            cs.push(CRUMB.GROUP.ScanReceipt(g.id));
+                            break;
+                        case scanSpreadsheet() != null:
+                            cs.push(CRUMB.GROUP.ScanSpreadsheet(g.id));
+                            break;
+                    }
+                }
+        }
+        return cs;
+    });
     return crumbs;
 }
 
@@ -112,3 +124,25 @@ function Crumb(props: { name: string; path: string }) {
         </A>
     );
 }
+
+const CRUMB = {
+    Login: () => <Crumb name="Login" path={routes.auth} />,
+    Groups: () => <Crumb name="Groups" path={routes.groups} />,
+    GROUP: {
+        Group: (name: Accessor<string | undefined>, groupId: string) => () => (
+            <Crumb name={name() ?? "Group"} path={routes.group(groupId)} />
+        ),
+        Users: (groupId: string) => () => (
+            <Crumb name="Users" path={routes.groupUsers(groupId)} />
+        ),
+        Splits: (groupId: string) => () => (
+            <Crumb name="Splits" path={routes.groupSplits(groupId)} />
+        ),
+        ScanReceipt: (groupId: string) => () => (
+            <Crumb name="Upload" path={routes.scanReceipt(groupId)} />
+        ),
+        ScanSpreadsheet: (groupId: string) => () => (
+            <Crumb name="Upload" path={routes.scanSpreadsheet(groupId)} />
+        ),
+    },
+};
