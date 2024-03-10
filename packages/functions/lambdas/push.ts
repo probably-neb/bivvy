@@ -248,6 +248,8 @@ async function handleMutations(
             continue;
         }
         const m = parsed.data;
+        // deep copy for logging later
+        const argsCopy = JSON.parse(JSON.stringify(m.args));
         const clientExists = cg.hasClient(m.clientID);
         if (!clientExists) {
             cg.addNewClient(m.clientID);
@@ -293,7 +295,7 @@ async function handleMutations(
             console.error("Error processing mutation", e);
         }
         processed[i] = ok;
-        console.log({mutation: m.name, args: m.args, ok})
+        console.log({mutation: m.name, args: argsCopy, argsAfter: m.args, ok})
     }
 
     // mark mutations as processed in ClientGroup
