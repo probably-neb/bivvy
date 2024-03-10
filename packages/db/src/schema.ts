@@ -90,15 +90,21 @@ export const groups = table(
     {
         id: id("id"),
         name: text("name", { length: 255 }).notNull(),
+        created_at: timestampDefaultNow("created_at").notNull(),
+        owner_id: idRef("owner_id").notNull(),
         pattern: text("pattern"),
         color: text("color", { length: 7 }),
     },
 );
 
-export const groupRelations = relations(groups, ({ many }) => ({
+export const groupRelations = relations(groups, ({one, many }) => ({
     users_to_group: many(users_to_group),
     expenses: many(expenses),
     splits: many(splits),
+    owner: one(users, {
+        fields: [groups.owner_id],
+        references: [users.id],
+    })
 }))
 
 export const expenses = table(
