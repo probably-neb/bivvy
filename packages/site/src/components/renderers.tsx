@@ -26,17 +26,31 @@ type DateProps = {
     date: IntoDate;
 };
 
+function getLocalDateFromUTC(d: IntoDate) {
+    const tzOffsetMs = new Date().getTimezoneOffset() * 60 * 1000;
+    const dateUnixMs = new Date(d).getTime();
+    const date = new Date(dateUnixMs + tzOffsetMs);
+    return date;
+}
+
 export function DateRenderer(props: DateProps) {
     const format = createMemo(() => {
-        const date = new Date(props.date);
+        const date = getLocalDateFromUTC(props.date);
         const format = props.format ?? "m/d/y";
+
+        // month is 0 indexed
+        const month = date.getMonth() + 1
+        const day = date.getDate()
+        let year = date.getFullYear()
+        if (year > 2000) {
+            // shorten years after 2000 to 2 digits
+            year -= 2000
+        }
         switch (format) {
         case "m/d/y":
-            return `${date.getMonth() + 1}/${date.getDate()}/${
-                date.getFullYear() - 2000
-            }`;
+            return `${month}/${day}/${year}`;
         case "m/y":
-            return `${date.getMonth() + 1}/${date.getFullYear() - 2000}`;
+            return `${month}/${year}`;
         }
     })
     return <span>{format()}</span>;
