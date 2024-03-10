@@ -8,6 +8,8 @@ import {
     from,
     on,
     useContext,
+    Signal,
+    createSignal,
 } from "solid-js";
 import { ReadTransaction, Replicache, WriteTransaction } from "replicache";
 import { nanoid } from "nanoid";
@@ -167,7 +169,19 @@ export function initReplicache(s: InitSession) {
 
 export type Rep = ReturnType<typeof initReplicache>;
 
-export const INVITE_PREFIX = "invite"
+function useIsClosed() {
+    return useContext(ReplicacheContext)[2][0];
+}
+
+export function closeRep() {
+    const [rep, _, [_closed, setClosed]] = useContext(ReplicacheContext);
+    rep()?.close();
+    // FIXME: use still logging "not init" after closing (logging out)
+    setClosed(true);
+}
+
+export const INVITE_PREFIX = "invite";
+
 
 async function acceptPendingInvites(rep: Rep) {
     // TODO: scan for multiple invites just in case?
@@ -189,22 +203,23 @@ async function acceptPendingInvites(rep: Rep) {
     }
 
     const acceptTasks = invites.map(async ([key, invite]) => {
-            await rep.mutate.acceptInvite(invite);
-            localStorage.removeItem(key);
-            console.log("accepted invite", key);
-            return invite
-    })
-    const results = await Promise.allSettled(acceptTasks)
+        await rep.mutate.acceptInvite(invite);
+        localStorage.removeItem(key);
+        console.log("accepted invite", key);
+        return invite;
+    });
+    const results = await Promise.allSettled(acceptTasks);
     if (results.length != 0) {
-        await rep.pull()
+        await rep.pull();
     }
-    return results
+    return results;
 }
 
 // TODO: refactor into set, get, getAll that take Transactions and give type safe result
 // also create filter option that doesn't copy (may need to be called separately but having
 // it here would be nice)
 const P = {
+    currentUserID: "userID",
     // return session group id but don't track changes to it
     group: {
         prefix: `groups/`,
@@ -375,26 +390,32 @@ const defualtMutations: MutationWrappers = Object.fromEntries(
     Object.keys(mutators).map((k) => [k, async () => {}]),
 ) as MutationMap;
 
-type Ctx = [Accessor<Rep | null>, MutationWrappers];
-const defaultCtx: Ctx = [() => null, defualtMutations];
+type Ctx = [Accessor<Rep | null>, MutationWrappers, Signal<boolean>];
+const defaultCtx: Ctx = [() => null, defualtMutations, [() => true, () => {}]];
 const ReplicacheContext = createContext<Ctx>(defaultCtx);
 
 export function ReplicacheContextProvider(props: ParentProps) {
     const [session] = useSession();
+    const closed = createSignal(true);
     const rep = createMemo(() => {
         if (!session.valid) {
             return null;
         }
+        closed[1](false)
         return initReplicache(session);
     });
 
-    const [acceptedInvites] = createResource(rep, (rep) => acceptPendingInvites(rep))
-    createEffect(on(acceptedInvites, (results) => {
-        if (results == null) {
-            return
-        }
-        console.log("invite results: ", results)
-    }))
+    const [acceptedInvites] = createResource(rep, (rep) =>
+        acceptPendingInvites(rep),
+    );
+    createEffect(
+        on(acceptedInvites, (results) => {
+            if (results == null) {
+                return;
+            }
+            console.log("invite results: ", results);
+        }),
+    );
 
     const groupId = useGroupId();
     const userId = useUserId();
@@ -455,11 +476,11 @@ export function ReplicacheContextProvider(props: ParentProps) {
             });
         },
         async expenseEdit(expense: Expense) {
-            const ctx = useCtx()
+            const ctx = useCtx();
             if (!ctx.isInit) {
                 throw new Error("Replicache not initialized");
             }
-            await ctx.rep.mutate.expenseEdit(expenseSchema.parse(expense))
+            await ctx.rep.mutate.expenseEdit(expenseSchema.parse(expense));
         },
         async createSplit(splitInput: SplitInput) {
             const ctx = useCtx();
@@ -485,7 +506,6 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 throw new Error("Replicache not initialized");
             }
             await ctx.rep.mutate.splitEdit(splitSchema.parse(split));
-
         },
         async createGroup(name: Group["name"]) {
             const ctx = useCtx();
@@ -534,7 +554,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
     } satisfies MutationWrappers;
 
     return (
-        <ReplicacheContext.Provider value={[rep, mutations]}>
+        <ReplicacheContext.Provider value={[rep, mutations, closed]}>
             {props.children}
         </ReplicacheContext.Provider>
     );
@@ -645,7 +665,7 @@ export function useOwed() {
         };
         const groupUsers = tx
             .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
-            .values()
+            .values();
         for await (const gu of groupUsers) {
             if (gu.id === userId) {
                 owed.total = gu.owed ?? 0;
@@ -664,6 +684,21 @@ export function useUsers(group?: Accessor<Group["id"]>) {
         return groupUsers(tx, groupId);
     });
     return users;
+}
+
+export function useCurrentUser() {
+    const user = use(async (tx) => {
+        const userID = await tx.get<string>(P.currentUserID);
+        console.log("userID", userID);
+        if (userID == null) {
+            return null;
+        }
+        return await tx.get<User>(P.user.id(userID));
+    }, false);
+    createEffect(() => {
+        console.log("currentUser", user());
+    });
+    return user;
 }
 
 export function useUser(
@@ -723,6 +758,13 @@ export function use<R, W extends true | false>(
         const rep = useRep();
         const groupId = useGroupId();
         const userId = useUserId();
+        const isClosed = useIsClosed()
+        if (isClosed()) {
+            return {
+                isInit: false,
+                isClosed: true,
+            } as const
+        }
         if (!rep() || !userId()) {
             console.log("not init", {
                 rep: rep(),
@@ -749,7 +791,12 @@ export function use<R, W extends true | false>(
         on(ctxVals, (ctx) => {
             const { isInit, groupId, userId, rep } = ctx;
             if (!isInit || (!groupId && withGroupId !== false)) {
+                if (ctx.isClosed) {
+                    console.log("closed")
+                    return;
+                }
                 console.log("not init");
+                setValue("value", undefined);
                 return;
             }
 
@@ -805,6 +852,14 @@ export function useWithOpts<Opts, Result>(
         const rep = useRep();
         const groupId = useGroupId();
         const userId = useUserId();
+        const isClosed = useIsClosed()
+        if (isClosed()) {
+            console.log("closed")
+            return {
+                isInit: false,
+                isClosed: true,
+            } as const
+        }
         if (!rep() || !userId()) {
             console.log("not init", {
                 rep: rep(),
@@ -838,7 +893,12 @@ export function useWithOpts<Opts, Result>(
         on([ctxVals, getOpts], ([ctx, opts]) => {
             const { isInit, groupId, userId, rep } = ctx;
             if (!isInit) {
+                if (ctx.isClosed) {
+                    console.log("closed")
+                    return;
+                }
                 console.log("not init");
+                setValue("value", undefined);
                 return;
             }
 

@@ -126,11 +126,11 @@ function calculateNextCookie(cookie: number | null) {
     return cookie + 1;
 }
 
-async function constructPatches(profileID: string) {
-    const getUsers = getUsersForUser(profileID);
-    const getExpenses = getExpensesForUser(profileID);
-    const getSplits = getSplitsForUser(profileID);
-    const getGroups = getGroupsForUser(profileID);
+async function constructPatches(userID: string) {
+    const getUsers = getUsersForUser(userID);
+    const getExpenses = getExpensesForUser(userID);
+    const getSplits = getSplitsForUser(userID);
+    const getGroups = getGroupsForUser(userID);
     const [expenses, { unique: users, group: groupUsers }, splits, groups] =
         await Promise.all([getExpenses, getUsers, getSplits, getGroups]);
 
@@ -139,15 +139,23 @@ async function constructPatches(profileID: string) {
     for (const groupUserArr of groupUsers.values()) {
         numPatches += groupUserArr.length;
     }
+    // 1 for the clear operation, 1 for the user id
+    const numConstantPatches = 2
 
-    const patches = new Array<PatchOperation>(numPatches + 1)
+    const patches = new Array<PatchOperation>(numPatches + numConstantPatches)
         .fill(null as unknown as PatchOperation)
         .map(createEmptyPutPatch);
 
+    // store constant patches
+    // clear
     // @ts-ignore
     patches[0] = CLEAR_OP;
+    // userID
+    patches[1].key = "userID"
+    patches[1].value = userID
 
-    let i = 1;
+    let i = 2;
+
     for (const expense of expenses) {
         const p = patches[i++];
         p.key = expenseKey(expense.groupId, expense.id);

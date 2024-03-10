@@ -10,8 +10,8 @@ export function UserRenderer(props: { userId: User["id"], groupId?: Accessor<Gro
 
 
     return (
-        <div class="flex gap-1 items-center">
-            <Show when={user()?.profileUrl} fallback={<TiUserOutline size="1.5em" />}>
+        <div class="flex gap-2 items-center">
+            <Show when={user()?.profileUrl} fallback={<TiUserOutline color="black" class="bg-white rounded-full" size="1.5em" />}>
                 {url => <img src={url()} class="rounded-full w-[1.5em] h-[1.5em]" />}
             </Show>
             <h3>{user()?.name}</h3>

@@ -1,9 +1,11 @@
 import { useNavigate } from "@solidjs/router";
-import { ParentProps, Show, createContext, createEffect, createRenderEffect, createResource, on, splitProps, useContext } from "solid-js";
+import { ParentProps, Show, createContext, createMemo, createRenderEffect, createResource, on, splitProps, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 import { z } from "zod";
 import { isDev } from "./utils";
 import { Api } from "./api";
+import { routes } from "@/routes";
+import { closeRep } from "./rep";
 
 export const USERS = [
     {
@@ -51,21 +53,23 @@ export const initSessionSchema = z.object({
 
 export type InitSession = z.infer<typeof initSessionSchema>
 
-type Functions = {
+type SessionFunctions = {
     isValid: () => boolean,
     initSession: (i: InitSession) => void,
     vars: () => Pick<Session, "token" | "userId"> | undefined,
     isValidating: () => boolean,
+    logout: () => void,
 }
 
-const defaultFns: Functions = {
+const defaultFns: SessionFunctions = {
     isValid: () => false,
     initSession: (_: InitSession) => {},
     vars: () => undefined,
     isValidating: () => false,
+    logout: () => {},
 }
 
-type Ctx = [Session, Functions]
+type Ctx = [Session, SessionFunctions]
 
 const SessionContext = createContext<Ctx>([{valid: false, validating: false}, defaultFns])
 
@@ -132,6 +136,12 @@ export function SessionContextProvider(props: ParentProps) {
         isValidating() {
             return session.validating
         },
+        logout() {
+            removeAuthToken()
+            closeRep()
+            setSession({valid: false, validating: false})
+            // NOTE: expecting that the RequireLogin component will handle the session being reset
+        },
         vars() {
             const [vars] = splitProps(session, ["token", "userId"]);
             if (session.valid) {
@@ -176,6 +186,14 @@ function storeAuthToken(token: string) {
     }
     localStorage.setItem(AUTH_TOKEN_KEY, token)
 }
+function removeAuthToken() {
+    if (isDev()) {
+        sessionStorage.removeItem(AUTH_TOKEN_KEY)
+        return
+    }
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+}
+
 
 export function useSession() {
     return useContext(SessionContext);
@@ -206,7 +224,8 @@ export function useSessionVars() {
 
 export function useUserId() {
     const [session] = useSession();
-    return () => session.userId;
+    const userId = createMemo(() => session.userId)
+    return userId
 }
 
 export function useToken() {

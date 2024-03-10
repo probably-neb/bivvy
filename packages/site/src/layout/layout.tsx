@@ -1,6 +1,6 @@
 import { ParentProps, createSignal } from "solid-js";
 import { fade } from "@/lib/fade";
-import { useRep } from "@/lib/rep";
+import { useCurrentUser, useRep, useUser } from "@/lib/rep";
 import { Show } from "solid-js";
 import { Button } from "@/components/ui/button";
 import { dropAllDatabases } from "replicache";
@@ -9,6 +9,16 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useCurrentGroupId } from "@/lib/group";
 import { BreadCrumbs } from "./breadcrumbs";
 import { isDev } from "@/lib/utils";
+import { useSession } from "@/lib/session";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuGroupLabel,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { UserRenderer } from "@/components/renderers";
 
 const NAME = "Bivvy";
 
@@ -25,9 +35,9 @@ export default function Layout({ children }: ParentProps) {
                         <h1 class="text-4xl font-bold">{NAME}</h1>
                         <BreadCrumbs />
                     </div>
-                    <div class="flex justify-evenly gap-2">
+                    <div class="flex justify-evenly gap-2 items-center">
                         <CreateInviteButton />
-                        <DevButtons />
+                        <Profile />
                     </div>
                 </div>
                 <div class="p-6">{children}</div>
@@ -46,7 +56,7 @@ function ForcePullButton() {
     };
     return (
         <Show when={rep()}>
-            <Button variant="outline" onClick={onClick}>
+            <Button variant="ghost" onClick={onClick}>
                 Pull
             </Button>
         </Show>
@@ -64,22 +74,72 @@ function DropDataButton() {
         location.reload();
     };
     return (
-        <Button variant="outline" onClick={onClick}>
+        <Button variant="ghost" onClick={onClick}>
             Drop
         </Button>
     );
 }
 
+function Profile() {
+    const user = useCurrentUser();
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger>
+                <Show when={user()}>
+                    {(user) => (
+                        <div class="text-primary-foreground text-xl bg-primary-foreground/20 hover:bg-primary-foreground/10 px-4 py-2 rounded-lg">
+                            <UserRenderer userId={user().id} />
+                        </div>
+                    )}
+                </Show>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                <Show when={isDev()}>
+                    <DropdownMenuItem>
+                        <ForcePullButton />
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                </Show>
+                <Show when={isDev()}>
+                    <DropdownMenuItem>
+                        <DropDataButton />
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                </Show>
+                <DropdownMenuItem>
+                    <LogoutButton />
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+function LogoutButton() {
+    const [_, session] = useSession();
+    return (
+        <Show when={session.isValid()}>
+            <Button variant="ghost" onClick={session.logout}>
+                Logout
+            </Button>
+        </Show>
+    );
+}
+
 function CreateInviteButton() {
-    const groupId = useCurrentGroupId()
+    const groupId = useCurrentGroupId();
     const [open, setOpen] = createSignal(false);
     return (
         <Show when={Boolean(groupId())}>
-            <Button variant="outline" onClick={[setOpen, true]}>New Invite</Button>
+            <Button variant="outline" onClick={[setOpen, true]}>
+                New Invite
+            </Button>
             <Dialog open={open()} onOpenChange={setOpen}>
                 <DialogContent class="sm:max-w-[425px] max-w-[80%]">
                     <DialogTitle>Invite</DialogTitle>
-                    <CreateInviteForm onSubmit={() => setOpen(false)} groupId={groupId()!} />
+                    <CreateInviteForm
+                        onSubmit={() => setOpen(false)}
+                        groupId={groupId()!}
+                    />
                 </DialogContent>
             </Dialog>
         </Show>
