@@ -79,6 +79,7 @@ function useCrumbs() {
     const group = useCrumbWithParam(r.group, ID, ggi);
     const groupUsers = useCrumbWithParam(r.groupUsers, ID, ggi);
     const groupSplits = useCrumbWithParam(r.groupSplits, ID, ggi);
+    const groupInfo = useCrumbWithParam(r.groupInfo, ID, ggi);
     const scanReceipt = useCrumbWithParam(r.scanReceipt, ID, ggi);
     const scanSpreadsheet = useCrumbWithParam(r.scanSpreadsheet, ID, ggi);
 
@@ -100,6 +101,9 @@ function useCrumbs() {
                         case groupSplits() != null:
                             cs.push(CRUMB.GROUP.Splits(g.id));
                             break;
+                        case groupInfo() != null:
+                            cs.push(CRUMB.GROUP.Info(g.id))
+                            break
                         case scanReceipt() != null:
                             cs.push(CRUMB.GROUP.ScanReceipt(g.id));
                             break;
@@ -137,6 +141,9 @@ const CRUMB = {
         ),
         Splits: (groupId: string) => () => (
             <Crumb name="Splits" path={routes.groupSplits(groupId)} />
+        ),
+        Info: (groupId: string) => () => (
+            <Crumb name="Info" path={routes.groupInfo(groupId)} />
         ),
         ScanReceipt: (groupId: string) => () => (
             <Crumb name="Upload" path={routes.scanReceipt(groupId)} />

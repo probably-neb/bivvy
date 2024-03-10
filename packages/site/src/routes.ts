@@ -11,6 +11,9 @@ export const routes = {
     groupSplits(id: string) {
         return `/groups/${id}/splits`;
     },
+    groupInfo(id: string) {
+        return `/groups/${id}/group`
+    },
     scanReceipt(groupId: string) {
         return `${routes.group(groupId)}/scan/receipt`
     },

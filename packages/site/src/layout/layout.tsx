@@ -36,7 +36,6 @@ export default function Layout({ children }: ParentProps) {
                         <BreadCrumbs />
                     </div>
                     <div class="flex justify-evenly gap-2 items-center">
-                        <CreateInviteButton />
                         <Profile />
                     </div>
                 </div>
@@ -125,32 +124,4 @@ function LogoutButton() {
     );
 }
 
-function CreateInviteButton() {
-    const groupId = useCurrentGroupId();
-    const [open, setOpen] = createSignal(false);
-    return (
-        <Show when={Boolean(groupId())}>
-            <Button variant="outline" onClick={[setOpen, true]}>
-                New Invite
-            </Button>
-            <Dialog open={open()} onOpenChange={setOpen}>
-                <DialogContent class="sm:max-w-[425px] max-w-[80%]">
-                    <DialogTitle>Invite</DialogTitle>
-                    <CreateInviteForm
-                        onSubmit={() => setOpen(false)}
-                        groupId={groupId()!}
-                    />
-                </DialogContent>
-            </Dialog>
-        </Show>
-    );
-}
 
-function DevButtons() {
-    return (
-        <Show when={isDev()}>
-            <ForcePullButton />
-            <DropDataButton />
-        </Show>
-    );
-}
