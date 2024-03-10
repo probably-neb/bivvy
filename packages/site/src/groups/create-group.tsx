@@ -1,4 +1,4 @@
-import { For } from "solid-js";
+import { Accessor, For, Show, createMemo, createSignal, onMount, on} from "solid-js";
 import { Button } from "@/components/ui/button";
 import {
     TextField,
@@ -6,31 +6,66 @@ import {
     TextFieldInput,
     TextFieldLabel,
 } from "@/components/ui/textfield";
-import { createForm, FormApi } from "@tanstack/solid-form";
+import { createForm, FormApi, FormState } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import {
     useMutations,
-    expenseInputSchema,
     GroupInput,
     groupInputSchema,
 } from "@/lib/rep";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Pattern, randomPattern, randomColor, usePatternNames, usePossibleColors } from "@/lib/patterns";
+import { createFilter } from "@kobalte/core";
+import { Combobox, ComboboxContent, ComboboxInput, ComboboxTrigger, ComboboxTriggerMode, ComboboxItem} from "@/components/ui/combobox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { BlockPicker, ColorResult } from "solid-color";
 
 type Form = FormApi<GroupInput, typeof zodValidator>;
 
-export function CreateGroupForm(props: {onSubmit?: () => void}) {
+export function CreateGroupModal(props: {
+    open: Accessor<boolean>;
+    setOpen: (open: boolean) => void;
+}) {
+    const [patternPreview, _setPatternPreview] = createSignal({color: randomColor(), pattern: randomPattern()});
+    const setPatternPreview = (pattern: string, color: string) => {
+        const preview = {pattern, color}
+        console.log({preview})
+        _setPatternPreview(preview);
+    }
+    return (
+        <Dialog open={props.open()} onOpenChange={props.setOpen}>
+            <DialogContent class="sm:max-w-[425px] max-w-[80%] p-0">
+                <DialogHeader class="w-full h-16 p-0 rounded-t-xl">
+                    <Pattern name={patternPreview().pattern} color={patternPreview().color}/>
+                </DialogHeader>
+                <div class="p-4">
+                    <DialogTitle>Create Group</DialogTitle>
+                    <CreateGroupForm onSubmit={() => props.setOpen(false)} setPatternPreview={setPatternPreview} patternPreview={patternPreview()} />
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: {pattern: string, color: string}, setPatternPreview?: (pattern: string, color: string) => void}) {
     const { createGroup } = useMutations();
+    const defaultValues = {
+        name: "",
+        pattern: null,
+        color: null,
+        ...props.patternPreview
+    }
     const form: Form = createForm(() => ({
-        onSubmit: async ({ value, formApi}) => {
+        onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
             try {
-                await createGroup(value.name);
-                formApi.reset();
+                await createGroup(value);
                 props.onSubmit?.();
             } catch (e) {
                 console.error(e);
             }
         },
+        defaultValues,
         validatorAdapter: zodValidator,
         onSubmitInvalid: (e) => {
             console.log("invalid", e.formApi.state.errors);
@@ -39,6 +74,17 @@ export function CreateGroupForm(props: {onSubmit?: () => void}) {
             onSubmit: groupInputSchema,
         },
     }));
+
+    const onPatternChange = (pattern: string) => {
+        form.setFieldValue("pattern", pattern, {touch: true});
+        const color = form.state.values.color
+        props.setPatternPreview?.(pattern, color!);
+    }
+
+    const onColorChange = (color: string) => {
+        const pattern = form.state.values.pattern!
+        props.setPatternPreview?.(pattern, color)
+    }
 
     return (
         <form.Provider>
@@ -61,6 +107,10 @@ export function CreateGroupForm(props: {onSubmit?: () => void}) {
                     validator={groupInputSchema.shape.name}
                     form={form}
                 />
+                <div class="w-full grid grid-cols-7 items-end gap-2">
+                    <div class="col-span-6 mb-1"><PatternSelect form={form} onChange={onPatternChange} /></div>
+                    <div class="col-span-1"><GroupColorPick form={form} onChange={onColorChange} /></div>
+                </div>
                 <Button type="submit" disabled={!form.state.canSubmit}>
                     Create
                 </Button>
@@ -117,5 +167,135 @@ export function Field(props: FieldProps) {
                 </TextField>
             )}
         </form.Field>
+    );
+}
+
+function useFormValue<V>(
+    form: Form,
+    selector: (f: FormState<GroupInput>) => V,
+) {
+    const formState = form.useStore();
+    const value = createMemo(() => selector(formState()));
+    return value;
+}
+
+function PatternSelect(props: { form: Form, onChange: (p: string) => void}) {
+    const _patterns = usePatternNames()
+    const patterns = _patterns.sort((a, b) => a.localeCompare(b))
+    type Option = typeof patterns[number]
+
+    const [inputValue, onInputChange] = createSignal("");
+    const filter = createFilter({ sensitivity: "base" });
+
+    const options = createMemo(() => {
+        const val = inputValue()
+        if (val === "") {
+            return patterns;
+        }
+        return patterns.filter((option) =>
+            filter.contains(option, val),
+        );
+    });
+    const selected = useFormValue(
+        props.form,
+        (f) => f.values.pattern as string | undefined,
+    );
+    const onChange = (value: Option | null) => {
+        if (!value) {
+            return;
+        }
+        console.log("setting field", value);
+        props.onChange(value)
+    };
+
+    const onOpenChange = (
+        isOpen: boolean,
+        triggerMode?: ComboboxTriggerMode,
+    ) => {
+        if (isOpen && triggerMode === "manual") {
+            onInputChange("");
+        }
+    };
+    return (
+        <Combobox<Option>
+            value={selected()}
+            options={options()}
+            onInputChange={onInputChange}
+            onChange={onChange}
+            onOpenChange={onOpenChange}
+            itemComponent={props => <ComboboxItem item={props.item} >{props.item.rawValue}</ComboboxItem>}
+        >
+            <TextFieldLabel>Pattern</TextFieldLabel>
+            <ComboboxTrigger>
+                <ComboboxInput />
+            </ComboboxTrigger>
+            <ComboboxContent class="h-64 overflow-y-auto"/>
+        </Combobox>
+    );
+}
+
+
+function GroupColorPick(props: { form: Form, onChange: (color: string) => void}) {
+    const colors = usePossibleColors()
+
+    return (
+        <props.form.Field name="color">
+            {(field) => (
+                <ColorPicker
+                    value={field().state.value}
+                    set={(value) => {
+                        field().handleChange(value)
+                        if (value != null) {
+                            props.onChange(value)
+                        }
+                    }}
+                    colors={colors}
+                />
+            )}
+        </props.form.Field>
+    );
+}
+
+function ColorPicker(props: {
+    set: (color: string | null, opts: { touch: boolean }) => void;
+    value: string | null;
+    errors?: string[];
+    colors: string[]
+}) {
+    const color = createMemo(() => props.value || randomColor());
+    onMount(
+        on(color, (color) => {
+            if (color === null) {
+                props.set(randomColor(), { touch: false });
+            }
+        }),
+    );
+
+    const [open, setOpen] = createSignal(false);
+
+    const onChange = (color: ColorResult) => {
+        props.set(color.hex, { touch: true });
+        setOpen(false);
+    };
+
+    return (
+        <DropdownMenu open={open()} onOpenChange={setOpen}>
+            <DropdownMenuTrigger>
+                <div
+                    class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
+                    style={{ background: color() }}
+                ></div>
+                <For each={props.errors}>
+                    {(error) => <div class="text-red-500">{error}</div>}
+                </For>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+                <BlockPicker
+                    colors={props.colors}
+                    color={color()}
+                    onChangeComplete={onChange}
+                />
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

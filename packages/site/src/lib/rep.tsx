@@ -272,9 +272,16 @@ const NANOID_ID_LENGTH = 21;
 // TODO: replace *Schema with z* for brevity
 const idSchema = z.string().length(NANOID_ID_LENGTH);
 
+const zHexString = z
+    .string()
+    .length(7)
+    .regex(/^#[\da-fA-F]{6}/);
+
 export const groupSchema = z.object({
     name: z.string(),
     id: idSchema,
+    pattern: z.string().nullable(),
+    color: zHexString.nullable(),
 });
 export type Group = z.infer<typeof groupSchema>;
 
@@ -316,11 +323,6 @@ export type ExpenseInput = z.infer<typeof expenseInputSchema>;
 
 const portionSchema = z.number().gte(0.0);
 
-const zHexString = z
-    .string()
-    .length(7)
-    .regex(/^#[\da-fA-F]{6}/);
-
 export const splitSchema = z.object({
     name: z.string().min(1),
     id: idSchema,
@@ -347,6 +349,8 @@ type CreateGroupInput = z.infer<typeof createGroupInputSchema>;
 
 export const groupInputSchema = groupSchema.pick({
     name: true,
+    pattern: true,
+    color: true
 });
 
 export type GroupInput = z.infer<typeof groupInputSchema>;
@@ -373,7 +377,7 @@ interface MutationWrapperInputs extends MutationMap {
     addExpense: ExpenseInput;
     deleteExpense: Expense["id"];
     createSplit: SplitInput;
-    createGroup: Group["name"];
+    createGroup: GroupInput;
     createInvite: InviteInput;
     markInviteAccepted: Invite["id"];
 }
@@ -507,18 +511,20 @@ export function ReplicacheContextProvider(props: ParentProps) {
             }
             await ctx.rep.mutate.splitEdit(splitSchema.parse(split));
         },
-        async createGroup(name: Group["name"]) {
+        async createGroup(groupInput: GroupInput) {
             const ctx = useCtx();
             if (!ctx.isInit) {
                 throw new Error("Replicache not initialized");
             }
             const group: CreateGroupInput = Object.assign(
-                { name },
                 {
                     id: nanoid(),
                     ownerId: ctx.userId,
                     defaultSplitId: nanoid(),
+                    pattern: null,
+                    color: null,
                 },
+                groupInput,
             );
             await ctx.rep.mutate.createGroup(
                 createGroupInputSchema.parse(group),

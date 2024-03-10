@@ -90,6 +90,8 @@ export const groups = table(
     {
         id: id("id"),
         name: text("name", { length: 255 }).notNull(),
+        pattern: text("pattern"),
+        color: text("color", { length: 7 }),
     },
 );
 

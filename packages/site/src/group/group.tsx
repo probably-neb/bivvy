@@ -42,6 +42,8 @@ import { SplitRenderer, UserRenderer } from "@/components/renderers";
 import { CreateSplit } from "./create-split";
 import { BiRegularEdit } from "solid-icons/bi";
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
+import { useCurrentGroupId } from "@/lib/group";
+import { CreateInviteForm } from "@/layout/create-invite";
 
 type ExpenseCardView = { mode: "view"; id: Expense["id"] };
 type ExpenseCardEdit = { mode: "edit"; expense: Expense; id?: undefined };
@@ -95,16 +97,13 @@ export default function GroupPage() {
     // TODO: move header to layout
     const loc = useLocation()
     const params = useParams();
+    const TABS = ["users", "expenses", "splits", "group"]
     const tab = createMemo(() => {
-        const tabParam = params.tab
-        switch (tabParam) {
-            case "users":
-                return "users"
-            case "splits":
-                return "splits"
-            default:
-                return "expenses"
+        let tabParam = params.tab
+        if (!TABS.includes(tabParam)) {
+            tabParam="expenses"
         }
+        return tabParam
     })
     const navigate = useNavigate();
     const onChange = (newTab: string) => {
@@ -124,6 +123,7 @@ export default function GroupPage() {
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
                 <TabsTrigger value="users">Members</TabsTrigger>
                 <TabsTrigger value="splits">Splits</TabsTrigger>
+                <TabsTrigger value="group">Group</TabsTrigger>
             </TabsList>
             <TabsContent value="expenses">
                 <ExpensesTab />
@@ -133,6 +133,9 @@ export default function GroupPage() {
             </TabsContent>
             <TabsContent value="users">
                 <UsersTab />
+            </TabsContent>
+            <TabsContent value="group">
+                <GroupTab />
             </TabsContent>
         </Tabs>
     );
@@ -214,7 +217,7 @@ function SplitCard(props: {
         return total;
     });
     return (
-        <Card class="min-w-max max-h-min p-0">
+        <Card class="min-w-min max-h-min p-0">
             <CardHeader>
                 <div class="w-full flex justify-between align-center">
                     <div class="shrink">
@@ -285,6 +288,34 @@ function UsersTab() {
     return <OverviewCard />;
 }
 
+function GroupTab() {
+    return <div>
+        Groups
+        {/* FIXME: move to users tab */}
+        <CreateInviteButton />
+    </div>
+}
+
+function CreateInviteButton() {
+    const groupId = useCurrentGroupId();
+    const [open, setOpen] = createSignal(false);
+    return (
+        <Show when={Boolean(groupId())}>
+            <Button variant="outline" onClick={[setOpen, true]}>
+                New Invite
+            </Button>
+            <Dialog open={open()} onOpenChange={setOpen}>
+                <DialogContent class="sm:max-w-[425px] max-w-[80%]">
+                    <DialogTitle>Invite</DialogTitle>
+                    <CreateInviteForm
+                        onSubmit={() => setOpen(false)}
+                        groupId={groupId()!}
+                    />
+                </DialogContent>
+            </Dialog>
+        </Show>
+    );
+}
 function ExpenseCardWrapper() {
     const device = useQueries();
     const title = createMemo(() => {

@@ -3,7 +3,7 @@ import { Group, useGroups, useNumUsers } from "@/lib/rep";
 import { routes } from "@/routes";
 import { A } from "@solidjs/router";
 import { Accessor, For, Show, createMemo, createSignal } from "solid-js";
-import { CreateGroupForm } from "./create-group";
+import { CreateGroupForm, CreateGroupModal } from "./create-group";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { TiPlus, TiUserOutline } from "solid-icons/ti";
 import { Pattern, randomPattern } from "@/lib/patterns";
@@ -33,13 +33,13 @@ function GroupCard(props: { group: Group }) {
     const groupId = createMemo(() => props.group.id);
     // TODO: useTotalOwed in this card here
     const otherUsers = useNumUsers(groupId);
-    const pattern = randomPattern();
-    console.log(pattern, props.group.name);
+    const randomPatternForGroup = randomPattern()
+    console.log(props.group);
     return (
         <Card class="hover:scale-105 border-none w-64 h-32 grow-0 shrink-0">
             <A href={routes.group(props.group.id)}>
                 <CardHeader class="w-full h-16 p-0 rounded-t-xl">
-                    <Pattern name={pattern} />
+                    <Pattern name={props.group.pattern ?? randomPatternForGroup} color={props.group.color ?? undefined}/>
                 </CardHeader>
                 <CardContent class="pt-2 px-2 flex items-center justify-between">
                     <CardTitle class="text-xl whitespace-nowrap">
@@ -84,16 +84,3 @@ function LoadingCard() {
     );
 }
 
-function CreateGroupModal(props: {
-    open: Accessor<boolean>;
-    setOpen: (open: boolean) => void;
-}) {
-    return (
-        <Dialog open={props.open()} onOpenChange={props.setOpen}>
-            <DialogContent class="sm:max-w-[425px] max-w-[80%]">
-                <DialogTitle>Create Group</DialogTitle>
-                <CreateGroupForm onSubmit={() => props.setOpen(false)} />
-            </DialogContent>
-        </Dialog>
-    );
-}

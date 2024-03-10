@@ -1,0 +1,27 @@
+{
+  "version": "5",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1710051492682,
+      "tag": "0000_sweet_lethal_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1710051515599,
+      "tag": "0001_fluffy_black_tom",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1710051548596,
+      "tag": "0002_faithful_xorn",
+      "breakpoints": true
+    }
+  ]
+}

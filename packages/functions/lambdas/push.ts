@@ -15,6 +15,8 @@ const zId = z.string().length(NANOID_ID_LENGTH);
 export const zGroup = z.object({
     name: z.string(),
     id: zId,
+    pattern: z.string().nullable(),
+    color: z.string().nullable()
 });
 export type Group = z.infer<typeof zGroup>;
 
@@ -94,6 +96,8 @@ const zCreateGroupInput = zGroup.extend({
 type CreateGroupInput = z.infer<typeof zCreateGroupInput>;
 
 export const zGroupInput = zGroup.pick({
+    pattern: true,
+    color: true,
     name: true,
 });
 
@@ -473,10 +477,11 @@ async function createGroup(args: CreateGroupInput) {
     await db.transaction(async (db) => {
         const groupID = args.id;
         const ownerID = args.ownerId;
-        const g = {
-            id: groupID,
-            name: args.name,
-        };
+        const g = new Parser(args)
+                .rename("ownerId", "owner_id")
+                // FIXME: stop creating default splits
+                .remove("defaultSplitId")
+                .value()
         await db.insert(schema.groups).values(g);
         await addUserToGroup(db, groupID, ownerID);
     });

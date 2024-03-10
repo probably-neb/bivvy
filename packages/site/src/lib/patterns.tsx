@@ -5,17 +5,50 @@ export function usePatterns() {
     return patterns;
 }
 
+export function usePatternNames() {
+    return patterns.map(p => p.name);
+}
+
 function patternUrl(name: string) {
     console.log(name);
     return `patterns/${name}.svg`;
 }
 
-export function Pattern(props: { name: string; fill?: string }) {
-    const pattern = patterns.find(p => p.name === props.name);
-    if (!pattern) return;
+export const COLORS = [
+    "#ef4444", // Red
+    "#f97316", // Orange
+    "#f59e0b", // Amber
+    "#10b981", // Yellow
+    "#84cc16", // Lime
+    "#22c55e", // Green
+    "#10b981", // Emerald
+    "#14b8a6", // Teal
+    "#06b6d4", // Cyan
+    "#0ea5e9", // Sky
+    "#3b82f6", // Blue
+    "#6366f1", // Indigo
+    "#8b5cf6", // Violet
+    "#a855f7", // Purple
+    "#d946ef", // Fuchsia
+    "#ec4899", // Pink
+    "#f43f5e", // Rose
+]
+
+export function randomColor() {
+    return COLORS[Math.floor(Math.random() * COLORS.length)];
+}
+
+export function usePossibleColors() {
+    return COLORS
+}
+
+const DEFAULT = COLORS.at(-1)!
+
+export function Pattern(props: { name: string; fill?: string, color?: string }) {
+    const pattern = createMemo(() => patterns.find(p => p.name === props.name)!);
     const style = createMemo(() => {
-        const style = `background-image: ${imgUrlEncode(
-            pattern.image,
+        const style = `background-color: ${props.color ?? DEFAULT}; background-image: ${imgUrlEncode(
+            pattern().image,
             props.fill ?? "#FFFFFF",
         )}`;
         return style;

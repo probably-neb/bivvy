@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
-        "push": "sst bind drizzle-kit push:mysql",
+        "push": "sst bind drizzle-kit push:sqlite",
+        "gen": "sst bind drizzle-kit generate:sqlite",
         "studio": "sst bind --script --stage=dev drizzle-kit studio",
         "get-schema": "rm -rf ./schema && sst bind 'drizzle-kit generate:sqlite --config=get-schema.drizzle.config.ts' && cp ./schema/*.sql ./schema.sql"
     },
