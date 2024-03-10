@@ -13,7 +13,7 @@ import { Api, authUrl } from "@/lib/api";
 import { CollectionNode } from "@kobalte/core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AiOutlineGoogle } from "solid-icons/ai";
-import { isLocal } from "@/lib/utils";
+import { isDev } from "@/lib/utils";
 
 type SelectItemProps<T> = { item: CollectionNode<T> };
 
@@ -56,7 +56,7 @@ function LoginCard(props: { providers: Record<string, string> }) {
             </CardHeader>
             <CardContent>
                 {/* TODO: email login */}
-                <Show when={isLocal()}>
+                <Show when={isDev()}>
                     <GroupMembers />
                 </Show>
                 <div class="px-2 py-4 text-center text-sm text-muted-foreground">
