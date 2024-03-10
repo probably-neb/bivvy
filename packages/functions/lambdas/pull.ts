@@ -265,7 +265,7 @@ function parseExpense(e: typeof schema.expenses.$inferSelect) {
         .replace("reimbursed_at", "status", () => "paid" as "paid" | "unpaid")
         .default("status", "unpaid")
         .rename("paid_by_user_id", "paidBy")
-        .allDatesTOUnixMillis()
+        .allDatesToUnixMillis()
         .allKeysToCamelCase()
         .value();
 }
@@ -365,7 +365,7 @@ async function getUsersForUser(userID: string) {
 type User = ReturnType<typeof parseUser> & { owed: number };
 
 function parseUser(u: typeof schema.users.$inferSelect) {
-    return new Parser(u).allDatesTOUnixMillis().allKeysToCamelCase().value();
+    return new Parser(u).allDatesToUnixMillis().allKeysToCamelCase().value();
 }
 
 async function getSplitsForUser(userID: string) {
@@ -441,13 +441,20 @@ async function getGroupsForUser(userID: string) {
     if (!rows) {
         throw new Error("User not found");
     }
-    type Group = (typeof rows.user_to_group)[number]["group"];
+    type Group = ReturnType<typeof parseGroup>
     const nGroups = rows.user_to_group.length;
     const groups = new Array<Group>(nGroups);
     for (let i = 0; i < nGroups; i++) {
-        groups[i] = rows.user_to_group[i].group;
+        groups[i] = parseGroup(rows.user_to_group[i].group);
     }
     return groups;
+}
+
+function parseGroup(g: typeof schema.groups.$inferSelect) {
+    return new Parser(g)
+        .allKeysToCamelCase()
+        .allDatesToUnixMillis()
+        .value()
 }
 
 async function getOwedForUser(userID: string) {

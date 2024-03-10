@@ -8,15 +8,16 @@ import z from "zod";
 import { calculatePortion, getTotalParts } from "./pull";
 
 const NANOID_ID_LENGTH = 21;
-
-// TODO: replace *Schema with z* for brevity
 const zId = z.string().length(NANOID_ID_LENGTH);
+const zUnixTime = z.number().int().min(0);
 
 export const zGroup = z.object({
     name: z.string(),
     id: zId,
+    ownerId: zId,
     pattern: z.string().nullable(),
-    color: z.string().nullable()
+    color: z.string().nullable(),
+    createdAt: zUnixTime,
 });
 export type Group = z.infer<typeof zGroup>;
 
@@ -32,7 +33,6 @@ export const zGroupUser = z.object({
 });
 export type GroupUser = z.infer<typeof zGroupUser>;
 
-const zUnixTime = z.number().int().min(0);
 
 export const zExpense = z.object({
     id: zId,
@@ -119,7 +119,7 @@ export const zInviteInput = zInvite.pick({
 
 export type InviteInput = z.infer<typeof zInviteInput>;
 
-type MutationName = (typeof MUTATIONS)[number];
+export type MutationName = (typeof MUTATIONS)[number];
 const MUTATIONS = [
     "addExpense",
     "deleteExpense",
@@ -127,6 +127,7 @@ const MUTATIONS = [
     "createSplit",
     "splitEdit",
     "createGroup",
+    "groupEdit",
     "createInvite",
     "acceptInvite",
 ] as const;
@@ -162,6 +163,7 @@ const zMutation = z
         mutationValidator("createSplit", zSplit),
         mutationValidator("splitEdit", zSplit),
         mutationValidator("createGroup", zCreateGroupInput),
+        mutationValidator("groupEdit", zGroup),
         mutationValidator("createInvite", zInvite),
         mutationValidator("acceptInvite", zInvite.shape.id),
     ])
@@ -275,11 +277,14 @@ async function handleMutations(
                 case "createSplit":
                     ok = await createSplit(m.args);
                     break;
-                case "splitEdit": 
+                case "splitEdit":
                     ok = await splitEdit(m.args);
-                    break
+                    break;
                 case "createGroup":
                     ok = await createGroup(m.args);
+                    break;
+                case "groupEdit":
+                    ok = await groupEdit(m.args);
                     break;
                 case "createInvite":
                     ok = await createInvite(m.args);
@@ -299,7 +304,12 @@ async function handleMutations(
             console.error("Error processing mutation", e);
         }
         processed[i] = ok;
-        console.log({mutation: m.name, args: argsCopy, argsAfter: m.args, ok})
+        console.log({
+            mutation: m.name,
+            args: argsCopy,
+            argsAfter: m.args,
+            ok,
+        });
     }
 
     // mark mutations as processed in ClientGroup
@@ -333,37 +343,45 @@ async function createExpense(args: Expense) {
         .replace("createdAt", "created_at", (d) => new Date(d))
         .or_undefined("created_at")
         .value();
-    await db.transaction(async tx => {
+    await db.transaction(async (tx) => {
         // TODO: remove checks, add foreign key constraints
-        if (!await itemWithIDExists(tx, "splits", e.split_id)) {
+        if (!(await itemWithIDExists(tx, "splits", e.split_id))) {
             throw new Error(`Split with id: ${e.split_id} not found`);
         }
-        if (!await itemWithIDExists(tx, "groups",  e.group_id)) {
+        if (!(await itemWithIDExists(tx, "groups", e.group_id))) {
             throw new Error(`Group with id: ${e.group_id} not found`);
         }
-        if (!await itemWithIDExists(tx, "users", e.paid_by_user_id)) {
+        if (!(await itemWithIDExists(tx, "users", e.paid_by_user_id))) {
             throw new Error(`User with id: ${e.paid_by_user_id} not found`);
         }
         await tx.insert(schema.expenses).values(e);
-    })
+    });
     return true;
 }
 
-type Table = Exclude<keyof typeof schema, `${string}Relations`> // "users" | "splits" | "groups" | "invites";
+type Table = Exclude<keyof typeof schema, `${string}Relations`>; // "users" | "splits" | "groups" | "invites";
 
-async function itemWithIDExists<T extends Tx>(tx: T, table: Exclude<Table, "users_to_group" | "split_portion_def">, id: string) {
+async function itemWithIDExists<T extends Tx>(
+    tx: T,
+    table: Exclude<Table, "users_to_group" | "split_portion_def">,
+    id: string,
+) {
     return await itemExists(tx, table, eq(schema[table].id, id));
 }
 
-async function itemExists<T extends Tx, Sql extends any>(tx: T, table: Table, sql: Sql) {
+async function itemExists<T extends Tx, Sql extends any>(
+    tx: T,
+    table: Table,
+    sql: Sql,
+) {
     // @ts-ignore
     const val = await tx.query[table].findFirst({
-        where: sql as any
-    })
+        where: sql as any,
+    });
     if (val == null) {
         return false as const;
     }
-    return val
+    return val;
 }
 
 async function deleteExpense(args: DeleteExpenseInput) {
@@ -412,7 +430,7 @@ async function expenseEdit(args: Expense) {
         .rename("paidBy", "paid_by_user_id")
         // FIXME: date reimbursed is lost when changed to status
         .replace("status", "reimbursed_at", () => null)
-        .value()
+        .value();
 
     await db
         .update(schema.expenses)
@@ -424,7 +442,7 @@ async function expenseEdit(args: Expense) {
                 eq(ex.paid_by_user_id, e.paid_by_user_id),
             ),
         );
-    return true
+    return true;
 }
 
 async function createSplit(args: Split) {
@@ -462,15 +480,20 @@ async function _createSplit(tx: Tx, args: Split) {
 
 async function splitEdit(args: Split) {
     await db.transaction(async (tx) => {
-        await db.delete(schema.split_portion_def).where(
-            eq(schema.split_portion_def.split_id, args.id),
-        )
-        await db.delete(schema.splits).where(
-            and(eq(schema.splits.id, args.id), eq(schema.splits.group_id, args.groupId))
-        )
-        await _createSplit(tx, args)
-    })
-    return true
+        await db
+            .delete(schema.split_portion_def)
+            .where(eq(schema.split_portion_def.split_id, args.id));
+        await db
+            .delete(schema.splits)
+            .where(
+                and(
+                    eq(schema.splits.id, args.id),
+                    eq(schema.splits.group_id, args.groupId),
+                ),
+            );
+        await _createSplit(tx, args);
+    });
+    return true;
 }
 
 async function createGroup(args: CreateGroupInput) {
@@ -478,10 +501,10 @@ async function createGroup(args: CreateGroupInput) {
         const groupID = args.id;
         const ownerID = args.ownerId;
         const g = new Parser(args)
-                .rename("ownerId", "owner_id")
-                // FIXME: stop creating default splits
-                .remove("defaultSplitId")
-                .value()
+            .rename("ownerId", "owner_id")
+            // FIXME: stop creating default splits
+            .remove("defaultSplitId")
+            .value();
         await db.insert(schema.groups).values(g);
         await addUserToGroup(db, groupID, ownerID);
     });
@@ -571,4 +594,39 @@ async function isUserMemberOfGroup(tx: Tx, groupID: string, userID: string) {
         ),
     });
     return user != null;
+}
+
+async function groupEdit(args: Group) {
+    await db.transaction(async (tx) => {
+        if (!(await isGroupOwner(tx, args.id))) {
+            throw new Error(`cannot edit a group you do not own`);
+        }
+
+        const group = new Parser({...args})
+            .remove("ownerId")
+            .remove("id")
+            .remove("createdAt")
+            .value()
+
+        await tx
+            .update(schema.groups)
+            .set(group)
+            .where(eq(schema.groups.id, args.id));
+    });
+    return true;
+}
+
+async function isGroupOwner(tx: Tx, groupID: string) {
+    const session = useSession();
+    if (session.type !== "user") {
+        throw new Error("invalid session");
+    }
+    const userID = session.properties.userId;
+    const g = await tx.query.groups.findFirst({
+        where: eq(schema.groups.id, groupID),
+    });
+    if (g == null) {
+        throw new Error(`No group with id: ${groupID} found`);
+    }
+    return g.owner_id === userID;
 }

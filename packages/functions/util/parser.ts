@@ -129,7 +129,7 @@ export default class Parser<T extends object> {
         >;
     }
 
-    allDatesTOUnixMillis() {
+    allDatesToUnixMillis() {
         const obj = this.obj as any;
         for (const [key, val] of Object.entries(obj)) {
             if (val instanceof Date) {

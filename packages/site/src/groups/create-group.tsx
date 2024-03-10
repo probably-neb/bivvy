@@ -12,6 +12,7 @@ import {
     useMutations,
     GroupInput,
     groupInputSchema,
+    Group,
 } from "@/lib/rep";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Pattern, randomPattern, randomColor, usePatternNames, usePossibleColors } from "@/lib/patterns";
@@ -25,13 +26,14 @@ type Form = FormApi<GroupInput, typeof zodValidator>;
 export function CreateGroupModal(props: {
     open: Accessor<boolean>;
     setOpen: (open: boolean) => void;
+    group?: Group;
 }) {
-    const [patternPreview, _setPatternPreview] = createSignal({color: randomColor(), pattern: randomPattern()});
+    const [patternPreview, _setPatternPreview] = createSignal({color: props.group?.color ?? randomColor(), pattern: props.group?.pattern ?? randomPattern()});
     const setPatternPreview = (pattern: string, color: string) => {
         const preview = {pattern, color}
-        console.log({preview})
         _setPatternPreview(preview);
     }
+    const isEditing = props.group != null
     return (
         <Dialog open={props.open()} onOpenChange={props.setOpen}>
             <DialogContent class="sm:max-w-[425px] max-w-[80%] p-0">
@@ -39,27 +41,37 @@ export function CreateGroupModal(props: {
                     <Pattern name={patternPreview().pattern} color={patternPreview().color}/>
                 </DialogHeader>
                 <div class="p-4">
-                    <DialogTitle>Create Group</DialogTitle>
-                    <CreateGroupForm onSubmit={() => props.setOpen(false)} setPatternPreview={setPatternPreview} patternPreview={patternPreview()} />
+                    <DialogTitle>{`${isEditing ? "Edit" : "Create"} Group`}</DialogTitle>
+                    <CreateGroupForm onSubmit={() => props.setOpen(false)} setPatternPreview={setPatternPreview} patternPreview={patternPreview()} group={props.group} />
                 </div>
             </DialogContent>
         </Dialog>
     );
 }
-export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: {pattern: string, color: string}, setPatternPreview?: (pattern: string, color: string) => void}) {
-    const { createGroup } = useMutations();
+
+export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: {pattern: string, color: string}, setPatternPreview?: (pattern: string, color: string) => void, group?: Group}) {
+    const { createGroup, groupEdit} = useMutations();
+    const isEditing = props.group != null
     const defaultValues = {
         name: "",
         pattern: null,
         color: null,
-        ...props.patternPreview
+        ...props.group,
+        // Pattern Preview defaults to group colors so it should overide groups
+        // to cover the case where group color, pattern are null
+        ...props.patternPreview,
     }
     const form: Form = createForm(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
             try {
-                await createGroup(value);
+                if (isEditing) {
+                    const group = Object.assign({}, props.group, value)
+                    await groupEdit(group)
+                } else {
+                    await createGroup(value);
+                }
                 props.onSubmit?.();
             } catch (e) {
                 console.error(e);
@@ -112,7 +124,7 @@ export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: 
                     <div class="col-span-1"><GroupColorPick form={form} onChange={onColorChange} /></div>
                 </div>
                 <Button type="submit" disabled={!form.state.canSubmit}>
-                    Create
+                    {isEditing ? "Edit" :  "Create"}
                 </Button>
             </form>
         </form.Provider>
@@ -151,6 +163,7 @@ export function Field(props: FieldProps) {
                     <TextFieldLabel>{label}</TextFieldLabel>
                     <TextFieldInput
                         type={type}
+                        value={field().state.value ?? ""}
                         placeholder={placeholder}
                         step={step}
                         onChange={(e) =>
@@ -242,7 +255,7 @@ function GroupColorPick(props: { form: Form, onChange: (color: string) => void})
         <props.form.Field name="color">
             {(field) => (
                 <ColorPicker
-                    value={field().state.value}
+                    value={field().state.value!}
                     set={(value) => {
                         field().handleChange(value)
                         if (value != null) {
@@ -258,18 +271,14 @@ function GroupColorPick(props: { form: Form, onChange: (color: string) => void})
 
 function ColorPicker(props: {
     set: (color: string | null, opts: { touch: boolean }) => void;
-    value: string | null;
+    value: string;
     errors?: string[];
     colors: string[]
 }) {
-    const color = createMemo(() => props.value || randomColor());
-    onMount(
-        on(color, (color) => {
-            if (color === null) {
-                props.set(randomColor(), { touch: false });
-            }
-        }),
-    );
+    const color = createMemo(() => {
+        console.log("color", props.value)
+        return props.value
+    });
 
     const [open, setOpen] = createSignal(false);
 
@@ -283,7 +292,7 @@ function ColorPicker(props: {
             <DropdownMenuTrigger>
                 <div
                     class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
-                    style={{ background: color() }}
+                    style={{ background: color()! }}
                 ></div>
                 <For each={props.errors}>
                     {(error) => <div class="text-red-500">{error}</div>}
@@ -292,7 +301,7 @@ function ColorPicker(props: {
             <DropdownMenuContent>
                 <BlockPicker
                     colors={props.colors}
-                    color={color()}
+                    color={color()!}
                     onChangeComplete={onChange}
                 />
             </DropdownMenuContent>

@@ -13,6 +13,7 @@ import {
     Match,
     ParentProps,
     For,
+    createEffect,
 } from "solid-js";
 import { OverviewCard } from "@/group/overview-card";
 import { ExpensesTable } from "@/group/expenses-table";
@@ -22,8 +23,11 @@ import {
     Expense,
     Split,
     User,
+    useCurrentGroup,
     useExpense,
+    useGroup,
     useMutations,
+    useOwnsCurrentGroup,
     useSplits,
     useUsers,
 } from "@/lib/rep";
@@ -44,6 +48,7 @@ import { BiRegularEdit } from "solid-icons/bi";
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { useCurrentGroupId } from "@/lib/group";
 import { CreateInviteForm } from "@/layout/create-invite";
+import { CreateGroupModal } from "@/groups/create-group";
 
 type ExpenseCardView = { mode: "view"; id: Expense["id"] };
 type ExpenseCardEdit = { mode: "edit"; expense: Expense; id?: undefined };
@@ -60,7 +65,7 @@ const [expenseCardMode, _setExpenseCardMode] = createSignal<ExpenseCardMode>(
     },
     {
         equals: (a, b) => a.mode === b.mode && a.id === b.id,
-    }
+    },
 );
 export { expenseCardMode as asideCardMode };
 
@@ -95,30 +100,35 @@ function getAddExpenseButtonProps() {
 
 export default function GroupPage() {
     // TODO: move header to layout
-    const loc = useLocation()
+    const loc = useLocation();
     const params = useParams();
-    const TABS = ["users", "expenses", "splits", "group"]
+    const TABS = ["users", "expenses", "splits", "group"];
     const tab = createMemo(() => {
-        let tabParam = params.tab
+        let tabParam = params.tab;
         if (!TABS.includes(tabParam)) {
-            tabParam="expenses"
+            tabParam = "expenses";
         }
-        return tabParam
-    })
+        return tabParam;
+    });
     const navigate = useNavigate();
     const onChange = (newTab: string) => {
-        let path = loc.pathname
-        const oldTab = tab()
+        let path = loc.pathname;
+        const oldTab = tab();
         if (oldTab !== "expenses") {
-            path = path.replace(new RegExp(`/${oldTab}$`), "")
+            path = path.replace(new RegExp(`/${oldTab}$`), "");
         }
         if (newTab !== "expenses") {
-            path = path + `/${newTab}`
+            path = path + `/${newTab}`;
         }
-        navigate(path)
-    }
+        navigate(path);
+    };
     return (
-        <Tabs defaultValue="expenses" value={tab()} onChange={onChange} class="shadow-none">
+        <Tabs
+            defaultValue="expenses"
+            value={tab()}
+            onChange={onChange}
+            class="shadow-none"
+        >
             <TabsList class="justify-center">
                 <TabsTrigger value="expenses">Expenses</TabsTrigger>
                 <TabsTrigger value="users">Members</TabsTrigger>
@@ -171,7 +181,11 @@ function SplitsTab() {
         <div class="flex flex-col justify-center lg:flex-row gap-6">
             <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
                 <Card class="p-4 max-w-fit">
-                    <Show when={editingSplit()} fallback={<CreateSplit />} keyed>
+                    <Show
+                        when={editingSplit()}
+                        fallback={<CreateSplit />}
+                        keyed
+                    >
                         {(split) => (
                             <CreateSplit
                                 split={split}
@@ -253,7 +267,7 @@ function SplitCardPortions(props: {
                 <For each={props.users}>
                     {(user) => {
                         const portion = createMemo(
-                            () => props.portions[user.id] ?? 0
+                            () => props.portions[user.id] ?? 0,
                         );
                         return (
                             <>
@@ -289,11 +303,45 @@ function UsersTab() {
 }
 
 function GroupTab() {
-    return <div>
-        Groups
-        {/* FIXME: move to users tab */}
-        <CreateInviteButton />
-    </div>
+    // TODO: Leave group button
+    // group info:
+    //  - num expenses
+    //  - total transacted
+    //  - created
+    // if owner:
+    //  archive group button
+    const isOwner = useOwnsCurrentGroup()
+    dbgSignal(isOwner, "isOwner:")
+    return (
+        <div>
+            {/* FIXME: move to users tab */}
+            <CreateInviteButton />
+            <Show when={isOwner()}>
+                <EditGroupButton />
+            </Show>
+        </div>
+    );
+}
+
+function dbgSignal(s: Accessor<unknown>, label?: string) {
+    createEffect(() => {
+        console.log(label ?? "value:", s())
+    })
+}
+
+function EditGroupButton() {
+    const group = useCurrentGroup();
+
+    const [open, setOpen] = createSignal(false);
+
+    return (
+        <>
+            <Button variant="outline" onClick={[setOpen, !open()]}>
+                Edit
+            </Button>
+            <CreateGroupModal open={open} setOpen={setOpen} group={group()} />
+        </>
+    );
 }
 
 function CreateInviteButton() {
@@ -459,7 +507,7 @@ function ExpenseCardInner() {
                     onSubmit={() => setExpenseCardOpen(false)}
                     expense={dbg(
                         "expense",
-                        (expenseCardMode() as ExpenseCardEdit).expense
+                        (expenseCardMode() as ExpenseCardEdit).expense,
                     )}
                 />
             </Match>
@@ -473,14 +521,3 @@ function dbg<T>(label: string, v: T) {
 }
 
 type Maybe<T> = T | null | undefined;
-
-function check<T>(arg: Maybe<T>, fn: (v: T) => Maybe<boolean>) {
-    if (arg == null) {
-        return null;
-    }
-    const res = fn(arg);
-    if (res == null || !res) {
-        return null;
-    }
-    return arg;
-}

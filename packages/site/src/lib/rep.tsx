@@ -21,6 +21,13 @@ import { useSession, useUserId } from "./session";
 import { useCurrentGroupId } from "./group";
 import { removeKeys } from "./utils";
 
+function assert(value: unknown, message?: string): asserts value {
+    if (value)
+        return
+    console.assert(value, message)
+    throw new Error(`Assertion Error: ${message ?? ""} -- ${value} is Falsy`)
+}
+
 // NOTE: wrappers around these mutators are required because the mutators will be run by the server
 // with the same arguments (this being the contents of the push request). For consistency we want
 // the server and client to generate entities with the same IDs so the ID and other non-deterministic
@@ -60,18 +67,22 @@ const mutators = {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
     async createGroup(tx: WriteTransaction, input: CreateGroupInput) {
-        const [group, { defaultSplitId, ownerId }] = removeKeys(input, [
+        const [group, { defaultSplitId }] = removeKeys(input, [
             "defaultSplitId",
-            "ownerId",
         ]) satisfies readonly [Group, any];
         tx.set(P.group.id(group.id), group);
-        tx.set(P.groupUser.id(group.id, ownerId), {
-            userId: ownerId,
+        tx.set(P.groupUser.id(group.id, group.ownerId), {
+            userId: group.ownerId,
             owed: 0,
         });
-        // TODO: handle invites when creating group so default split can be accurate
-        const split = createEvenSplit([ownerId], defaultSplitId, group.id);
-        tx.set(P.split.id(group.id, split.id), split);
+    },
+    async groupEdit(tx: WriteTransaction, group: Group) {
+        const existing = await tx.get<Group>(P.group.id(group.id))
+        if (existing == null) {
+            throw new Error(`no group with id: ${group.id}`)
+        }
+        assert(existing.ownerId)
+        await tx.set(P.group.id(group.id), group)
     },
     async createInvite(tx: WriteTransaction, invite: Invite) {
         tx.set(P.invite.id(invite.id), invite);
@@ -270,7 +281,8 @@ const P = {
 const NANOID_ID_LENGTH = 21;
 
 // TODO: replace *Schema with z* for brevity
-const idSchema = z.string().length(NANOID_ID_LENGTH);
+const zID = z.string().length(NANOID_ID_LENGTH);
+const zUnixTime = z.number().int().min(0);
 
 const zHexString = z
     .string()
@@ -279,14 +291,16 @@ const zHexString = z
 
 export const groupSchema = z.object({
     name: z.string(),
-    id: idSchema,
+    id: zID,
     pattern: z.string().nullable(),
     color: zHexString.nullable(),
+    createdAt: zUnixTime,
+    ownerId: zID
 });
 export type Group = z.infer<typeof groupSchema>;
 
 export const userSchema = z.object({
-    id: idSchema,
+    id: zID,
     name: z.string(),
     profileUrl: z.string().nullable(),
 });
@@ -298,18 +312,17 @@ export const groupUserSchema = z.object({
 });
 export type GroupUser = z.infer<typeof groupUserSchema>;
 
-const unixTimeSchema = z.number().int().min(0);
 
 export const expenseSchema = z.object({
-    id: idSchema,
+    id: zID,
     description: z.string(),
     paidBy: userSchema.shape.id,
     amount: z.number().gt(0),
     status: z.enum(["paid", "unpaid"]),
-    paidOn: unixTimeSchema.nullable().default(null),
-    createdAt: unixTimeSchema,
+    paidOn: zUnixTime.nullable().default(null),
+    createdAt: zUnixTime,
     groupId: groupSchema.shape.id,
-    splitId: idSchema,
+    splitId: zID,
 });
 export type Expense = z.infer<typeof expenseSchema>;
 
@@ -325,7 +338,7 @@ const portionSchema = z.number().gte(0.0);
 
 export const splitSchema = z.object({
     name: z.string().min(1),
-    id: idSchema,
+    id: zID,
     portions: z.record(userSchema.shape.id, portionSchema),
     groupId: groupSchema.shape.id,
     color: zHexString.nullable(),
@@ -356,10 +369,10 @@ export const groupInputSchema = groupSchema.pick({
 export type GroupInput = z.infer<typeof groupInputSchema>;
 
 export const inviteSchema = z.object({
-    id: idSchema,
+    id: zID,
     groupId: groupSchema.shape.id,
-    createdAt: unixTimeSchema,
-    acceptedAt: unixTimeSchema.nullable(),
+    createdAt: zUnixTime,
+    acceptedAt: zUnixTime.nullable(),
 });
 
 export type Invite = z.infer<typeof inviteSchema>;
@@ -467,12 +480,8 @@ export function ReplicacheContextProvider(props: ParentProps) {
         },
         async deleteExpense(id: Expense["id"]) {
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
-            }
-            if (!ctx.groupId) {
-                throw new Error("Group not set");
-            }
+            assert(ctx.isInit, "Replicache not initialized")
+            assert(ctx.groupId, "Group not set");
             await ctx.rep.mutate.deleteExpense({
                 groupId: ctx.groupId,
                 id,
@@ -481,16 +490,12 @@ export function ReplicacheContextProvider(props: ParentProps) {
         },
         async expenseEdit(expense: Expense) {
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
-            }
+            assert(ctx.isInit, "Replicache not initialized")
             await ctx.rep.mutate.expenseEdit(expenseSchema.parse(expense));
         },
         async createSplit(splitInput: SplitInput) {
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
-            }
+            assert(ctx.isInit, "Replicache not initialized")
             if (!ctx.groupId) {
                 throw new Error("Group not set");
             }
@@ -498,7 +503,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 {
                     groupId: ctx.groupId,
                     id: nanoid(),
-                    createdAt: new Date().getTime(),
+                    createdAt: Date.now()
                 },
                 splitInput,
             );
@@ -506,16 +511,12 @@ export function ReplicacheContextProvider(props: ParentProps) {
         },
         async splitEdit(split: Split) {
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
-            }
+            assert(ctx.isInit, "Replicache not initialized")
             await ctx.rep.mutate.splitEdit(splitSchema.parse(split));
         },
         async createGroup(groupInput: GroupInput) {
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
-            }
+            assert(ctx.isInit, "Replicache not initialized")
             const group: CreateGroupInput = Object.assign(
                 {
                     id: nanoid(),
@@ -523,6 +524,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
                     defaultSplitId: nanoid(),
                     pattern: null,
                     color: null,
+                    createdAt: Date.now()
                 },
                 groupInput,
             );
@@ -530,20 +532,19 @@ export function ReplicacheContextProvider(props: ParentProps) {
                 createGroupInputSchema.parse(group),
             );
         },
+        async groupEdit(group: Group) {
+            const ctx = useCtx();
+            assert(ctx.isInit, "Replicache not initialized")
+            await ctx.rep.mutate.groupEdit(groupSchema.parse(group));
+        },
         async createInvite(i: InviteInput) {
             // FIXME: separate created invites and recieved invites
             // created has recieved/accepted by map
             // recieved has accepted bool
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
-            }
-            if (!i.groupId) {
-                throw new Error("Group not set");
-            }
-            if (!i.id) {
-                throw new Error("no invite id");
-            }
+            assert(ctx.isInit, "Replicache not initialized")
+            assert(i.groupId, "Group not set in invte")
+            assert(i.id, "no invite id")
             const invite = Object.assign({}, i, {
                 createdAt: new Date().getTime(),
                 acceptedAt: null,
@@ -552,9 +553,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
         },
         async acceptInvite(id: Invite["id"]) {
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
-            }
+            assert(ctx.isInit, "Replicache not initialized")
             await ctx.rep.mutate.acceptInvite(id);
         },
     } satisfies MutationWrappers;
@@ -585,9 +584,23 @@ export function useGroup(group: Accessor<Group["id"]>) {
     return use((tx) => tx.get<Group>(P.group.id(group())));
 }
 
-export function fetchGroup(groupId: Group["id"]) {
+export function useCurrentGroup() {
+    return use((tx, {groupId}) => tx.get<Group>(P.group.id(groupId)))
+}
+
+export function useOwnsCurrentGroup() {
+    return use(async (tx, {groupId}) => {
+        const userID = await tx.get<string>(P.currentUserID)
+        assert(userID, "No logged in user set")
+        const group = await tx.get<Group>(P.group.id(groupId))
+        assert(group, `No group with id: ${groupId}`)
+        return group.ownerId === userID
+    })
+}
+
+export async function fetchGroup(groupId: Group["id"]) {
     const rep = useRep();
-    return rep?.()?.query(async (tx) => tx.get<Group>(P.group.id(groupId)));
+    return await rep?.()?.query(async (tx) => tx.get<Group>(P.group.id(groupId)));
 }
 
 export function useExpenses() {
@@ -960,6 +973,6 @@ function createEvenSplit(userIds: string[], splitId: string, groupId: string) {
         groupId,
         color: null,
         // TODO: use this in backend
-        createdAt: new Date().getTime(),
+        createdAt: Date.now()
     } satisfies Split;
 }
