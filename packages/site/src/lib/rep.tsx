@@ -266,6 +266,7 @@ export type Group = z.infer<typeof groupSchema>;
 export const userSchema = z.object({
     id: idSchema,
     name: z.string(),
+    profileUrl: z.string().nullable(),
 });
 export type User = z.infer<typeof userSchema>;
 

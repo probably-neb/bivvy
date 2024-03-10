@@ -1,5 +1,4 @@
-import { User } from "@/lib/session";
-import { Group, Split, useSplit, useUser } from "@/lib/rep";
+import { Group, Split, User, useSplit, useUser } from "@/lib/rep";
 import { TiUserOutline } from "solid-icons/ti";
 import { Accessor, JSX, Show, createMemo } from "solid-js";
 import { Badge } from "./ui/badge";
@@ -9,9 +8,12 @@ import { Badge } from "./ui/badge";
 export function UserRenderer(props: { userId: User["id"], groupId?: Accessor<Group["id"]> }) {
     const user = useUser(() => props.userId, props.groupId);
 
+
     return (
         <div class="flex gap-1 items-center">
-            <TiUserOutline size="1em" />
+            <Show when={user()?.profileUrl} fallback={<TiUserOutline size="1.5em" />}>
+                {url => <img src={url()} class="rounded-full w-[1.5em] h-[1.5em]" />}
+            </Show>
             <h3>{user()?.name}</h3>
         </div>
     );
