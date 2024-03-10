@@ -491,6 +491,9 @@ async function getOwedForUser(userID: string) {
         for (const expense of row.group.expenses) {
             const amount = expense.amount;
             const split = expense.split;
+            if (split == null) {
+                console.error(`split for expense ${JSON.stringify(expense)} is null`)
+            }
             // FIXME: portions should never be null. Expenses should have a check to ensure
             // the split exists
             let portions = split == null ? [] : split.portions
