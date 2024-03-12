@@ -564,7 +564,7 @@ function calculateOwed(
     portionDefs: Array<{ parts: number; user_id: string }>,
 ) {
     const totalParts = getTotalParts(portionDefs);
-    const owed = new Array<[string, number]>(portionDefs.length);
+    const owed = new Array<[string, number]>();
     for (let i = 0; i < portionDefs.length; i++) {
         const pDef = portionDefs[i];
         const partsOwed = pDef.parts;
@@ -581,34 +581,40 @@ function calculateOwed(
         const isOwedToAnotherUser = portionIsForUser && !paidByUser;
         const isOwedToCurUser = !portionIsForUser && paidByUser;
 
-        let owedToUser = 0;
+        const portionUserID = pDef.user_id
 
         switch (true) {
             case isPortionOfExpensePaidByCurUser:
                 // if the user paid for the expense and the portion is for the user
                 // then the user is owed the full amount minus their portion
-                owedToUser = amount - portion;
+                owed.push([userID, amount - portion])
                 break;
             case doesNotInvolveCurrentUser:
                 // if the user didn't pay for the expense and the portion is not for the user
                 // then we don't care!
-                owedToUser = 0;
+                owed.push([portionUserID, 0])
                 break;
             case isOwedToAnotherUser:
                 // if the user didn't pay for the expense and the portion is for the user
                 // then the current users balance should be reduced by their portion
-                owedToUser = -portion;
+                // owedToUser = -portion;
+                owed.push([portionUserID, -portion])
+                owed.push([paidByUserID, -portion])
                 break;
             case isOwedToCurUser:
                 // if the user paid for the expense and the portion is for another user
                 // they owe the full portion
-                owedToUser = portion;
+                owed.push([portionUserID, portion])
                 break;
         }
 
-        owed[i] = [pDef.user_id, owedToUser];
     }
     return owed;
+}
+
+function dbg(val: unknown) {
+    console.dir(val, {depth: null})
+    return val
 }
 
 async function getLastMutations(clientGroupId: string, userId: string) {
