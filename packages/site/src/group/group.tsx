@@ -66,9 +66,6 @@ const [expenseCardMode, _setExpenseCardMode] = createSignal<ExpenseCardMode>(
     {
         mode: "add",
     },
-    {
-        equals: (a, b) => a.mode === b.mode && a.id === b.id,
-    },
 );
 export { expenseCardMode as asideCardMode };
 
@@ -430,7 +427,7 @@ function ExpenseCard(props: { title: string }) {
             <CardContent class="px-10">
                 <ExpenseCardInner />
             </CardContent>
-            <Show when={expenseCardMode().mode === "view"}>
+            <Show when={expenseCardMode().mode === "view"} keyed>
                 <CardFooter>
                     <ViewExpenseCardFooter expenseId={expenseCardMode().id!} />
                 </CardFooter>
@@ -506,22 +503,44 @@ function EditExpenseButton(props: { expenseId: Expense["id"] }) {
 }
 
 function ExpenseCardInner() {
+    const modeIs = <Mode extends "add" | "view" | "edit">(mode: Mode) => {
+        if (expenseCardMode().mode === mode) {
+            return expenseCardMode() as ReturnType<typeof expenseCardMode> & {
+                mode: Mode;
+            };
+        }
+        return null;
+    };
     return (
         <Switch>
-            <Match when={expenseCardMode().mode === "add"}>
-                <AddExpenseCard onSubmit={() => setExpenseCardOpen(false)} />
+            <Match when={modeIs("add")} keyed>
+                {(_expenseCardMode) => { 
+                    console.log("adding", _expenseCardMode)
+                    return <AddExpenseCard
+                    onSubmit={() => {
+                        setExpenseCardOpen(false);
+                        setExpenseCardMode({mode: "add"})
+                    }}
+                /> }}
             </Match>
-            <Match when={expenseCardMode().mode === "view"}>
-                <ViewExpenseCard expenseId={expenseCardMode().id!} />
+            <Match when={modeIs("view")} keyed>
+                {(expenseCardMode) => (
+                    <ViewExpenseCard expenseId={expenseCardMode.id} />
+                )}
             </Match>
-            <Match when={expenseCardMode().mode === "edit"}>
-                <AddExpenseCard
-                    onSubmit={() => setExpenseCardOpen(false)}
-                    expense={dbg(
-                        "expense",
-                        (expenseCardMode() as ExpenseCardEdit).expense,
-                    )}
-                />
+            <Match when={modeIs("edit")} keyed>
+                {(expenseCardMode) => (
+                    <AddExpenseCard
+                        onSubmit={() => {
+                            setExpenseCardMode({ mode: "add" });
+                            setExpenseCardOpen(false);
+                        }}
+                        expense={dbg(
+                            "expense",
+                            expenseCardMode.expense,
+                        )}
+                    />
+                )}
             </Match>
         </Switch>
     );

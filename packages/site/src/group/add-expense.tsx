@@ -61,7 +61,6 @@ export function AddExpenseCard(props: {
                     formApi.state.isTouched = false
                 } else {
                     await addExpense(value);
-                    formApi.reset();
                 }
                 props.onSubmit?.();
             } catch (e) {
@@ -332,7 +331,7 @@ export function Field(props: FieldProps) {
                         type={type}
                         placeholder={placeholder}
                         step={step}
-                        value={type === "date" ? formatDate(field().state.value!) : field().state.value!}
+                        value={type === "date" ? formatDate(field().state.value!) : field().state.value ?? ""}
                         onChange={(e) =>
                             field().handleChange(
                                 props.parse?.(e.target.value) ?? e.target.value,
