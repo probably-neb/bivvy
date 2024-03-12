@@ -344,7 +344,6 @@ async function getUsersForUser(userID: string) {
             uniqueUsers.set(user.id, user);
             continue;
         }
-        uniqueUsers.get(user.id)!.owed += user.owed;
     }
     for (const [owedUserID, owedToUserAmount] of owed.total) {
         const owedUser = uniqueUsers.get(owedUserID);
@@ -352,7 +351,8 @@ async function getUsersForUser(userID: string) {
             console.error("could not find owed user");
             continue;
         }
-        owedUser.owed = owedToUserAmount;
+        // NOTE: important copy here
+        uniqueUsers.set(owedUserID, Object.assign({}, owedUser, {owed: owedToUserAmount}))
     }
     const uniqueUsersArray = Array.from(uniqueUsers.values());
     const res = {
@@ -597,7 +597,7 @@ function calculateOwed(
             case isOwedToAnotherUser:
                 // if the user didn't pay for the expense and the portion is for the user
                 // then the current users balance should be reduced by their portion
-                owedToUser = -owedToUser;
+                owedToUser = -portion;
                 break;
             case isOwedToCurUser:
                 // if the user paid for the expense and the portion is for another user
