@@ -26,6 +26,12 @@ import {
     Expense,
 } from "@/lib/rep";
 import { SplitRenderer } from "@/components/renderers";
+import {
+    NumberField,
+    NumberFieldErrorMessage,
+    NumberFieldInput,
+    NumberFieldLabel,
+} from "@/components/ui/numberfield";
 
 type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
@@ -58,7 +64,7 @@ export function AddExpenseCard(props: {
                 if (isEditing) {
                     const e = Object.assign({}, expenseToEdit, value);
                     await expenseEdit(e);
-                    formApi.state.isTouched = false
+                    formApi.state.isTouched = false;
                 } else {
                     await addExpense(value);
                 }
@@ -100,14 +106,12 @@ export function AddExpenseCard(props: {
                     validator={expenseInputSchema.shape.description}
                     form={form}
                 />
-                <Field
+                <MoneyField
                     name="amount"
                     label="Amount"
                     placeholder="10.00"
                     validator={expenseInputSchema.shape.amount}
-                    type="number"
                     step="any"
-                    parse={parseAmount}
                     form={form}
                 />
                 <SplitSelect form={form} />
@@ -168,7 +172,7 @@ function SaveButton(props: { form: Form; isEditing: boolean }) {
     });
 
     return (
-        <Button type="submit" disabled={disabled()} >
+        <Button type="submit" disabled={disabled()}>
             <Switch fallback={"Save"}>
                 <Match
                     when={
@@ -238,7 +242,7 @@ function SplitSelect(props: { form: Form }) {
             return;
         }
         console.log("setting field", value);
-        props.form.setFieldValue("splitId", value.id, {touch: true});
+        props.form.setFieldValue("splitId", value.id, { touch: true });
     };
 
     const onOpenChange = (
@@ -331,7 +335,11 @@ export function Field(props: FieldProps) {
                         type={type}
                         placeholder={placeholder}
                         step={step}
-                        value={type === "date" ? formatDate(field().state.value!) : field().state.value ?? ""}
+                        value={
+                            type === "date"
+                                ? formatDate(field().state.value!)
+                                : field().state.value ?? ""
+                        }
                         onChange={(e) =>
                             field().handleChange(
                                 props.parse?.(e.target.value) ?? e.target.value,
@@ -351,8 +359,69 @@ export function Field(props: FieldProps) {
 
 function formatDate(date: number | string | null) {
     if (date == null) {
-        return undefined
+        return undefined;
     }
     const d = new Date(date);
     return d.toISOString().split("T")[0];
+}
+
+export function MoneyField(props: Omit<FieldProps, "type">) {
+    const { validator, name, label, form, step, placeholder } = props;
+    const transformValue = (value: string | number | null) => {
+        const fVal = value;
+        let nVal;
+        if (typeof fVal === "string") {
+            nVal = parseFloat(fVal);
+        } else {
+            nVal = fVal
+        }
+        if (nVal == null || isNaN(nVal)) {
+            nVal = undefined
+        }
+        console.log({fVal, nVal})
+        return nVal;
+    };
+    return (
+        <form.Field
+            name={name}
+            validators={{
+                onChange: validator,
+            }}
+        >
+            {(field) => 
+                (
+                    <NumberField
+                        rawValue={transformValue(field().state.value)}
+                        onRawValueChange={(value) => {
+                            if (isNaN(value)) {
+                                // @ts-ignore used to get "Required" error instead of "got nan" error when no value
+                                value = undefined;
+                            }
+                            field().handleChange(value);
+                        }}
+                        validationState={
+                            field().getMeta().touchedErrors.length > 0
+                                ? "invalid"
+                                : "valid"
+                        }
+                        format
+                        formatOptions={{
+                            style: "currency",
+                            currency: "USD",
+                        }}
+                    >
+                        <NumberFieldLabel>{label}</NumberFieldLabel>
+                        <NumberFieldInput placeholder={placeholder} />
+                        <NumberFieldErrorMessage>
+                            <For each={field().state.meta.errors}>
+                                {(error) => (
+                                    <div class="text-red-500">{error}</div>
+                                )}
+                            </For>
+                        </NumberFieldErrorMessage>
+                    </NumberField>
+                )
+            }
+        </form.Field>
+    );
 }

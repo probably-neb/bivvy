@@ -406,8 +406,8 @@ importers:
   packages/site:
     dependencies:
       '@kobalte/core':
-        specifier: link:../kobalte/packages/core
-        version: link:../kobalte/packages/core
+        specifier: ^0.12.4
+        version: 0.12.4(solid-js@1.8.7)
       '@solidjs/router':
         specifier: 0.10.5
         version: 0.10.5(solid-js@1.8.7)
@@ -4081,6 +4081,14 @@ packages:
     dev: true
     optional: true
 
+  /@corvu/utils@0.1.0(solid-js@1.8.7):
+    resolution: {integrity: sha512-9pqt77fiDiqUkW7gH+tRYyNCagQPTco7ljBAkbF23wIuJYrEWyr8KpX8rlPiz4x0ll6pqTYpiif8betkhpkOLQ==}
+    peerDependencies:
+      solid-js: ^1.8
+    dependencies:
+      solid-js: 1.8.7
+    dev: false
+
   /@cspotcode/source-map-support@0.8.1:
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
@@ -5512,6 +5520,34 @@ packages:
       string-argv: 0.3.2
       type-detect: 4.0.8
     dev: true
+
+  /@kobalte/core@0.12.4(solid-js@1.8.7):
+    resolution: {integrity: sha512-i3zk840txhSTtr+hgOrugM7qejLA/PQgTEmv0Mw6gezch46Z45/jujXWIZft4Y6rJdoWDx8J7P7KOXqcsGLkjQ==}
+    peerDependencies:
+      solid-js: ^1.8.15
+    dependencies:
+      '@floating-ui/dom': 1.5.3
+      '@internationalized/date': 3.5.1
+      '@internationalized/number': 3.5.0
+      '@kobalte/utils': 0.9.0(solid-js@1.8.7)
+      solid-js: 1.8.7
+      solid-prevent-scroll: 0.1.5(solid-js@1.8.7)
+    dev: false
+
+  /@kobalte/utils@0.9.0(solid-js@1.8.7):
+    resolution: {integrity: sha512-TYVCpQcpqo1+0HBn3NXoGEBzxd4tH6Um1oc07nrYw1V7Qq0qbMaYAOnfBc1qhlh7sGV4XZldmb0j13Of0FrZQg==}
+    peerDependencies:
+      solid-js: ^1.7.11
+    dependencies:
+      '@solid-primitives/event-listener': 2.3.0(solid-js@1.8.7)
+      '@solid-primitives/keyed': 1.2.0(solid-js@1.8.7)
+      '@solid-primitives/map': 0.4.8(solid-js@1.8.7)
+      '@solid-primitives/media': 2.2.5(solid-js@1.8.7)
+      '@solid-primitives/props': 3.1.8(solid-js@1.8.7)
+      '@solid-primitives/refs': 1.0.5(solid-js@1.8.7)
+      '@solid-primitives/utils': 6.2.1(solid-js@1.8.7)
+      solid-js: 1.8.7
+    dev: false
 
   /@libsql/client@0.5.3:
     resolution: {integrity: sha512-GsOTv/Yikw8I9ZBqpxwfcDM2GDFtyZfJg7MYgWqVnNXtsqCa+tabSuRVKe34UaG2FjcOFJr9buB4vbl55geXXw==}
@@ -17140,6 +17176,15 @@ packages:
       solid-js: 1.7.11
       vite: 3.2.7(@types/node@20.10.5)(terser@5.26.0)
     dev: true
+
+  /solid-prevent-scroll@0.1.5(solid-js@1.8.7):
+    resolution: {integrity: sha512-8sIlHqaSclBGQJrsPabRlnlAKJib1+gfYWiQLG265tyxao+6yIaccIgbo58QHgPtRrRavANK7Io7DtAUBtP6QA==}
+    peerDependencies:
+      solid-js: ^1.8
+    dependencies:
+      '@corvu/utils': 0.1.0(solid-js@1.8.7)
+      solid-js: 1.8.7
+    dev: false
 
   /solid-refresh@0.5.3(solid-js@1.7.11):
     resolution: {integrity: sha512-Otg5it5sjOdZbQZJnvo99TEBAr6J7PQ5AubZLNU6szZzg3RQQ5MX04oteBIIGDs0y2Qv8aXKm9e44V8z+UnFdw==}
