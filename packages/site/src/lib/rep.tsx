@@ -705,6 +705,16 @@ export function useUsers(group?: Accessor<Group["id"]>) {
     return users;
 }
 
+export function useSortedUsers(group?: Accessor<Group["id"]>) {
+    const groupId = useGroupId(group);
+    const users = useWithOpts(groupId, async (tx, groupId) => {
+        const items = await groupUsers(tx, groupId);
+        items?.sort((a, b) => a.name.localeCompare(b.name))
+        return items
+    });
+    return users;
+}
+
 export function useCurrentUser() {
     const user = use(async (tx) => {
         const userID = await tx.get<string>(P.currentUserID);
@@ -741,6 +751,19 @@ export function useSplits() {
             .toArray();
     });
     return splits;
+}
+
+export function useSortedSplits() {
+    const splits = use(async (tx, { groupId }) => {
+        const items =  await tx
+            .scan<Split>({ prefix: P.split.prefix(groupId) })
+            .values()
+            .toArray();
+        items.sort((a, b) => a.name.localeCompare(b.name));
+        return items
+    });
+    return splits;
+
 }
 
 export function useSplit(id: Accessor<Split["id"]>) {

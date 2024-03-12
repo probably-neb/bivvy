@@ -9,11 +9,11 @@ import {
     SplitInput,
     splitInputSchema,
     useMutations,
-    useUsers,
+    useSortedUsers,
 } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { For, Setter, createEffect, createMemo, createSignal, onMount } from "solid-js";
+import { For, Setter, createMemo, createSignal, onMount } from "solid-js";
 import z from "zod";
 import { on } from "solid-js";
 import { UserRenderer } from "@/components/renderers";
@@ -45,54 +45,62 @@ export function CreateSplitDialog(props: {
 }
 
 function addSpacesToKeys(obj: Record<string, any>) {
-    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [` ${k} `, v]));
+    return Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [` ${k} `, v]),
+    );
 }
 
 function removeSpacesFromKeys(obj: Record<string, any>) {
-    return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k.trim(), v]));
+    return Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [k.trim(), v]),
+    );
 }
 
 const getDefaultValuesFromSplit = (split: Split) => ({
     name: split.name,
     color: split.color,
     portions: addSpacesToKeys(split.portions),
-})
+});
 
-export function CreateSplit(props: { onSubmit?: () => void, split?: Split }) {
+export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
     const { createSplit, splitEdit } = useMutations();
 
-    const editingSplit = props.split
-    const isEditing = editingSplit != null
+    const editingSplit = props.split;
+    const isEditing = editingSplit != null;
 
-    const defaultValues = props.split && getDefaultValuesFromSplit(props.split)
+    const defaultValues = props.split && getDefaultValuesFromSplit(props.split);
     const form = createForm(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
-            const splitInput = Object.assign({}, value, {portions: removeSpacesFromKeys(value.portions)})
+            const splitInput = Object.assign({}, value, {
+                portions: removeSpacesFromKeys(value.portions),
+            });
             if (isEditing) {
-                const split = Object.assign({}, editingSplit, splitInput)
+                const split = Object.assign({}, editingSplit, splitInput);
                 console.log("edit", split);
-                await splitEdit(split)
+                await splitEdit(split);
             } else {
                 console.log("create", splitInput);
                 await createSplit(splitInput);
             }
             props.onSubmit?.();
-            console.log("submiteed", value)
+            console.log("submiteed", value);
         },
         validatorAdapter: zodValidator,
         onSubmitInvalid: (e) => {
             console.log("invalid", e.formApi.state.errors);
         },
         validators: {
-            onSubmit: splitInputSchema.omit({portions: true}).and(z.object({
-                portions: z.record(zParts)
-            })),
+            onSubmit: splitInputSchema.omit({ portions: true }).and(
+                z.object({
+                    portions: z.record(zParts),
+                }),
+            ),
         },
         defaultValues,
         defaultState: {
-            canSubmit: false
-        }
+            canSubmit: false,
+        },
     }));
     // createEffect(on(() => props.split, (split) => {
     //     form.setFieldValue("color", split?.color ?? null, {touch: false})
@@ -132,9 +140,14 @@ export function CreateSplit(props: { onSubmit?: () => void, split?: Split }) {
                 </div>
                 <PortionParts form={form} />
                 <div class="inline-flex justify-center">
-                <Button type="submit" disabled={!form.state.canSubmit} class="w-20">
+                    <Button
+                        type="submit"
+                        disabled={!form.state.canSubmit}
+                        class="w-20"
+                    >
                         {isEditing ? "Update" : "Create"}
-                </Button></div>
+                    </Button>
+                </div>
             </form>
         </form.Provider>
     );
@@ -229,7 +242,7 @@ export function PortionParts(props: { form: SplitForm }) {
     // TODO: store portions, total in portion types + db
     // i.e. calculate owed as parts * amount / numParts
     // where for pecentage numparts is 1.0 (25% * amount / 1.0)
-    const users = useUsers();
+    const users = useSortedUsers();
 
     const totalPortions = useTotalPortions(props.form);
 
@@ -299,6 +312,7 @@ function PercentagePreview(props: { total: number; value: number }) {
 }
 
 function Incrementer(props: { value: number; onChange: Setter<number> }) {
+    const onChange = (value: number) => props.onChange(isNaN(value) || value < 0 ? 0 : value);
     const decrement = () =>
         props.onChange((value) => (value <= 0 ? 0 : value - 1));
     const increment = () => props.onChange((value) => value + 1);
@@ -314,7 +328,7 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
                     type="number"
                     class={`no-spinners w-12 px-0 text-center rounded-full py-0`}
                     value={props.value}
-                    onChange={e => props.onChange(e.target.valueAsNumber)}
+                    onChange={(e) => onChange(e.target.valueAsNumber)}
                 />
             </TextField>
             <button class={btnclass} type="button" onClick={increment}>
@@ -324,7 +338,7 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
     );
 }
 
-function subscribeToField<Form extends FormApi<any, any>,V>(
+function subscribeToField<Form extends FormApi<any, any>, V>(
     form: Form,
     selector: (f: SplitInput) => V,
 ) {

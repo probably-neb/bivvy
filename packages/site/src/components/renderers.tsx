@@ -2,26 +2,54 @@ import { Group, Split, User, useSplit, useUser } from "@/lib/rep";
 import { TiUserOutline } from "solid-icons/ti";
 import { Accessor, JSX, Show, createMemo } from "solid-js";
 import { Badge } from "./ui/badge";
+import { ImageRoot, Image, ImageFallback } from "./ui/image";
 
 // TODO: make renderers take a value instead of an id,
 // no need to make them use rep queries when they probably don't need to
-export function UserRenderer(props: { userId: User["id"], groupId?: Accessor<Group["id"]> }) {
+export function UserRenderer(props: {
+    userId: User["id"];
+    groupId?: Accessor<Group["id"]>;
+}) {
     const user = useUser(() => props.userId, props.groupId);
-
 
     return (
         <div class="flex gap-2 items-center">
-            <Show when={user()?.profileUrl} fallback={<TiUserOutline color="black" class="bg-white rounded-full" size="1.5em" />}>
-                {url => <img src={url()} class="rounded-full w-[1.5em] h-[1.5em]" />}
-            </Show>
+            <UserProfileRenderer userID={props.userId} groupID={props.groupId} />
             <h3>{user()?.name}</h3>
         </div>
     );
 }
 
+export function UserProfileRenderer(props: {
+    userID: User["id"];
+    groupID?: Accessor<Group["id"]>;
+}) {
+    const user = useUser(() => props.userID, props.groupID);
+    const Fallback = () => (
+        <TiUserOutline
+            color="black"
+            class="bg-white rounded-full"
+            size="1.5em"
+        />
+    );
+    return (
+        <Show
+            when={user()?.profileUrl}
+            fallback={<Fallback />}
+        >
+            {(url) => (
+                <ImageRoot class="rounded-full w-[1.5em] h-[1.5em]">
+                    <Image src={url()} alt={user()?.name ?? "profile"} />
+                    <ImageFallback><Fallback /></ImageFallback>
+                </ImageRoot>
+            )}
+        </Show>
+    );
+}
+
 type Format = "m/d/y" | "m/y";
 
-type IntoDate = ConstructorParameters<typeof Date>[0]
+type IntoDate = ConstructorParameters<typeof Date>[0];
 
 type DateProps = {
     format?: Format;
@@ -41,35 +69,34 @@ export function DateRenderer(props: DateProps) {
         const format = props.format ?? "m/d/y";
 
         // month is 0 indexed
-        const month = date.getMonth() + 1
-        const day = date.getDate()
-        let year = date.getFullYear()
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        let year = date.getFullYear();
         if (year > 2000) {
             // shorten years after 2000 to 2 digits
-            year -= 2000
+            year -= 2000;
         }
         switch (format) {
-        case "m/d/y":
-            return `${month}/${day}/${year}`;
-        case "m/y":
-            return `${month}/${year}`;
+            case "m/d/y":
+                return `${month}/${day}/${year}`;
+            case "m/y":
+                return `${month}/${year}`;
         }
-    })
+    });
     return <span>{format()}</span>;
 }
 
-export function MoneyRenderer(props: {
-    amount: number;
-    showPlus?: boolean;
-}) {
-    const sign = createMemo(() => props.amount < 0 ? "-" : props.showPlus ? "+" : "");
+export function MoneyRenderer(props: { amount: number; showPlus?: boolean }) {
+    const sign = createMemo(() =>
+        props.amount < 0 ? "-" : props.showPlus ? "+" : "",
+    );
     const amount = createMemo(() => {
         // show amount in dollars instead of cents
         // also convert to float if it ins't already
         const a = Math.abs(props.amount) / 100.0;
         // don't show that many decimal places because who cares
-        return a.toFixed(2)
-    })
+        return a.toFixed(2);
+    });
     return (
         <span>
             {sign()}${amount()}
@@ -77,11 +104,18 @@ export function MoneyRenderer(props: {
     );
 }
 
-export function SplitRenderer(props: {splitId: Split["id"], class?: string}) {
-    const split = useSplit(() => props.splitId)
-    return <Show when={split()}>
-        <Badge class={props.class} style={`background-color: ${split()?.color}`}>{split()?.name}</Badge>
-    </Show>
+export function SplitRenderer(props: { splitId: Split["id"]; class?: string }) {
+    const split = useSplit(() => props.splitId);
+    return (
+        <Show when={split()}>
+            <Badge
+                class={props.class}
+                style={`background-color: ${split()?.color}`}
+            >
+                {split()?.name}
+            </Badge>
+        </Show>
+    );
 }
 
 export function Render<T, K extends string, V extends Record<K, T>>(props: {
@@ -89,7 +123,9 @@ export function Render<T, K extends string, V extends Record<K, T>>(props: {
     c: (props: V) => JSX.Element;
     key: K;
 }) {
-    return <Show when={props.value}>
-        <props.c {...{ [props.key]: props.value! } as V} />
-    </Show>;
+    return (
+        <Show when={props.value}>
+            <props.c {...({ [props.key]: props.value! } as V)} />
+        </Show>
+    );
 }

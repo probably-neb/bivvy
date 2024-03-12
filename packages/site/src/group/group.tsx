@@ -14,6 +14,7 @@ import {
     ParentProps,
     For,
     createEffect,
+    Accessor,
 } from "solid-js";
 import { OverviewCard } from "@/group/overview-card";
 import { ExpensesTable } from "@/group/expenses-table";
@@ -28,6 +29,8 @@ import {
     useGroup,
     useMutations,
     useOwnsCurrentGroup,
+    useSortedSplits,
+    useSortedUsers,
     useSplits,
     useUsers,
 } from "@/lib/rep";
@@ -174,8 +177,8 @@ function ExpensesTab() {
 }
 
 function SplitsTab() {
-    const splits = useSplits();
-    const users = useUsers();
+    const splits = useSortedSplits();
+    const users = useSortedUsers();
     const [editingSplit, setEditingSplit] = createSignal<Split | null>(null);
     return (
         <div class="flex flex-col justify-center lg:flex-row gap-6">
@@ -270,8 +273,10 @@ function SplitCardPortions(props: {
                             () => props.portions[user.id] ?? 0,
                         );
                         return (
-                            <>
-                                <UserRenderer userId={user.id} />
+                            <Show when={portion() !== 0}>
+                                <span class="w-32">
+                                    <UserRenderer userId={user.id} />
+                                </span>
                                 <span class="inline-flex justify-center">{`${portion()}/${
                                     props.total
                                 }`}</span>
@@ -279,7 +284,7 @@ function SplitCardPortions(props: {
                                     total={props.total}
                                     value={portion()}
                                 />
-                            </>
+                            </Show>
                         );
                     }}
                 </For>
@@ -310,8 +315,7 @@ function GroupTab() {
     //  - created
     // if owner:
     //  archive group button
-    const isOwner = useOwnsCurrentGroup()
-    dbgSignal(isOwner, "isOwner:")
+    const isOwner = useOwnsCurrentGroup();
     return (
         <div>
             {/* FIXME: move to users tab */}
@@ -325,8 +329,8 @@ function GroupTab() {
 
 function dbgSignal(s: Accessor<unknown>, label?: string) {
     createEffect(() => {
-        console.log(label ?? "value:", s())
-    })
+        console.log(label ?? "value:", s());
+    });
 }
 
 function EditGroupButton() {
@@ -339,7 +343,15 @@ function EditGroupButton() {
             <Button variant="outline" onClick={[setOpen, !open()]}>
                 Edit
             </Button>
-            <CreateGroupModal open={open} setOpen={setOpen} group={group()} />
+            <Show when={group()} keyed>
+                {(group) => (
+                    <CreateGroupModal
+                        open={open}
+                        setOpen={setOpen}
+                        group={group}
+                    />
+                )}
+            </Show>
         </>
     );
 }
