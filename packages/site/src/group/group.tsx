@@ -518,8 +518,8 @@ function ExpenseCardInner() {
                     console.log("adding", _expenseCardMode)
                     return <AddExpenseCard
                     onSubmit={() => {
-                        setExpenseCardOpen(false);
                         setExpenseCardMode({mode: "add"})
+                        setExpenseCardOpen(false);
                     }}
                 /> }}
             </Match>
