@@ -366,6 +366,7 @@ function formatDate(date: number | string | null) {
 }
 
 export function MoneyField(props: Omit<FieldProps, "type">) {
+    // TODO: use step
     const { validator, name, label, form, step, placeholder } = props;
     const transformValue = (value: string | number | null) => {
         const fVal = value;
@@ -373,12 +374,12 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
         if (typeof fVal === "string") {
             nVal = parseFloat(fVal);
         } else {
-            nVal = fVal
+            nVal = fVal;
         }
         if (nVal == null || isNaN(nVal)) {
-            nVal = undefined
+            nVal = undefined;
         }
-        console.log({fVal, nVal})
+        console.log({ fVal, nVal });
         return nVal;
     };
     return (
@@ -388,40 +389,36 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
                 onChange: validator,
             }}
         >
-            {(field) => 
-                (
-                    <NumberField
-                        rawValue={transformValue(field().state.value)}
-                        onRawValueChange={(value) => {
-                            if (isNaN(value)) {
-                                // @ts-ignore used to get "Required" error instead of "got nan" error when no value
-                                value = undefined;
-                            }
-                            field().handleChange(value);
-                        }}
-                        validationState={
-                            field().getMeta().touchedErrors.length > 0
-                                ? "invalid"
-                                : "valid"
+            {(field) => (
+                <NumberField
+                    rawValue={transformValue(field().state.value)}
+                    onRawValueChange={(value) => {
+                        if (isNaN(value)) {
+                            // @ts-ignore used to get "Required" error instead of "got nan" error when no value
+                            value = undefined;
                         }
-                        format
-                        formatOptions={{
-                            style: "currency",
-                            currency: "USD",
-                        }}
-                    >
-                        <NumberFieldLabel>{label}</NumberFieldLabel>
-                        <NumberFieldInput placeholder={placeholder} />
-                        <NumberFieldErrorMessage>
-                            <For each={field().state.meta.errors}>
-                                {(error) => (
-                                    <div class="text-red-500">{error}</div>
-                                )}
-                            </For>
-                        </NumberFieldErrorMessage>
-                    </NumberField>
-                )
-            }
+                        field().handleChange(value);
+                    }}
+                    validationState={
+                        field().getMeta().touchedErrors.length > 0
+                            ? "invalid"
+                            : "valid"
+                    }
+                    format
+                    formatOptions={{
+                        style: "currency",
+                        currency: "USD",
+                    }}
+                >
+                    <NumberFieldLabel>{label}</NumberFieldLabel>
+                    <NumberFieldInput placeholder={placeholder} />
+                    <NumberFieldErrorMessage>
+                        <For each={field().state.meta.errors}>
+                            {(error) => <div class="text-red-500">{error}</div>}
+                        </For>
+                    </NumberFieldErrorMessage>
+                </NumberField>
+            )}
         </form.Field>
     );
 }

@@ -14,8 +14,10 @@ import {
     Component,
     For,
     JSX,
+    ParentProps,
     Show,
     createEffect,
+    createMemo,
     createSignal,
     on,
 } from "solid-js";
@@ -42,6 +44,14 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { isDev } from "@/lib/utils";
+import {
+    ColumnDef,
+    HeaderGroup,
+    Row,
+    createSolidTable,
+    flexRender,
+    getCoreRowModel,
+} from "@tanstack/solid-table";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -53,7 +63,7 @@ const columnFields = [
     "paidOn",
     "createdAt",
 ] as const;
-type Columns = Pick<Expense, (typeof columnFields)[number]>;
+type Columns = Pick<Expense, typeof columnFields[number]>;
 type Column = keyof Columns;
 
 const titles: Record<Column, string> = {
@@ -92,7 +102,7 @@ function ColumnAction(props: { field: Column }) {
 }
 
 const defaultShow = Object.fromEntries(
-    columnFields.map((c) => [c, true]),
+    columnFields.map((c) => [c, true])
 ) as Record<Column, boolean>;
 
 const [show, setShow] = createStore<Record<Column, boolean>>(defaultShow);
@@ -103,18 +113,98 @@ function watchShow() {
         on(device, () => {
             setShow(
                 Object.fromEntries(
-                    columnFields.map((f) => [f, isAtLeast(showAt[f])]),
-                ),
+                    columnFields.map((f) => [f, isAtLeast(showAt[f])])
+                )
             );
-        }),
+        })
     );
 }
 
-export function ExpensesTable(props: {
+type ExpenseButtonProps = {
     viewExpense: ViewExpense;
     addExpenseButtonProps: AddExpenseButtonProps;
-}) {
+};
+
+const columns: ColumnDef<Expense>[] = [
+    {
+        header: "Paid By",
+        accessorKey: "paidBy",
+        cell: (params) => (
+            <UserRenderer userId={params.getValue<Expense["paidBy"]>()} />
+        ),
+    },
+    {
+        header: "Amount",
+        accessorKey: "amount",
+        cell: (params) => (
+            <MoneyRenderer amount={params.getValue<Expense["amount"]>()} />
+        ),
+    },
+    {
+        header: () => (
+            <>
+                Split <CreateSplitButton />
+            </>
+        ),
+        accessorKey: "splitId",
+        cell: (params) => (
+            <SplitRenderer splitId={params.getValue<Expense["splitId"]>()} />
+        ),
+    },
+    {
+        header: "Description",
+        accessorKey: "description",
+        cell: (params) => (
+            <span>{params.getValue<Expense["description"]>()}</span>
+        ),
+    },
+];
+
+function useTableExpenses() {
+    const expenses = useExpenses();
+    const [valueStore, setValueStore] = createStore<{ data: Array<Expense> }>({
+        data: [],
+    });
+    createEffect(() => {
+        const data = expenses();
+        if (data == null) {
+            return;
+        }
+        setValueStore({ data });
+    });
+    return valueStore;
+}
+
+export function ExpensesTable(props: ExpenseButtonProps) {
     watchShow();
+    const expenses = useTableExpenses();
+    const table = createMemo(() => {
+        return createSolidTable<Expense>({
+            data: expenses.data,
+            columns,
+            getCoreRowModel: getCoreRowModel(),
+        });
+    });
+    return (
+        <ExpensesTableWrapper
+            addExpenseButtonProps={props.addExpenseButtonProps}
+        >
+            <Table>
+                <TableHeaders headerGroups={table().getHeaderGroups()} />
+                <TableBody class="min-h-0 max-h-[80vh] overflow-y-auto">
+                    <TableRows
+                        rows={table().getRowModel().rows}
+                        viewExpense={props.viewExpense}
+                    />
+                </TableBody>
+            </Table>
+        </ExpensesTableWrapper>
+    );
+}
+
+function ExpensesTableWrapper(
+    props: ParentProps<{ addExpenseButtonProps: AddExpenseButtonProps }>
+) {
     return (
         <Card class="mt-6">
             <CardHeader class="flex flex-row justify-between items-center p-3 pl-6">
@@ -126,43 +216,64 @@ export function ExpensesTable(props: {
                     </Show>
                 </div>
             </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHeaders />
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRows viewExpense={props.viewExpense} />
-                    </TableBody>
-                </Table>
-            </CardContent>
+            <CardContent>{props.children}</CardContent>
         </Card>
     );
 }
 
-function TableHeaders() {
+function TableHeaders(props: { headerGroups: HeaderGroup<Expense>[] }) {
     return (
-        <For each={columnFields}>
-            {(field) => (
-                <Show when={show[field]}>
-                    <TableHead>
-                        {titles[field]}
-                        <ColumnAction field={field} />
-                    </TableHead>
-                </Show>
-            )}
-        </For>
+        <TableHeader>
+            <For each={props.headerGroups}>
+                {(group) => (
+                    <TableRow>
+                        <For each={group.headers}>
+                            {(header) => (
+                                <Show when={true /* show[field] */}>
+                                    <TableHead>
+                                        <Show when={!header.isPlaceholder}>
+                                            {flexRender(
+                                                header.column.columnDef.header,
+                                                header.getContext()
+                                            )}
+                                        </Show>
+                                    </TableHead>
+                                </Show>
+                            )}
+                        </For>
+                    </TableRow>
+                )}
+            </For>
+        </TableHeader>
     );
 }
 
-function TableRows(props: { viewExpense: ViewExpense }) {
-    const expenses = useExpenses();
+function TableRows(props: { rows: Row<Expense>[]; viewExpense: ViewExpense }) {
+    createEffect(() => {
+        console.log(props.rows);
+    });
     return (
-        <For each={expenses()}>
-            {(expense) => (
-                <ExpenseRow expense={expense} viewExpense={props.viewExpense} />
+        <For each={props.rows}>
+            {(row) => (
+                <TableRow
+                    onClick={[
+                        props.viewExpense,
+                        row.original.id,
+                    ]}
+                >
+                    <For each={row.getVisibleCells()}>
+                        {(cell) => (
+                            <Show when={true /* show[cell] */}>
+                                <TableCell>
+                                    {flexRender(
+                                        cell.column.columnDef.cell,
+                                        cell.getContext()
+                                    )}
+                                </TableCell>
+                            </Show>
+                        )}
+                    </For>
+                </TableRow>
             )}
         </For>
     );
@@ -170,7 +281,7 @@ function TableRows(props: { viewExpense: ViewExpense }) {
 
 type RowRenderer<Key extends Column> = (
     k: Columns[Key],
-    v: Columns,
+    v: Columns
 ) => JSX.Element;
 
 const renderers: { [key in Column]: RowRenderer<key> } = {
@@ -199,7 +310,7 @@ function ExpenseRow(props: {
                         <TableCell>
                             {(renderers[field] as any)(
                                 props.expense[field],
-                                props.expense,
+                                props.expense
                             )}
                         </TableCell>
                     </Show>
