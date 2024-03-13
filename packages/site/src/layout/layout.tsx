@@ -14,8 +14,8 @@ export default function Layout({ children }: ParentProps) {
         <>
             <main class={`min-h-screen bg-gradient-to-br ${fade}`}>
                 <div class="flex flex-row justify-between items-center px-4 pt-4">
-                    <div class="text-white flex items-baseline">
-                        <h1 class="text-4xl font-bold">{NAME}</h1>
+                    <div class="text-white flex items-baseline overflow-x-hidden">
+                        <h1 class="text-3xl font-bold">{NAME}</h1>
                         <BreadCrumbs />
                     </div>
                     <div class="flex justify-evenly gap-2 items-center">

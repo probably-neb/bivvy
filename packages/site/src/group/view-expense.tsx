@@ -22,13 +22,6 @@ export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
                     {(amount) => <MoneyRenderer amount={amount()} />}
                 </Show>
             </KV>
-            <KV k="Status">
-                <Show when={expense()?.status}>
-                    {(status) => (
-                        <span class="uppercase">{status()}</span>
-                    )}
-                </Show>
-            </KV>
             <KV k="Description">
                 <Show when={expense()?.description}>
                     {(description) => <span>{description()}</span>}

@@ -42,6 +42,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { isDev } from "@/lib/utils";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -49,18 +50,16 @@ const columnFields = [
     "amount",
     "splitId",
     "description",
-    "status",
     "paidOn",
     "createdAt",
 ] as const;
-type Columns = Pick<Expense, (typeof columnFields)[number]>;
+type Columns = Pick<Expense, typeof columnFields[number]>;
 type Column = keyof Columns;
 
 const titles: Record<Column, string> = {
     paidBy: "Paid By",
     amount: "Amount",
     description: "Description",
-    status: "Status",
     paidOn: "Paid On",
     createdAt: "Added On",
     splitId: "Split",
@@ -71,7 +70,6 @@ const showAt: Record<Column, Size> = {
     amount: "sm",
     description: "sm",
     splitId: "sm",
-    status: "md",
     paidOn: "md",
     createdAt: "md",
 };
@@ -80,7 +78,6 @@ const actions: Record<Column, Component> = {
     paidBy: () => null,
     amount: () => null,
     description: () => null,
-    status: () => null,
     paidOn: () => null,
     createdAt: () => null,
     splitId: () => <CreateSplitButton />,
@@ -92,7 +89,7 @@ function ColumnAction(props: { field: Column }) {
 }
 
 const defaultShow = Object.fromEntries(
-    columnFields.map((c) => [c, true]),
+    columnFields.map((c) => [c, true])
 ) as Record<Column, boolean>;
 
 const [show, setShow] = createStore<Record<Column, boolean>>(defaultShow);
@@ -103,10 +100,10 @@ function watchShow() {
         on(device, () => {
             setShow(
                 Object.fromEntries(
-                    columnFields.map((f) => [f, isAtLeast(showAt[f])]),
-                ),
+                    columnFields.map((f) => [f, isAtLeast(showAt[f])])
+                )
             );
-        }),
+        })
     );
 }
 
@@ -170,14 +167,24 @@ function TableRows(props: { viewExpense: ViewExpense }) {
 
 type RowRenderer<Key extends Column> = (
     k: Columns[Key],
-    v: Columns,
+    v: Columns
 ) => JSX.Element;
 
 const renderers: { [key in Column]: RowRenderer<key> } = {
     paidBy: (paidBy) => <UserRenderer userId={paidBy} />,
     amount: (amount) => <MoneyRenderer amount={amount} />,
-    description: (description) => <span>{description}</span>,
-    status: (status) => <span class="uppercase">{status}</span>,
+    description: (description) => (
+        <HoverCard>
+            <HoverCardTrigger>
+                <span class="block text-nowrap truncate  w-24 lg:w-32">
+                    {description}
+                </span>
+            </HoverCardTrigger>
+            <HoverCardContent>
+                <span>{description}</span>
+            </HoverCardContent>
+        </HoverCard>
+    ),
     paidOn: (paidOn) => (
         <Show when={paidOn}>
             <DateRenderer date={paidOn!} />
@@ -199,7 +206,7 @@ function ExpenseRow(props: {
                         <TableCell>
                             {(renderers[field] as any)(
                                 props.expense[field],
-                                props.expense,
+                                props.expense
                             )}
                         </TableCell>
                     </Show>
