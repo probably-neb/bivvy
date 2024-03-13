@@ -94,8 +94,6 @@ export function AddExpenseCard(props: {
                     await form
                         .handleSubmit()
                         .then(() => console.log("submitted"));
-                    // void form.validate("submit");
-                    // await addExpense(form.state.values);
                 }}
             >
                 <Field
@@ -198,7 +196,7 @@ function SaveButton(props: { form: Form; isEditing: boolean }) {
 
 function useFormValue<V>(
     form: Form,
-    selector: (f: FormState<ExpenseInput>) => V,
+    selector: (f: FormState<ExpenseInput>) => V
 ) {
     const formState = form.useStore();
     const value = createMemo(() => selector(formState()));
@@ -212,30 +210,19 @@ function SplitSelect(props: { form: Form }) {
             name: split.name,
             id: split.id,
             element: () => <SplitRenderer splitId={split.id} />,
-        })),
+        }))
     );
     type Option = typeof allOptions extends () => Array<infer O> ? O : never;
 
-    const [value, setValue] = createSignal("");
+    const [searchValue, setSearchValue] = createSignal("");
     const filter = createFilter({ sensitivity: "base" });
     const options = createMemo(() => {
-        if (value() === "") {
+        if (searchValue() === "") {
             return allOptions();
         }
         return allOptions().filter((option) =>
-            filter.contains(option.name, value()),
+            filter.contains(option.name, searchValue())
         );
-    });
-    const selectedId = useFormValue(
-        props.form,
-        (f) => f.values.splitId as string | undefined,
-    );
-    const selected = createMemo(() => {
-        const id = selectedId();
-        if (id == null || id === "") {
-            return undefined;
-        }
-        return allOptions().find((o) => o.id === id);
     });
     const onChange = (value: Option | null) => {
         if (!value) {
@@ -245,46 +232,61 @@ function SplitSelect(props: { form: Form }) {
         props.form.setFieldValue("splitId", value.id, { touch: true });
     };
 
+    const [isSelecting, setIsSelecting] = createSignal(false);
     const onOpenChange = (
         isOpen: boolean,
-        triggerMode?: ComboboxTriggerMode,
+        triggerMode?: ComboboxTriggerMode
     ) => {
         if (isOpen && triggerMode === "manual") {
-            setValue("");
+            setSearchValue("");
         }
+        setIsSelecting(isOpen);
     };
     return (
-        <Combobox<Option>
-            value={selected()}
-            options={options()}
-            onInputChange={(value) => setValue(value)}
-            onChange={onChange}
-            onOpenChange={onOpenChange}
-            optionTextValue="name"
-            optionValue="id"
-            optionLabel="name"
-            itemComponent={(props) => {
-                return (
-                    <ComboboxItem item={props.item}>
-                        <props.item.rawValue.element />
-                    </ComboboxItem>
-                );
+        <props.form.Field name="splitId">
+            {(field) => {
+                const selectedId = createMemo(() => field().state.value)
+                const selected = createMemo(() => {
+                    const id = selectedId();
+                    if (id == null || id === "") {
+                        return undefined;
+                    }
+                    return allOptions().find((o) => o.id === id);
+                });
+                return <Combobox<Option>
+                    value={selected()}
+                    options={options()}
+                    onInputChange={(value) => setSearchValue(value)}
+                    onChange={(opt) => field().handleChange(opt?.id ?? null)}
+                    onOpenChange={onOpenChange}
+                    optionTextValue="name"
+                    optionValue="id"
+                    optionLabel="name"
+                    itemComponent={(props) => (
+                        <ComboboxItem item={props.item}>
+                            <props.item.rawValue.element />
+                        </ComboboxItem>
+                    )}
+                >
+                    <TextFieldLabel>Split</TextFieldLabel>
+                    <ComboboxTrigger class="relative">
+                        <Show when={!isSelecting() && selected()}>
+                            {(selected) => (
+                                <div class="absolute">
+                                    {selected().element()}
+                                </div>
+                            )}
+                        </Show>
+                        {/*
+                         * `data-[closed]:text-card` hides the text by setting it to the same color as the card
+                         * so there is no risk of some peeking out from behind the selected elem overlay
+                         */}
+                        <ComboboxInput class="data-[closed]:text-card" />
+                    </ComboboxTrigger>
+                    <ComboboxContent />
+                </Combobox>
             }}
-        >
-            <TextFieldLabel>Split</TextFieldLabel>
-            <ComboboxTrigger>
-                {/*
-                    FIXME: this looks ok but basically just makes it a select. Need to figure out how to
-                           restore combobox functionality (search by typing)
-                */}
-                <Show when={selected()} fallback={<div class="w-full"></div>}>
-                    {selected()!.element()}
-                </Show>
-                {/* selected()?.element() ?? <div class="w-full"></div> */}
-                <ComboboxInput hidden />
-            </ComboboxTrigger>
-            <ComboboxContent />
-        </Combobox>
+        </props.form.Field>
     );
 }
 
@@ -342,7 +344,7 @@ export function Field(props: FieldProps) {
                         }
                         onChange={(e) =>
                             field().handleChange(
-                                props.parse?.(e.target.value) ?? e.target.value,
+                                props.parse?.(e.target.value) ?? e.target.value
                             )
                         }
                     />
@@ -373,12 +375,12 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
         if (typeof fVal === "string") {
             nVal = parseFloat(fVal);
         } else {
-            nVal = fVal
+            nVal = fVal;
         }
         if (nVal == null || isNaN(nVal)) {
-            nVal = undefined
+            nVal = undefined;
         }
-        console.log({fVal, nVal})
+        console.log({ fVal, nVal });
         return nVal;
     };
     return (
@@ -388,40 +390,36 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
                 onChange: validator,
             }}
         >
-            {(field) => 
-                (
-                    <NumberField
-                        rawValue={transformValue(field().state.value)}
-                        onRawValueChange={(value) => {
-                            if (isNaN(value)) {
-                                // @ts-ignore used to get "Required" error instead of "got nan" error when no value
-                                value = undefined;
-                            }
-                            field().handleChange(value);
-                        }}
-                        validationState={
-                            field().getMeta().touchedErrors.length > 0
-                                ? "invalid"
-                                : "valid"
+            {(field) => (
+                <NumberField
+                    rawValue={transformValue(field().state.value)}
+                    onRawValueChange={(value) => {
+                        if (isNaN(value)) {
+                            // @ts-ignore used to get "Required" error instead of "got nan" error when no value
+                            value = undefined;
                         }
-                        format
-                        formatOptions={{
-                            style: "currency",
-                            currency: "USD",
-                        }}
-                    >
-                        <NumberFieldLabel>{label}</NumberFieldLabel>
-                        <NumberFieldInput placeholder={placeholder} />
-                        <NumberFieldErrorMessage>
-                            <For each={field().state.meta.errors}>
-                                {(error) => (
-                                    <div class="text-red-500">{error}</div>
-                                )}
-                            </For>
-                        </NumberFieldErrorMessage>
-                    </NumberField>
-                )
-            }
+                        field().handleChange(value);
+                    }}
+                    validationState={
+                        field().getMeta().touchedErrors.length > 0
+                            ? "invalid"
+                            : "valid"
+                    }
+                    format
+                    formatOptions={{
+                        style: "currency",
+                        currency: "USD",
+                    }}
+                >
+                    <NumberFieldLabel>{label}</NumberFieldLabel>
+                    <NumberFieldInput placeholder={placeholder} />
+                    <NumberFieldErrorMessage>
+                        <For each={field().state.meta.errors}>
+                            {(error) => <div class="text-red-500">{error}</div>}
+                        </For>
+                    </NumberFieldErrorMessage>
+                </NumberField>
+            )}
         </form.Field>
     );
 }
