@@ -138,7 +138,7 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
                     />
                     <SplitColorPick form={form} />
                 </div>
-                <PortionParts form={form} />
+                <PortionParts form={form} isEditing={isEditing} />
                 <div class="inline-flex justify-center">
                     <Button
                         type="submit"
@@ -227,7 +227,7 @@ function useTotalPortions(form: SplitForm) {
     return total;
 }
 
-export function PortionParts(props: { form: SplitForm }) {
+export function PortionParts(props: { form: SplitForm, isEditing: boolean}) {
     // TODO: store portions, total in portion types + db
     // i.e. calculate owed as parts * amount / numParts
     // where for pecentage numparts is 1.0 (25% * amount / 1.0)
@@ -241,6 +241,7 @@ export function PortionParts(props: { form: SplitForm }) {
                 <UserPortionParts
                     form={props.form}
                     userId={user.id}
+                    isEditing={props.isEditing}
                     totalPortions={totalPortions()}
                 />
             )}
@@ -260,6 +261,7 @@ function UserPortionParts(props: {
     form: SplitForm;
     userId: string;
     totalPortions: number;
+    isEditing: boolean;
 }) {
     // NOTE: spaces around userId here because form will recognize ids that are valid integers as array indices
     // see `onSubmit` where we use `trim` to remove the spaces
@@ -270,9 +272,12 @@ function UserPortionParts(props: {
     // when remounting with a new split to edit
     const portion = props.form.state.values.portions?.[userID];
     if (not(portion)) {
-        props.form.setFieldValue(id, 1);
+        let defaultPortion = 1
+        if (props.isEditing) {
+            defaultPortion = 0
+        }
+        props.form.setFieldValue(id, defaultPortion);
     }
-
     return (
         <props.form.Field name={id}>
             {(field) => (

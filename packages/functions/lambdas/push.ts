@@ -462,7 +462,7 @@ async function _createSplit(tx: Tx, args: Split) {
         .value();
     await tx.insert(schema.splits).values(s);
 
-    const portionEntries = Object.entries(portions);
+    const portionEntries = Object.entries(portions).filter(([userID, portions]) => portions > 0);
     const numPortions = portionEntries.length;
     type PDef = typeof schema.split_portion_def.$inferInsert;
     const pdefs = new Array<PDef>(numPortions);
