@@ -31,9 +31,11 @@ const mutators = {
         await createExpenseSideEffects(tx, expense);
     },
     async expenseWithOneOffSplitCreate(tx: WriteTransaction, expense: ExpenseWithOneOffSplit) {
+        console.dir({mode: "create", expense}, {depth: null})
         // TODO:
     },
     async expenseWithOneOffSplitEdit(tx: WriteTransaction, expense: ExpenseWithOneOffSplit) {
+        console.dir({mode: "edit", expense}, {depth: null})
         // TODO:
     },
     async deleteExpense(
@@ -66,7 +68,7 @@ const mutators = {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
     async createGroup(tx: WriteTransaction, input: CreateGroupInput) {
-        const [group, { defaultSplitId }] = removeKeys(input, [
+        const [group, _] = removeKeys(input, [
             "defaultSplitId",
         ]) satisfies readonly [Group, any];
         tx.set(P.group.id(group.id), group);
@@ -117,12 +119,7 @@ async function cleanupExpenseSideEffects(
     groupId: Group["id"],
 ) {
     let split = await tx.get<Split>(P.split.id(groupId, expense.splitId));
-    if (!split) {
-        // FIXME: uncomment
-        // throw new Error("split not found");
-        const userIds = await groupUserIds(tx, groupId);
-        split = createEvenSplit(userIds, expense.splitId, groupId);
-    }
+    assert(split != null, "split not found")
     const total = -expense.amount;
     await updateOwed(tx, expense.paidBy, groupId, total, split.portions);
 }
@@ -353,14 +350,14 @@ export const zExpenseInput = zExpense.pick({
 });
 export type ExpenseInput = z.infer<typeof zExpenseInput>;
 
-const zExpenseWithOneOffSplit = zExpense.omit({ splitId: true }).extend({
+export const zExpenseWithOneOffSplit = zExpense.omit({ splitId: true }).extend({
     split: zSplit
 })
 
 export type ExpenseWithOneOffSplit = z.infer<typeof zExpenseWithOneOffSplit>;
 
-const zExpenseWithOneOffSplitInput = zExpenseInput.omit({ splitId: true }).extend({
-    split: zSplitInput.omit({ name: true })
+export const zExpenseWithOneOffSplitInput = zExpenseInput.omit({ splitId: true }).extend({
+    split: zSplitInput.pick({ portions: true })
 })
 
 export type ExpenseWithOneOffSplitInput = z.infer<typeof zExpenseWithOneOffSplitInput>;
@@ -600,7 +597,8 @@ function expandSplitInput(input: SplitInput, groupID: string) {
         {
             groupId: groupID,
             id: nanoid(),
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            isOneOff: false,
         },
     );
     return split
@@ -609,8 +607,9 @@ function expandSplitInput(input: SplitInput, groupID: string) {
 function expandExpenseWithOneOffSplitInput(input: ExpenseWithOneOffSplitInput, ctx: { userID: string, groupID: string }) {
     const expenseInput = Object.assign(input, { splitId: "_____PLACEHOLDER_____" })
     const expense = expandExpenseInput(expenseInput, ctx)
-    const splitInput = Object.assign(input.split, { name: generateOneOffSplitName(expense.id) })
+    const splitInput = Object.assign(input.split, { name: generateOneOffSplitName(expense.id), color: null })
     const split = expandSplitInput(splitInput, ctx.groupID)
+    split.isOneOff = true
     const output = Object.assign(expense, { split })
     return output
 }
@@ -1040,20 +1039,4 @@ function useGroupId(group?: Accessor<Group["id"]>) {
         return id!;
     });
     return id;
-}
-
-function createEvenSplit(userIds: string[], splitId: string, groupId: string) {
-    const portions: Split["portions"] = {};
-    for (const id of userIds) {
-        portions[id] = 1.0;
-    }
-    return {
-        id: splitId,
-        portions,
-        name: "Even Split",
-        groupId,
-        color: null,
-        // TODO: use this in backend
-        createdAt: Date.now()
-    } satisfies Split;
 }

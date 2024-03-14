@@ -1,6 +1,5 @@
 import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     TextField,
     TextFieldErrorMessage,
@@ -19,27 +18,48 @@ import { createFilter } from "@kobalte/core";
 import { createForm, FormApi, FormState } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import {
-    ExpenseInput,
     useMutations,
-    zExpenseInput,
+    zExpenseInput as zBaseExpenseInput,
+    zExpenseWithOneOffSplitInput,
     useSplits,
     Expense,
+    useUsers,
 } from "@/lib/rep";
-import { SplitRenderer } from "@/components/renderers";
+import {
+    SplitRenderer,
+    UserProfileRenderer,
+    UserRenderer,
+} from "@/components/renderers";
 import {
     NumberField,
     NumberFieldErrorMessage,
     NumberFieldInput,
     NumberFieldLabel,
 } from "@/components/ui/numberfield";
+import z from "zod";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleButton } from "@/components/ui/toggle";
+import { assert, deepClone } from "@/lib/utils";
 
+type SplitMode = "existing" | "new";
+const zExpenseInput = z.discriminatedUnion("mode", [
+    z.object({ mode: z.literal("existing"), ...zBaseExpenseInput.shape }),
+    z.object({
+        mode: z.literal("new"),
+        ...zExpenseWithOneOffSplitInput.shape,
+        split: zExpenseWithOneOffSplitInput.shape.split
+            .omit({ portions: true })
+            .and(z.object({portions: z.record(z.number().int().min(0))})),
+    }),
+]);
+type ExpenseInput = z.infer<typeof zExpenseInput>;
 type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
 export function AddExpenseCard(props: {
     onSubmit?: () => void;
     expense?: Expense;
 }) {
-    const { addExpense, expenseEdit } = useMutations();
+    const mutations = useMutations();
 
     const expenseToEdit = props.expense;
     const isEditing = expenseToEdit != null;
@@ -51,31 +71,51 @@ export function AddExpenseCard(props: {
         amount: expenseToEdit.amount / 100 + 0.0,
         paidOn: expenseToEdit.paidOn,
         splitId: expenseToEdit.splitId,
+        // NOTE: required otherwise @tanstack/form fails to clean up after itself
+        split: {portions: {}},
+        mode: "existing" as const,
     };
 
-    const form: Form = createForm(() => ({
-        onSubmit: async ({ value, formApi }) => {
-            // FIXME: server side validation here so that errors can be displayed
-            console.log("submit", value);
+    const form: Form = createForm<ExpenseInput, typeof zExpenseInput>(() => ({
+        onSubmit: async ({ value }) => {
+            // copy so the following changes are not reflected in the visible form state
+            value = deepClone(value)
             // convert to cents, since thats what we store everywhere else
-            // spread so the change is not reflected in the visible form state
-            value = { ...value, amount: value.amount * 100 };
+            value.amount *= 100;
+            if (value.mode ==="new") {
+                value.split.portions = removeSpacesFromKeys(value.split.portions);
+            }
+            if (value.mode === "existing") {
+                // FIXME: server side validation here so that errors can be displayed
+                console.log("submit", value);
+                try {
+                    if (isEditing) {
+                        const e = Object.assign({}, expenseToEdit, value);
+                        await mutations.expenseEdit(e);
+                    } else {
+                        await mutations.addExpense(value);
+                    }
+                } catch (e) {
+                    // TODO: call props.onSubmit anyway and display error message
+                    // in toast (at least until I can come up with something better)
+                    console.error(e);
+                }
+                return;
+            }
             try {
                 if (isEditing) {
                     const e = Object.assign({}, expenseToEdit, value);
-                    await expenseEdit(e);
-                    formApi.state.isTouched = false;
+                    await mutations.expenseWithOneOffSplitEdit(e);
                 } else {
-                    await addExpense(value);
+                    await mutations.expenseWithOneOffSplitCreate(value);
                 }
-                props.onSubmit?.();
             } catch (e) {
                 console.error(e);
             }
         },
         validatorAdapter: zodValidator,
-        onSubmitInvalid: (e) => {
-            console.log("invalid", e.formApi.state.errors);
+        onSubmitInvalid: (props) => {
+            console.error("invalid", props.value, zExpenseInput.safeParse(props.value));
         },
         defaultValues,
         validators: {
@@ -91,9 +131,15 @@ export function AddExpenseCard(props: {
                 onSubmit={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    await form
-                        .handleSubmit()
-                        .then(() => console.log("submitted"));
+                    console.log("submit", form.state.values);
+                    try {
+                        await form
+                            .handleSubmit()
+                        props.onSubmit?.();
+                        console.log("submitted expense")
+                    } catch (e) {
+                        console.error(e)
+                    }
                 }}
             >
                 <Field
@@ -101,14 +147,14 @@ export function AddExpenseCard(props: {
                     label="Description"
                     placeholder="Sparkling Apple Cider"
                     type="text"
-                    validator={zExpenseInput.shape.description}
+                    validator={zBaseExpenseInput.shape.description}
                     form={form}
                 />
                 <MoneyField
                     name="amount"
                     label="Amount"
                     placeholder="10.00"
-                    validator={zExpenseInput.shape.amount}
+                    validator={zBaseExpenseInput.shape.amount}
                     step="any"
                     form={form}
                 />
@@ -118,7 +164,7 @@ export function AddExpenseCard(props: {
                     label="Paid On"
                     placeholder="2021-01-01"
                     type="date"
-                    validator={zExpenseInput.shape.paidOn}
+                    validator={zBaseExpenseInput.shape.paidOn}
                     parse={parseDate}
                     form={form}
                 />
@@ -126,6 +172,18 @@ export function AddExpenseCard(props: {
                 <SaveButton form={form} isEditing={isEditing} />
             </form>
         </form.Provider>
+    );
+}
+
+function addSpacesToKeys(obj: Record<string, any>) {
+    return Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [` ${k} `, v])
+    );
+}
+
+function removeSpacesFromKeys(obj: Record<string, any>) {
+    return Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [k.trim(), v])
     );
 }
 
@@ -203,7 +261,44 @@ function useFormValue<V>(
     return value;
 }
 
+function dbg<T>(label: string, val: T) {
+    console.log(label, val)
+    return val
+}
+
 function SplitSelect(props: { form: Form }) {
+    const ExistingTab = <ExistingSplitSelect form={props.form} />;
+    const NewTab = <CreateNewOneOffSplit form={props.form} />;
+    return (
+        <props.form.Field name="mode" defaultValue="existing">
+            {(field) => (
+                <Tabs
+                    defaultValue={field().state.value}
+                    class="h-32"
+                    onChange={(value) =>
+                        field().handleChange(value as SplitMode)
+                    }
+                >
+                    <TabsList class="justify-center">
+                        <TabsTrigger
+                            class="text-muted-foreground"
+                            value="existing"
+                        >
+                            Split
+                        </TabsTrigger>
+                        <TabsTrigger class="text-muted-foreground" value="new">
+                            One Off Split
+                        </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="existing">{ExistingTab}</TabsContent>
+                    <TabsContent value="new">{NewTab}</TabsContent>
+                </Tabs>
+            )}
+        </props.form.Field>
+    );
+}
+
+function ExistingSplitSelect(props: { form: Form }) {
     const splits = useSplits();
     const allOptions = createMemo(() =>
         (splits() ?? []).map((split) => ({
@@ -238,7 +333,7 @@ function SplitSelect(props: { form: Form }) {
     return (
         <props.form.Field name="splitId">
             {(field) => {
-                const selectedId = createMemo(() => field().state.value)
+                const selectedId = createMemo(() => field().state.value);
                 const selected = createMemo(() => {
                     const id = selectedId();
                     if (id == null || id === "") {
@@ -246,40 +341,67 @@ function SplitSelect(props: { form: Form }) {
                     }
                     return allOptions().find((o) => o.id === id);
                 });
-                return <Combobox<Option>
-                    value={selected()}
-                    options={options()}
-                    onInputChange={(value) => setSearchValue(value)}
-                    onChange={(opt) => field().handleChange(opt?.id ?? null)}
-                    onOpenChange={onOpenChange}
-                    optionTextValue="name"
-                    optionValue="id"
-                    optionLabel="name"
-                    itemComponent={(props) => (
-                        <ComboboxItem item={props.item}>
-                            <props.item.rawValue.element />
-                        </ComboboxItem>
-                    )}
-                >
-                    <TextFieldLabel>Split</TextFieldLabel>
-                    <ComboboxTrigger class="relative">
-                        <Show when={!isSelecting() && selected()}>
-                            {(selected) => (
-                                <div class="absolute">
-                                    {selected().element()}
-                                </div>
-                            )}
-                        </Show>
-                        {/*
-                         * `data-[closed]:text-card` hides the text by setting it to the same color as the card
-                         * so there is no risk of some peeking out from behind the selected elem overlay
-                         */}
-                        <ComboboxInput class="data-[closed]:text-card" />
-                    </ComboboxTrigger>
-                    <ComboboxContent />
-                </Combobox>
+                return (
+                    <Combobox<Option>
+                        value={selected()}
+                        options={options()}
+                        onInputChange={(value) => setSearchValue(value)}
+                        onChange={(opt) =>
+                            field().handleChange(opt?.id ?? null)
+                        }
+                        onOpenChange={onOpenChange}
+                        optionTextValue="name"
+                        optionValue="id"
+                        optionLabel="name"
+                        itemComponent={(props) => (
+                            <ComboboxItem item={props.item}>
+                                <props.item.rawValue.element />
+                            </ComboboxItem>
+                        )}
+                    >
+                        <TextFieldLabel>Split</TextFieldLabel>
+                        <ComboboxTrigger class="relative">
+                            <Show when={!isSelecting() && selected()}>
+                                {(selected) => (
+                                    <div class="absolute">
+                                        {selected().element()}
+                                    </div>
+                                )}
+                            </Show>
+                            {/*
+                             * `data-[closed]:text-card` hides the text by setting it to the same color as the card
+                             * so there is no risk of some peeking out from behind the selected elem overlay
+                             */}
+                            <ComboboxInput class="data-[closed]:text-card" />
+                        </ComboboxTrigger>
+                        <ComboboxContent />
+                    </Combobox>
+                );
             }}
         </props.form.Field>
+    );
+}
+
+function CreateNewOneOffSplit(props: { form: Form }) {
+    const users = useUsers();
+    return (
+        <div>
+            <For each={users()}>
+                {(user) => (
+                    <props.form.Field name={`split.portions. ${user.id} `} defaultValue={0}>
+                        {(field) => (
+                            <ToggleButton
+                                onChange={(pressed) =>
+                                    field().handleChange(pressed ? 1 : 0)
+                                }
+                            >
+                                <UserRenderer userId={user.id} />
+                            </ToggleButton>
+                        )}
+                    </props.form.Field>
+                )}
+            </For>
+        </div>
     );
 }
 
@@ -365,7 +487,7 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
         if (nVal == null || isNaN(nVal)) {
             nVal = undefined;
         }
-        console.log({ fVal, nVal });
+        // console.log({ fVal, nVal });
         return nVal;
     };
     return (
@@ -375,9 +497,10 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
                 onChange: validator,
             }}
         >
-            {(field) => (
-                <NumberField
-                    rawValue={transformValue(field().state.value)}
+            {(field) => {
+                const rawValue = createMemo(() => transformValue(field().state.value))
+                return <NumberField
+                    rawValue={rawValue()}
                     onRawValueChange={(value) => {
                         if (isNaN(value)) {
                             // @ts-ignore used to get "Required" error instead of "got nan" error when no value
@@ -404,7 +527,7 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
                         </For>
                     </NumberFieldErrorMessage>
                 </NumberField>
-            )}
+            }}
         </form.Field>
     );
 }

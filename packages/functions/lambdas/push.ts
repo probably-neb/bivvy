@@ -415,19 +415,58 @@ async function deleteExpense(args: DeleteExpenseInput, userID: string) {
 
     const ex = schema.expenses;
 
-    await db.delete(ex).where(
-        and(
-            eq(ex.id, args.id),
-            eq(ex.group_id, args.groupId),
-            // By having this here and checking the
-            // args.userId = session.userId we ensure
-            // that the user can only delete their own
-            // expenses without having to fech the
-            // expense before deleting
-            eq(ex.paid_by_user_id, args.userId),
-        ),
-    );
+    await db.transaction(async tx => {
+        const expenseID = args.id
+        const prevSplit = await getExpenseSplitIfOneOff(tx, expenseID)
+        await tx.delete(ex).where(
+            and(
+                eq(ex.id, args.id),
+                eq(ex.group_id, args.groupId),
+                // By having this here and checking the
+                // args.userId = session.userId we ensure
+                // that the user can only delete their own
+                // expenses without having to fech the
+                // expense before deleting
+                eq(ex.paid_by_user_id, args.userId),
+            ),
+        );
+        // NOTE: after so that it doesn't break if a fk relation is created between expense and splitId
+        if (prevSplit != null) {
+            await _splitDelete(tx, prevSplit)
+        }
+
+    })
     return true;
+}
+
+async function getExpenseSplitIfOneOff(tx: Tx, expenseID: string) {
+    const prevSplitExp = await tx.query.expenses.findFirst({
+        where: eq(schema.expenses.id, expenseID),
+        columns: {},
+        with: {
+            split: {
+                columns: {
+                    id: true,
+                    is_one_off: true,
+                    group_id: true,
+                }
+            }
+        }
+    })
+    if (prevSplitExp == null) {
+        // NOTE: warn to be nice to user
+        // if error was thrown they would be unable to fix what should be an impossible situation
+        console.warn(`could not find split for expense with id: ${expenseID} while looking for one off`)
+        return null
+    }
+    const prevSplit = prevSplitExp.split
+    if (prevSplit.is_one_off !== true) {
+        return null
+    }
+    return new Parser(prevSplit)
+        .rename("is_one_off", "isOneOff")
+        .rename("group_id", "groupId")
+        .value()
 }
 
 async function expenseEdit(args: Expense, userID: string) {
@@ -473,46 +512,30 @@ async function _expenseEdit(tx: Tx, args: Expense, userID: string) {
 async function expenseWithOneOffSplitEdit(args: ExpenseWithOneOffSplit, userID: string) {
     await db.transaction(async tx => {
         const split = args.split
-        split.isOneOff = true
         const splitID = split.id
 
-        const prevSplits = await tx.query.expenses.findMany({
-            where: eq(schema.expenses.id, args.id),
-            columns: {},
-            with: {
-                split: {
-                    columns: {
-                        id: true,
-                        is_one_off: true,
-                        group_id: true,
-                    }
-                }
-            }
-        })
-        const prevSplit = prevSplits.at(0)?.split
+        const expenseID = args.id
 
-        if (prevSplit == null) {
-            // NOTE: warn to be nice to user
-            // if error was thrown they would be unable to fix what should be an impossible situation
-            console.warn("failed to find previous expense or split while editing with one off:", args)
-        }
-        const prevSplitUsedInMultipleExpenses = prevSplits.length > 1
-        const prevSplitWasOneOff = prevSplit?.is_one_off ?? false
+        const prevSplit = await getExpenseSplitIfOneOff(tx, expenseID)
+
+        const prevSplitWasOneOff = prevSplit != null
         const splitChanged = prevSplit?.id === splitID
-        if (prevSplitWasOneOff && prevSplitUsedInMultipleExpenses) {
-            console.warn("previous split was a one off, and yet it was used in multiple expenses", {args, prevSplits})
-        }
-        if (prevSplitWasOneOff && splitChanged && !prevSplitUsedInMultipleExpenses) {
+
+        if (prevSplitWasOneOff && splitChanged) {
             // Delete previous one-off split
             assert(prevSplit != null, 'prevSplit != null')
-            assert(prevSplit.group_id === split.groupId, "prevSplit.groupId === newSplit.groupId")
-            const splitDeleteArgs = {id: prevSplit.id, groupId: prevSplit.group_id}
-            await _splitDelete(tx, splitDeleteArgs)
+            assert(prevSplit.groupId === split.groupId, "prevSplit.groupId === newSplit.groupId")
+            await _splitDelete(tx, prevSplit)
         }
-        split.isOneOff = true
+        if (!split.isOneOff) {
+            console.warn("expected split in expenseWithOneOff to be marked as a one off but it wasn't. proof: ", split)
+            split.isOneOff = true
+        }
         // create the one off split
         await _splitCreate(tx, split)
 
+        // FIXME: doing this after may cause issues when I get around to adding foreign keys
+        // but doing it before makes it harder to extract the `delete expenses previous split if it was a one off` logic
         const expense = new Parser(args)
             .remove("split")
             .add("splitId", splitID)

@@ -47,3 +47,7 @@ export function assert(value: unknown, message?: string): asserts value {
     throw new Error(`Assertion Error: ${message ?? ""} -- ${value} is Falsy`)
 }
 
+
+export function deepClone<T>(obj: T): T {
+    return JSON.parse(JSON.stringify(obj))
+}
