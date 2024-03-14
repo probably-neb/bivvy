@@ -1,11 +1,9 @@
-import { and, db, eq, schema, sql } from "@paypals/db";
+import { and, db, eq, schema } from "@paypals/db";
 import { ClientGroupTable } from "lib/client-table";
-import type { ReadonlyJSONValue } from "replicache";
 import { ApiHandler } from "sst/node/api";
 import { useSession } from "sst/node/auth";
 import Parser from "util/parser";
 import z from "zod";
-import { calculatePortion, getTotalParts } from "./pull";
 
 const NANOID_ID_LENGTH = 21;
 const zId = z.string().length(NANOID_ID_LENGTH);
@@ -34,35 +32,6 @@ export const zGroupUser = z.object({
 export type GroupUser = z.infer<typeof zGroupUser>;
 
 
-export const zExpense = z.object({
-    id: zId,
-    description: z.string(),
-    paidBy: zUser.shape.id,
-    amount: z.number().gt(0),
-    status: z.enum(["paid", "unpaid"]),
-    paidOn: zUnixTime.nullable().default(null),
-    createdAt: z.optional(zUnixTime),
-    groupId: zGroup.shape.id,
-    splitId: zId,
-});
-export type Expense = z.infer<typeof zExpense>;
-
-export const zExpenseInput = zExpense.pick({
-    description: true,
-    amount: true,
-    paidOn: true,
-    splitId: true,
-});
-export type ExpenseInput = z.infer<typeof zExpenseInput>;
-
-export const zDeleteExpenseInput = z.object({
-    groupId: zGroup.shape.id,
-    id: zExpense.shape.id,
-    userId: zUser.shape.id,
-});
-
-export type DeleteExpenseInput = z.infer<typeof zDeleteExpenseInput>;
-
 const zPortion = z.number().gte(0.0);
 
 const zHexString = z
@@ -77,6 +46,7 @@ export const zSplit = z.object({
     createdAt: z.optional(zUnixTime),
     groupId: zGroup.shape.id,
     color: zHexString.nullable(),
+    isOneOff: z.boolean().default(false)
 });
 export type Split = z.infer<typeof zSplit>;
 
@@ -88,6 +58,31 @@ export const zSplitInput = zSplit.pick({
 
 export type SplitInput = z.infer<typeof zSplitInput>;
 
+export const zExpense = z.object({
+    id: zId,
+    description: z.string(),
+    paidBy: zUser.shape.id,
+    amount: z.number().gt(0),
+    status: z.enum(["paid", "unpaid"]),
+    paidOn: zUnixTime.nullable().default(null),
+    createdAt: z.optional(zUnixTime),
+    groupId: zGroup.shape.id,
+    splitId: zId,
+});
+export type Expense = z.infer<typeof zExpense>;
+
+const zExpenseWithOneOffSplit = zExpense.omit({splitId: true}).extend({
+    split: zSplit
+})
+type ExpenseWithOneOffSplit = z.infer<typeof zExpenseWithOneOffSplit>;
+
+export const zDeleteExpenseInput = z.object({
+    groupId: zGroup.shape.id,
+    id: zExpense.shape.id,
+    userId: zUser.shape.id,
+});
+
+export type DeleteExpenseInput = z.infer<typeof zDeleteExpenseInput>;
 const zCreateGroupInput = zGroup.extend({
     ownerId: zUser.shape.id,
     defaultSplitId: zSplit.shape.id,
@@ -122,6 +117,8 @@ export type InviteInput = z.infer<typeof zInviteInput>;
 export type MutationName = (typeof MUTATIONS)[number];
 const MUTATIONS = [
     "addExpense",
+    "expenseWithOneOffSplitCreate",
+    "expenseWithOneOffSplitEdit",
     "deleteExpense",
     "expenseEdit",
     "createSplit",
@@ -134,13 +131,13 @@ const MUTATIONS = [
 
 type ZodValidator = z.ZodType;
 
-type Mutation = {
+/* type Mutation = {
     clientID: string;
     id: number;
     name: MutationName;
     args: ReadonlyJSONValue;
     timestamp: number;
-};
+}; */
 
 const zMutationBase = z.object({
     clientID: z.string(),
@@ -158,6 +155,8 @@ function mutationValidator<M extends MutationName, Z extends ZodValidator>(
 const zMutation = z
     .discriminatedUnion("name", [
         mutationValidator("addExpense", zExpense),
+        mutationValidator("expenseWithOneOffSplitCreate", zExpenseWithOneOffSplit),
+        mutationValidator("expenseWithOneOffSplitEdit", zExpenseWithOneOffSplit),
         mutationValidator("deleteExpense", zDeleteExpenseInput),
         mutationValidator("expenseEdit", zExpense),
         mutationValidator("createSplit", zSplit),
@@ -169,13 +168,13 @@ const zMutation = z
     ])
     .and(zMutationBase);
 
-type PushRequest = {
+/* type PushRequest = {
     pushVersion: 1;
     clientGroupID: string;
     mutations: Mutation[];
     profileID: string;
     schemaVersion: string;
-};
+}; */
 
 const zPushRequest = z.object({
     // NOTE: should always be 1, but don't want to fail if it's not for now
@@ -236,6 +235,7 @@ async function handleMutations(
     mutations: Array<any>,
     opts: { userID: string; clientGroupID: string },
 ) {
+    const userID = opts.userID
     const cg = new ClientGroupTable(opts.clientGroupID);
     const found = await cg.get();
     if (!found) {
@@ -268,11 +268,17 @@ async function handleMutations(
                 case "addExpense":
                     ok = await createExpense(m.args);
                     break;
-                case "deleteExpense":
-                    ok = await deleteExpense(m.args);
+                case "expenseWithOneOffSplitCreate":
+                    ok = await expenseWithOneOffSplitCreate(m.args)
                     break;
                 case "expenseEdit":
-                    ok = await expenseEdit(m.args);
+                    ok = await expenseEdit(m.args, userID);
+                    break;
+                case "expenseWithOneOffSplitEdit":
+                    ok = await expenseWithOneOffSplitEdit(m.args, userID)
+                    break;
+                case "deleteExpense":
+                    ok = await deleteExpense(m.args, userID);
                     break;
                 case "createSplit":
                     ok = await createSplit(m.args);
@@ -281,16 +287,16 @@ async function handleMutations(
                     ok = await splitEdit(m.args);
                     break;
                 case "createGroup":
-                    ok = await createGroup(m.args);
+                    ok = await createGroup(m.args, userID);
                     break;
                 case "groupEdit":
-                    ok = await groupEdit(m.args);
+                    ok = await groupEdit(m.args, userID);
                     break;
                 case "createInvite":
                     ok = await createInvite(m.args);
                     break;
                 case "acceptInvite":
-                    ok = await acceptInvite(m.args);
+                    ok = await acceptInvite(m.args, userID);
                     break;
                 default:
                     let _ = m satisfies never;
@@ -334,6 +340,13 @@ async function handleMutations(
 }
 
 async function createExpense(args: Expense) {
+    await db.transaction(async (tx) => {
+        await _expenseCreate(tx, args)
+    });
+    return true;
+}
+
+async function _expenseCreate(tx: Tx, args: Expense) {
     const e = new Parser(args)
         .rename("splitId", "split_id")
         .rename("paidBy", "paid_by_user_id")
@@ -343,20 +356,17 @@ async function createExpense(args: Expense) {
         .replace("createdAt", "created_at", (d) => new Date(d))
         .or_undefined("created_at")
         .value();
-    await db.transaction(async (tx) => {
-        // TODO: remove checks, add foreign key constraints
-        if (!(await itemWithIDExists(tx, "splits", e.split_id))) {
-            throw new Error(`Split with id: ${e.split_id} not found`);
-        }
-        if (!(await itemWithIDExists(tx, "groups", e.group_id))) {
-            throw new Error(`Group with id: ${e.group_id} not found`);
-        }
-        if (!(await itemWithIDExists(tx, "users", e.paid_by_user_id))) {
-            throw new Error(`User with id: ${e.paid_by_user_id} not found`);
-        }
-        await tx.insert(schema.expenses).values(e);
-    });
-    return true;
+    // TODO: remove checks, add foreign key constraints
+    if (!(await itemWithIDExists(tx, "splits", e.split_id))) {
+        throw new Error(`Split with id: ${e.split_id} not found`);
+    }
+    if (!(await itemWithIDExists(tx, "groups", e.group_id))) {
+        throw new Error(`Group with id: ${e.group_id} not found`);
+    }
+    if (!(await itemWithIDExists(tx, "users", e.paid_by_user_id))) {
+        throw new Error(`User with id: ${e.paid_by_user_id} not found`);
+    }
+    await tx.insert(schema.expenses).values(e);
 }
 
 type Table = Exclude<keyof typeof schema, `${string}Relations`>; // "users" | "splits" | "groups" | "invites";
@@ -384,16 +394,28 @@ async function itemExists<T extends Tx, Sql extends any>(
     return val;
 }
 
-async function deleteExpense(args: DeleteExpenseInput) {
+async function expenseWithOneOffSplitCreate(args: ExpenseWithOneOffSplit) {
+    await db.transaction(async tx => {
+        const split = args.split
+        split.isOneOff = true
+        const splitID = split.id
+
+        await _splitCreate(tx, split)
+        const expense = new Parser(args)
+            .remove("split")
+            .add("splitId", splitID)
+            .value()
+        await _expenseCreate(tx, expense)
+    })
+    return true
+}
+
+async function deleteExpense(args: DeleteExpenseInput, userID: string) {
+    assert(userID === args.userId, "Cannot delete another user's expense")
+
     const ex = schema.expenses;
-    const session = useSession();
-    if (session.type !== "user") {
-        throw new Error("Invalid session type");
-    }
-    if (session.properties.userId != args.userId) {
-        throw new Error("Cannot delete another user's expense");
-    }
-    await db.delete(schema.expenses).where(
+
+    await db.delete(ex).where(
         and(
             eq(ex.id, args.id),
             eq(ex.group_id, args.groupId),
@@ -408,17 +430,18 @@ async function deleteExpense(args: DeleteExpenseInput) {
     return true;
 }
 
-async function expenseEdit(args: Expense) {
-    const ex = schema.expenses;
-    const session = useSession();
-    if (session.type !== "user") {
-        throw new Error("Invalid session type");
-    }
-    if (session.properties.userId != args.paidBy) {
-        throw new Error("Cannot edit another user's expense");
-    }
+async function expenseEdit(args: Expense, userID: string) {
+    await db.transaction(async tx => {
+        await _expenseEdit(tx, args, userID)
+    })
+    return true;
+}
 
-    // FIXME: ensure groupId, paidBy, createdAt are not changed
+async function _expenseEdit(tx: Tx, args: Expense, userID: string) {
+    assert(userID === args.paidBy, "Cannot edit another user's expense")
+
+
+    // NOTE: must ensure groupId, paidBy, createdAt are not changed
     // This is done now with `where` clause, so expense will not be found because one isn't equal
     // but we lose info about what was changed leading to bad UX
     const e = new Parser(args)
@@ -432,37 +455,92 @@ async function expenseEdit(args: Expense) {
         .replace("status", "reimbursed_at", () => null)
         .value();
 
-    await db
+    await tx
         .update(schema.expenses)
         .set(e)
         .where(
             and(
-                eq(ex.id, args.id),
-                eq(ex.group_id, e.group_id),
-                eq(ex.paid_by_user_id, e.paid_by_user_id),
+                eq(schema.expenses.id, args.id),
+                eq(schema.expenses.group_id, e.group_id),
+            // NOTE: checking paid_by_user_id here paired with the assertion above checks that
+            // the request does not maliciously change paid_by_user_id to edit another users expense
+            // it does however fail silently (i.e. malicious user won't be identified)
+                eq(schema.expenses.paid_by_user_id, e.paid_by_user_id),
             ),
         );
-    return true;
+}
+
+async function expenseWithOneOffSplitEdit(args: ExpenseWithOneOffSplit, userID: string) {
+    await db.transaction(async tx => {
+        const split = args.split
+        split.isOneOff = true
+        const splitID = split.id
+
+        const prevSplits = await tx.query.expenses.findMany({
+            where: eq(schema.expenses.id, args.id),
+            columns: {},
+            with: {
+                split: {
+                    columns: {
+                        id: true,
+                        is_one_off: true,
+                        group_id: true,
+                    }
+                }
+            }
+        })
+        const prevSplit = prevSplits.at(0)?.split
+
+        if (prevSplit == null) {
+            // NOTE: warn to be nice to user
+            // if error was thrown they would be unable to fix what should be an impossible situation
+            console.warn("failed to find previous expense or split while editing with one off:", args)
+        }
+        const prevSplitUsedInMultipleExpenses = prevSplits.length > 1
+        const prevSplitWasOneOff = prevSplit?.is_one_off ?? false
+        const splitChanged = prevSplit?.id === splitID
+        if (prevSplitWasOneOff && prevSplitUsedInMultipleExpenses) {
+            console.warn("previous split was a one off, and yet it was used in multiple expenses", {args, prevSplits})
+        }
+        if (prevSplitWasOneOff && splitChanged && !prevSplitUsedInMultipleExpenses) {
+            // Delete previous one-off split
+            assert(prevSplit != null, 'prevSplit != null')
+            assert(prevSplit.group_id === split.groupId, "prevSplit.groupId === newSplit.groupId")
+            const splitDeleteArgs = {id: prevSplit.id, groupId: prevSplit.group_id}
+            await _splitDelete(tx, splitDeleteArgs)
+        }
+        split.isOneOff = true
+        // create the one off split
+        await _splitCreate(tx, split)
+
+        const expense = new Parser(args)
+            .remove("split")
+            .add("splitId", splitID)
+            .value()
+        await _expenseEdit(tx, expense, userID)
+    })
+    return true
 }
 
 async function createSplit(args: Split) {
     await db.transaction(async (db) => {
-        await _createSplit(db, args);
+        await _splitCreate(db, args);
     });
     return true;
 }
 
-async function _createSplit(tx: Tx, args: Split) {
+async function _splitCreate(tx: Tx, args: Split) {
     const portions = { ...args.portions };
     const s = new Parser(args)
         .remove("portions")
         .rename("groupId", "group_id")
+        .rename("isOneOff", "is_one_off")
         // FIXME: add created_at col
         .replace("createdAt", "created_at", (c) => new Date(c))
         .value();
     await tx.insert(schema.splits).values(s);
 
-    const portionEntries = Object.entries(portions).filter(([userID, portions]) => portions > 0);
+    const portionEntries = Object.entries(portions).filter(([_userID, portions]) => portions > 0);
     const numPortions = portionEntries.length;
     type PDef = typeof schema.split_portion_def.$inferInsert;
     const pdefs = new Array<PDef>(numPortions);
@@ -480,10 +558,17 @@ async function _createSplit(tx: Tx, args: Split) {
 
 async function splitEdit(args: Split) {
     await db.transaction(async (tx) => {
-        await db
+        await _splitDelete(tx, args);
+        await _splitCreate(tx, args);
+    });
+    return true;
+}
+
+async function _splitDelete(tx: Tx, args: {id: string, groupId: string}) {
+        await tx
             .delete(schema.split_portion_def)
             .where(eq(schema.split_portion_def.split_id, args.id));
-        await db
+        await tx
             .delete(schema.splits)
             .where(
                 and(
@@ -491,22 +576,20 @@ async function splitEdit(args: Split) {
                     eq(schema.splits.group_id, args.groupId),
                 ),
             );
-        await _createSplit(tx, args);
-    });
-    return true;
 }
 
-async function createGroup(args: CreateGroupInput) {
-    await db.transaction(async (db) => {
+async function createGroup(args: CreateGroupInput, userID: string) {
+    await db.transaction(async (tx) => {
         const groupID = args.id;
         const ownerID = args.ownerId;
+        assert(ownerID === userID, "Cannot create group owned by another user")
         const g = new Parser(args)
             .rename("ownerId", "owner_id")
             // FIXME: stop creating default splits
             .remove("defaultSplitId")
             .value();
-        await db.insert(schema.groups).values(g);
-        await addUserToGroup(db, groupID, ownerID);
+        await tx.insert(schema.groups).values(g);
+        await addUserToGroup(tx, groupID, ownerID);
     });
     return true;
 }
@@ -518,33 +601,6 @@ async function addUserToGroup(tx: Tx, groupId: string, userId: string) {
         user_id: userId,
         group_id: groupId,
     });
-}
-
-async function createEvenSplit(tx: Tx, id: string, groupID: string) {
-    const userIDs = await tx
-        .select({ id: schema.users.id })
-        .from(schema.users_to_group)
-        .rightJoin(
-            schema.users,
-            eq(schema.users.id, schema.users_to_group.user_id),
-        )
-        .where(eq(schema.users_to_group.group_id, groupID))
-        .then((rows) => rows.map((row) => row.id));
-    const numUsers = userIDs.length;
-    const parts = 1.0;
-    const portions = Object.fromEntries(
-        new Array(numUsers).fill(parts).map((p, i) => [userIDs[i], p]),
-    );
-    const split = {
-        id,
-        name: "Evenly",
-        groupId: groupID,
-        portions,
-        createdAt: Date.now(),
-        color: null,
-    };
-    await _createSplit(tx, split);
-    return split;
 }
 
 async function createInvite(args: Invite) {
@@ -559,28 +615,19 @@ async function createInvite(args: Invite) {
     await db.insert(schema.invites).values(invite);
     return true;
 }
-async function acceptInvite(args: string) {
+async function acceptInvite(args: string, userID: string) {
     await db.transaction(async (tx) => {
-        const sess = useSession();
-        if (sess.type !== "user") {
-            throw new Error("invalid session");
-        }
-        const userID = sess.properties.userId;
         const inviteID = args;
         const invite = await tx.query.invites.findFirst({
             where: eq(schema.invites.id, inviteID),
         });
-        if (invite == null) {
-            throw new Error(`Invite with id: ${inviteID} not found`);
-        }
+        assert(invite != null, `Invite with id: ${inviteID} not found`)
+
         const groupID = invite.group_id;
 
         const alreadyInGroup = await isUserMemberOfGroup(tx, groupID, userID);
-        if (alreadyInGroup) {
-            throw new Error(
-                `User: ${userID} is already a member of group: ${groupID}`,
-            );
-        }
+        assert(!alreadyInGroup,`User: ${userID} is already a member of group: ${groupID}`)
+
         await addUserToGroup(tx, groupID, userID);
     });
     return true;
@@ -596,9 +643,9 @@ async function isUserMemberOfGroup(tx: Tx, groupID: string, userID: string) {
     return user != null;
 }
 
-async function groupEdit(args: Group) {
+async function groupEdit(args: Group, userID: string) {
     await db.transaction(async (tx) => {
-        if (!(await isGroupOwner(tx, args.id))) {
+        if (!(await isGroupOwner(tx, userID, args.id))) {
             throw new Error(`cannot edit a group you do not own`);
         }
 
@@ -616,17 +663,18 @@ async function groupEdit(args: Group) {
     return true;
 }
 
-async function isGroupOwner(tx: Tx, groupID: string) {
-    const session = useSession();
-    if (session.type !== "user") {
-        throw new Error("invalid session");
-    }
-    const userID = session.properties.userId;
+async function isGroupOwner(tx: Tx, userID: string, groupID: string) {
     const g = await tx.query.groups.findFirst({
         where: eq(schema.groups.id, groupID),
     });
-    if (g == null) {
-        throw new Error(`No group with id: ${groupID} found`);
-    }
+    assert(g != null, `No group with id: ${groupID} found`)
     return g.owner_id === userID;
+}
+
+
+function assert(value: unknown, message?: string): asserts value {
+    if (value)
+        return
+    console.assert(value, message)
+    throw new Error(`Assertion Error: ${message ?? ""} -- ${value} is Falsy`)
 }

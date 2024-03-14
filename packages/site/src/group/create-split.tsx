@@ -7,7 +7,7 @@ import {
 import {
     Split,
     SplitInput,
-    splitInputSchema,
+    zSplitInput,
     useMutations,
     useSortedUsers,
 } from "@/lib/rep";
@@ -99,7 +99,7 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
             console.log("invalid", e.formApi.state.errors);
         },
         validators: {
-            onSubmit: splitInputSchema.omit({ portions: true }).and(
+            onSubmit: zSplitInput.omit({ portions: true }).and(
                 z.object({
                     portions: z.record(zParts),
                 })
@@ -121,7 +121,7 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
                     e.stopPropagation();
                     console.log(
                         "values",
-                        splitInputSchema.safeParse(form.state.values)
+                        zSplitInput.safeParse(form.state.values)
                     );
                     await form.handleSubmit();
                 }}
@@ -132,7 +132,7 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
                         name="name"
                         label="Name"
                         placeholder="Utilities"
-                        validator={splitInputSchema.shape.name}
+                        validator={zSplitInput.shape.name}
                         type="text"
                         form={form}
                     />
@@ -369,7 +369,7 @@ type FieldProps<
 };
 
 // TODO: move to components
-export function Field(props: FieldProps<typeof splitInputSchema>) {
+export function Field(props: FieldProps<typeof zSplitInput>) {
     const { validator, name, label, type, form, step, placeholder } = props;
     return (
         <form.Field

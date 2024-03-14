@@ -39,3 +39,11 @@ export function isLocal() {
 export function isDev() {
     return isLocal() || window.location.hostname.startsWith("dev")
 }
+
+export function assert(value: unknown, message?: string): asserts value {
+    if (value)
+        return
+    console.assert(value, message)
+    throw new Error(`Assertion Error: ${message ?? ""} -- ${value} is Falsy`)
+}
+

@@ -47,6 +47,10 @@ function timestampDefaultNow(name: string) {
     return int(name, {mode: "timestamp_ms"}).default(sql`(datetime('now'))`)
 }
 
+function bool(name: string) {
+    return int(name, {mode: "boolean"})
+}
+
 export const users = table(
     "users",
     {
@@ -147,6 +151,7 @@ export const splits = table(
         name: text("name", { length: 255 }).notNull(),
         group_id: idRef("group_id").notNull(),
         color: text("color", { length: 7 }),
+        is_one_off: bool("is_one_off").default(false)
     },
     (t) => ({
         group_idx: index("split_group_idx").on(t.group_id),

@@ -21,7 +21,7 @@ import { zodValidator } from "@tanstack/zod-form-adapter";
 import {
     ExpenseInput,
     useMutations,
-    expenseInputSchema,
+    zExpenseInput,
     useSplits,
     Expense,
 } from "@/lib/rep";
@@ -79,7 +79,7 @@ export function AddExpenseCard(props: {
         },
         defaultValues,
         validators: {
-            onSubmit: expenseInputSchema,
+            onSubmit: zExpenseInput,
         },
     }));
 
@@ -101,14 +101,14 @@ export function AddExpenseCard(props: {
                     label="Description"
                     placeholder="Sparkling Apple Cider"
                     type="text"
-                    validator={expenseInputSchema.shape.description}
+                    validator={zExpenseInput.shape.description}
                     form={form}
                 />
                 <MoneyField
                     name="amount"
                     label="Amount"
                     placeholder="10.00"
-                    validator={expenseInputSchema.shape.amount}
+                    validator={zExpenseInput.shape.amount}
                     step="any"
                     form={form}
                 />
@@ -118,7 +118,7 @@ export function AddExpenseCard(props: {
                     label="Paid On"
                     placeholder="2021-01-01"
                     type="date"
-                    validator={expenseInputSchema.shape.paidOn}
+                    validator={zExpenseInput.shape.paidOn}
                     parse={parseDate}
                     form={form}
                 />
@@ -224,13 +224,6 @@ function SplitSelect(props: { form: Form }) {
             filter.contains(option.name, searchValue())
         );
     });
-    const onChange = (value: Option | null) => {
-        if (!value) {
-            return;
-        }
-        console.log("setting field", value);
-        props.form.setFieldValue("splitId", value.id, { touch: true });
-    };
 
     const [isSelecting, setIsSelecting] = createSignal(false);
     const onOpenChange = (
@@ -288,14 +281,6 @@ function SplitSelect(props: { form: Form }) {
             }}
         </props.form.Field>
     );
-}
-
-function parseAmount(value: string) {
-    const v = parseFloat(value);
-    if (isNaN(v)) {
-        return undefined;
-    }
-    return v;
 }
 
 function parseDate(value: string) {

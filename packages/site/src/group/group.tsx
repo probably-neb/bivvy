@@ -72,7 +72,6 @@ export { expenseCardMode as asideCardMode };
 const [expenseCardOpen, setExpenseCardOpen] = createSignal(false);
 
 export function setExpenseCardMode(mode: ExpenseCardMode) {
-    console.log("setting mode", mode);
     _setExpenseCardMode(mode);
     // modal only exists on small devices but just setting it here
     // always and keeping logic elsewhere is simpler
