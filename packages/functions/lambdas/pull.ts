@@ -463,8 +463,14 @@ async function getOwedForUser(userID: string) {
         where: eq(schema.users_to_group.user_id, userID),
         with: {
             group: {
+                columns: {id: true},
                 with: {
                     expenses: {
+                        columns: {
+                            id: true,
+                            amount: true,
+                            paid_by_user_id: true
+                        },
                         with: {
                             split: {
                                 with: {
@@ -533,15 +539,11 @@ async function getOwedForUser(userID: string) {
     });
 }
 
-export function calculatePortion({
-    amount,
-    partsOwed,
-    totalParts,
-}: {
-    amount: number;
-    partsOwed: number;
-    totalParts: number;
-}) {
+export function calculatePortion(
+    amount: number,
+    partsOwed: number,
+    totalParts: number,
+) {
     return (amount * partsOwed) / totalParts;
 }
 
@@ -572,7 +574,7 @@ function calculateOwed(
 
         // by default, portion equals to the amount owed by the current user
         // to another user who paid for the expense
-        const portion = calculatePortion({ amount, partsOwed, totalParts });
+        const portion = calculatePortion(amount, partsOwed, totalParts);
 
         const portionUserID = pDef.user_id
         const portionIsForUser = portionUserID === userID;
@@ -598,21 +600,17 @@ function calculateOwed(
                 break;
             case !portionIsForUser && paidByUser:
                 // if the requesting user paid for the expense and the portion is for another user
-                // the other user is owed -(their portion) less
-                // and the requesting user is owed the other users portion
-                owed.push([portionUserID, -portion])
+                // the requesting user is owed the other users portion
+                // and the other user is owed -(their portion) less
                 owed.push([userID, portion])
+                owed.push([portionUserID, -portion])
                 break;
         }
-
-        // bob 100 evenly     | alice owed -25
-        // alice 100 just bob | bob owed -100
-
     }
     return owed;
 }
 
-function dbg(val: unknown) {
+function dbg<T>(val: T) {
     console.dir(val, {depth: null})
     return val
 }

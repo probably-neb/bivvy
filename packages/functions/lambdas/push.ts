@@ -568,7 +568,6 @@ async function expenseWithOneOffSplitEdit(args: ExpenseWithOneOffSplit, userID: 
             .remove("split")
             .add("splitId", splitID)
             .value()
-        console.log({expense})
         await _expenseEdit(tx, expense, userID)
 
     })
