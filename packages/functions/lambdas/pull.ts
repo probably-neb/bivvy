@@ -527,10 +527,10 @@ async function getOwedForUser(userID: string) {
             }
         }
     }
-    return {
+    return dbg({
         total,
         perGroup,
-    };
+    });
 }
 
 export function calculatePortion({
@@ -574,40 +574,39 @@ function calculateOwed(
         // to another user who paid for the expense
         const portion = calculatePortion({ amount, partsOwed, totalParts });
 
-        const portionIsForUser = pDef.user_id === userID;
+        const portionUserID = pDef.user_id
+        const portionIsForUser = portionUserID === userID;
         const paidByUser = paidByUserID === userID;
 
-        const doesNotInvolveCurrentUser = !portionIsForUser && !paidByUser;
-        const isPortionOfExpensePaidByCurUser = portionIsForUser && paidByUser;
-        const isOwedToAnotherUser = portionIsForUser && !paidByUser;
-        const isOwedToCurUser = !portionIsForUser && paidByUser;
-
-        const portionUserID = pDef.user_id
-
         switch (true) {
-            case isPortionOfExpensePaidByCurUser:
+            case portionIsForUser && paidByUser:
                 // if the user paid for the expense and the portion is for the user
                 // then the user is owed the full amount minus their portion
                 owed.push([userID, amount - portion])
                 break;
-            case doesNotInvolveCurrentUser:
+            case !portionIsForUser && !paidByUser:
                 // if the user didn't pay for the expense and the portion is not for the user
                 // then we don't care!
                 owed.push([portionUserID, 0])
                 break;
-            case isOwedToAnotherUser:
-                // if the user didn't pay for the expense and the portion is for the user
-                // then the current users balance should be reduced by their portion
-                // owedToUser = -portion;
-                owed.push([portionUserID, -portion])
-                owed.push([paidByUserID, -portion])
+            case portionIsForUser && !paidByUser:
+                // if the requesting user didn't pay for the expense and the portion is for the requesting user
+                // the requesting user is owed -(their portion) less
+                // and the user who paid for the expense is owed the requesting users portion
+                owed.push([userID, -portion])
+                owed.push([paidByUserID, portion])
                 break;
-            case isOwedToCurUser:
-                // if the user paid for the expense and the portion is for another user
-                // they owe the full portion
-                owed.push([portionUserID, portion])
+            case !portionIsForUser && paidByUser:
+                // if the requesting user paid for the expense and the portion is for another user
+                // the other user is owed -(their portion) less
+                // and the requesting user is owed the other users portion
+                owed.push([portionUserID, -portion])
+                owed.push([userID, portion])
                 break;
         }
+
+        // bob 100 evenly     | alice owed -25
+        // alice 100 just bob | bob owed -100
 
     }
     return owed;
