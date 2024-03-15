@@ -341,12 +341,12 @@ async function handleMutations(
 
 async function createExpense(args: Expense) {
     await db.transaction(async (tx) => {
-        await _expenseCreate(tx, args)
+        await _expenseCreate(tx, args, {withOneOffSplit: false})
     });
     return true;
 }
 
-async function _expenseCreate(tx: Tx, args: Expense) {
+async function _expenseCreate(tx: Tx, args: Expense, opts?: {withOneOffSplit: boolean}) {
     const e = new Parser(args)
         .rename("splitId", "split_id")
         .rename("paidBy", "paid_by_user_id")
@@ -357,7 +357,9 @@ async function _expenseCreate(tx: Tx, args: Expense) {
         .or_undefined("created_at")
         .value();
     // TODO: remove checks, add foreign key constraints
-    if (!(await itemWithIDExists(tx, "splits", e.split_id))) {
+    // NOTE: check that is_one_off is false prevents one off splits from being used by multiple expenses
+    // and removes the need to check that no other expenses are using a one off split when editing/deleting
+    if (!(await itemExists(tx, "splits", and(eq(schema.splits.id, e.split_id), eq(schema.splits.is_one_off, opts?.withOneOffSplit ?? false))))) {
         throw new Error(`Split with id: ${e.split_id} not found`);
     }
     if (!(await itemWithIDExists(tx, "groups", e.group_id))) {
@@ -405,7 +407,7 @@ async function expenseWithOneOffSplitCreate(args: ExpenseWithOneOffSplit) {
             .remove("split")
             .add("splitId", splitID)
             .value()
-        await _expenseCreate(tx, expense)
+        await _expenseCreate(tx, expense, {withOneOffSplit: true})
     })
     return true
 }
@@ -454,9 +456,6 @@ async function getExpenseSplitIfOneOff(tx: Tx, expenseID: string) {
         }
     })
     if (prevSplitExp == null) {
-        // NOTE: warn to be nice to user
-        // if error was thrown they would be unable to fix what should be an impossible situation
-        console.warn(`could not find split for expense with id: ${expenseID} while looking for one off`)
         return null
     }
     const prevSplit = prevSplitExp.split
@@ -494,53 +493,75 @@ async function _expenseEdit(tx: Tx, args: Expense, userID: string) {
         .replace("status", "reimbursed_at", () => null)
         .value();
 
+    const groupID = e.group_id
+    const expenseID = e.id
+    const prevSplit = await getExpenseSplitIfOneOff(tx, expenseID)
+
     await tx
         .update(schema.expenses)
         .set(e)
         .where(
             and(
-                eq(schema.expenses.id, args.id),
-                eq(schema.expenses.group_id, e.group_id),
+                eq(schema.expenses.id, expenseID),
+                eq(schema.expenses.group_id, groupID),
             // NOTE: checking paid_by_user_id here paired with the assertion above checks that
             // the request does not maliciously change paid_by_user_id to edit another users expense
             // it does however fail silently (i.e. malicious user won't be identified)
                 eq(schema.expenses.paid_by_user_id, e.paid_by_user_id),
             ),
         );
+
+    if (prevSplit == null) {
+        // NOTE: warn to be nice to user
+        // if error was thrown they would be unable to fix what should be an impossible situation
+        console.warn(`could not find split for expense with id: ${expenseID} while looking for one off`)
+        return
+    }
+    assert(
+        prevSplit.id !== args.splitId,
+        "editing expense so that it has a one-off split when it didn't previously should be done with the expenseWithOneOffSplitEdit mutation"
+    )
+    // previous split was a one-off and therefore should be deleted
+    await _splitDelete(tx, {id: prevSplit.id, groupId: groupID})
 }
 
 async function expenseWithOneOffSplitEdit(args: ExpenseWithOneOffSplit, userID: string) {
     await db.transaction(async tx => {
         const split = args.split
-        const splitID = split.id
 
         const expenseID = args.id
 
-        const prevSplit = await getExpenseSplitIfOneOff(tx, expenseID)
-
-        const prevSplitWasOneOff = prevSplit != null
-        const splitChanged = prevSplit?.id === splitID
-
-        if (prevSplitWasOneOff && splitChanged) {
-            // Delete previous one-off split
-            assert(prevSplit != null, 'prevSplit != null')
-            assert(prevSplit.groupId === split.groupId, "prevSplit.groupId === newSplit.groupId")
-            await _splitDelete(tx, prevSplit)
-        }
         if (!split.isOneOff) {
             console.warn("expected split in expenseWithOneOff to be marked as a one off but it wasn't. proof: ", split)
             split.isOneOff = true
         }
-        // create the one off split
-        await _splitCreate(tx, split)
 
-        // FIXME: doing this after may cause issues when I get around to adding foreign keys
-        // but doing it before makes it harder to extract the `delete expenses previous split if it was a one off` logic
+        const prevSplit = await getExpenseSplitIfOneOff(tx, expenseID)
+        const prevSplitWasOneOff = prevSplit != null
+
+        let splitID = split.id
+        if (prevSplitWasOneOff) {
+            if (prevSplit.id !== splitID) {
+                console.warn("split id changed despite previous split also being a one-off split", {prevSplit, split})
+                splitID = prevSplit.id
+            }
+            // Delete previous one-off split
+            assert(prevSplit != null, 'prevSplit != null')
+            assert(prevSplit.groupId === split.groupId, "prevSplit.groupId === newSplit.groupId")
+            await _splitDeletePortions(tx, splitID)
+            await _splitCreatePortions(tx, splitID, split.portions)
+        } else {
+            // create the new one off split
+            await _splitCreate(tx, split)
+        }
+
         const expense = new Parser(args)
             .remove("split")
             .add("splitId", splitID)
             .value()
+        console.log({expense})
         await _expenseEdit(tx, expense, userID)
+
     })
     return true
 }
@@ -562,21 +583,18 @@ async function _splitCreate(tx: Tx, args: Split) {
         .replace("createdAt", "created_at", (c) => new Date(c))
         .value();
     await tx.insert(schema.splits).values(s);
+    await _splitCreatePortions(tx, args.id, portions)
+}
 
-    const portionEntries = Object.entries(portions).filter(([_userID, portions]) => portions > 0);
-    const numPortions = portionEntries.length;
-    type PDef = typeof schema.split_portion_def.$inferInsert;
-    const pdefs = new Array<PDef>(numPortions);
-    for (let i = 0; i < numPortions; i++) {
-        const [user_id, parts] = portionEntries[i];
-        const pdef = {
+async function _splitCreatePortions(tx: Tx, splitID: string, portions: Record<string, number>) {
+    const portionEntries = Object.entries(portions)
+        .filter(([_userID, parts]) => parts > 0)
+        .map(([user_id, parts]) => ({
             user_id,
-            split_id: args.id,
-            parts: parts,
-        };
-        pdefs[i] = pdef;
-    }
-    await tx.insert(schema.split_portion_def).values(pdefs);
+            parts,
+            split_id: splitID,
+        }));
+    await tx.insert(schema.split_portion_def).values(portionEntries);
 }
 
 async function splitEdit(args: Split) {
@@ -587,18 +605,22 @@ async function splitEdit(args: Split) {
     return true;
 }
 
+async function _splitDeletePortions(tx: Tx,  splitID: string) {
+    await tx
+        .delete(schema.split_portion_def)
+        .where(eq(schema.split_portion_def.split_id, splitID));
+}
+
 async function _splitDelete(tx: Tx, args: {id: string, groupId: string}) {
-        await tx
-            .delete(schema.split_portion_def)
-            .where(eq(schema.split_portion_def.split_id, args.id));
-        await tx
-            .delete(schema.splits)
-            .where(
-                and(
-                    eq(schema.splits.id, args.id),
-                    eq(schema.splits.group_id, args.groupId),
-                ),
-            );
+    await _splitDeletePortions(tx, args.id);
+    await tx
+        .delete(schema.splits)
+        .where(
+            and(
+                eq(schema.splits.id, args.id),
+                eq(schema.splits.group_id, args.groupId),
+            ),
+        );
 }
 
 async function createGroup(args: CreateGroupInput, userID: string) {

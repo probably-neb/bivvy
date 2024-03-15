@@ -183,8 +183,7 @@ export function SplitRenderer(props: { splitId: Split["id"]; class?: string }) {
 function OneOffSplitUsers(props: { split: Split }) {
     // TODO: create useSortedUserIDs hook that takes list of userIDs and sorts them by the users name
     const userIDs = createMemo(() => {
-        const ids = Object.keys(props.split.portions);
-        console.log({ ids });
+        const ids = Object.entries(props.split.portions).filter(([_userID, parts]) => parts > 0).map(([userID]) => userID);
         return ids;
     });
     return (

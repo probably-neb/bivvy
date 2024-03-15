@@ -30,13 +30,17 @@ const mutators = {
         await tx.set(P.expense.id(expense.groupId, expense.id), expense);
         await createExpenseSideEffects(tx, expense);
     },
-    async expenseWithOneOffSplitCreate(tx: WriteTransaction, expense: ExpenseWithOneOffSplit) {
-        console.dir({mode: "create", expense}, {depth: null})
-        // TODO:
+    async expenseWithOneOffSplitCreate(tx: WriteTransaction, expenseInput: ExpenseWithOneOffSplit) {
+        const [expenseNoSplitID, {split}] = removeKeys(expenseInput, ["split"])
+        const expense = Object.assign(expenseNoSplitID, {splitId: split.id})
+        await tx.set(P.expense.id(expense.groupId, expense.id), expense)
+        await tx.set(P.split.id(split.groupId, split.id), split)
     },
-    async expenseWithOneOffSplitEdit(tx: WriteTransaction, expense: ExpenseWithOneOffSplit) {
-        console.dir({mode: "edit", expense}, {depth: null})
-        // TODO:
+    async expenseWithOneOffSplitEdit(tx: WriteTransaction, expenseInput: ExpenseWithOneOffSplit) {
+        const [expenseNoSplitID, {split}] = removeKeys(expenseInput, ["split"])
+        const expense = Object.assign(expenseNoSplitID, {splitId: split.id})
+        await tx.set(P.expense.id(expense.groupId, expense.id), expense)
+        await tx.set(P.split.id(split.groupId, split.id), split)
     },
     async deleteExpense(
         tx: WriteTransaction,
@@ -94,7 +98,7 @@ const mutators = {
             ...invite,
             id: inviteId,
             accepted: true,
-            acceptedAt: new Date().getTime(),
+            acceptedAt: Date.now()
         };
         tx.set(P.invite.id(inviteId), updated);
     },
@@ -485,17 +489,28 @@ export function ReplicacheContextProvider(props: ParentProps) {
             const expenseWOOS = expandExpenseWithOneOffSplitInput(input, { userID, groupID })
             await ctx.rep.mutate.expenseWithOneOffSplitCreate(expenseWOOS)
         },
-        async expenseWithOneOffSplitEdit(input: ExpenseWithOneOffSplitInput) {
+        async expenseWithOneOffSplitEdit(input: ExpenseWithOneOffSplit & { prevSplitWasOneOff: boolean}) {
             const ctx = useCtx();
             assert(ctx.isInit, "Replicache not initialized")
-            const userID = ctx.userId
             const groupID = ctx.groupId
             assert(groupID != null, "Group not set")
+            console.log("input", JSON.parse(JSON.stringify(input)))
 
-            const expenseWOOS = expandExpenseWithOneOffSplitInput(input, { userID, groupID })
+            input.split.name = generateOneOffSplitName(input.id)
+            input.split.color = null
+            input.split.isOneOff = true
+            assert(input.prevSplitWasOneOff != null, "did not pass prevSplitWasOneOff!")
+            if (!input.prevSplitWasOneOff) {
+                input.split.id = nanoid()
+            }
+
+            const split = zSplit.parse(expandSplitInput(input.split, groupID))
+
+            input.split = split
+            const expenseWOOS = zExpenseWithOneOffSplit.parse(input)
+            console.log("output", JSON.parse(JSON.stringify(expenseWOOS)))
 
             await ctx.rep.mutate.expenseWithOneOffSplitEdit(expenseWOOS)
-
         },
         async deleteExpense(id: Expense["id"]) {
             const ctx = useCtx();
@@ -557,7 +572,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
             assert(i.groupId, "Group not set in invte")
             assert(i.id, "no invite id")
             const invite = Object.assign({}, i, {
-                createdAt: new Date().getTime(),
+                createdAt: Date.now(),
                 acceptedAt: null,
             }) satisfies Invite;
             await ctx.rep.mutate.createInvite(inviteSchema.parse(invite));
@@ -593,13 +608,13 @@ function expandExpenseInput(input: ExpenseInput, ctx: { userID: string, groupID:
 
 function expandSplitInput(input: SplitInput, groupID: string) {
     const split: Split = Object.assign(
-        input,
         {
             groupId: groupID,
             id: nanoid(),
             createdAt: Date.now(),
             isOneOff: false,
         },
+        input,
     );
     return split
 }
@@ -823,9 +838,16 @@ export function useSortedSplits() {
 
 }
 
+// null -> not found
+// undefined -> still loading
 export function useSplit(id: Accessor<Split["id"]>) {
     const split = useWithOpts(id, async (tx, id, { groupId }) => {
-        return await tx.get<Split>(P.split.id(groupId, id));
+        const split = await tx.get<Split>(P.split.id(groupId, id));
+        // return null explicitly so the caller can differentiate using
+        // null -> not found
+        // undefined -> still loading
+        if (split == null) return null
+        return split
     });
     return split;
 }

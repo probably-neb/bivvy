@@ -48,6 +48,7 @@ export function assert(value: unknown, message?: string): asserts value {
 }
 
 
+// NOTE: expects the object to be JSON-serializable
 export function deepClone<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj))
 }

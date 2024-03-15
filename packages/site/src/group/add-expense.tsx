@@ -1,4 +1,13 @@
-import { For, Match, Show, Switch, createMemo, createSignal } from "solid-js";
+import {
+    Accessor,
+    For,
+    Match,
+    Show,
+    Switch,
+    createEffect,
+    createMemo,
+    createSignal,
+} from "solid-js";
 import { Button } from "@/components/ui/button";
 import {
     TextField,
@@ -24,6 +33,8 @@ import {
     useSplits,
     Expense,
     useUsers,
+    useSplit,
+    Split,
 } from "@/lib/rep";
 import {
     SplitRenderer,
@@ -49,7 +60,7 @@ const zExpenseInput = z.discriminatedUnion("mode", [
         ...zExpenseWithOneOffSplitInput.shape,
         split: zExpenseWithOneOffSplitInput.shape.split
             .omit({ portions: true })
-            .and(z.object({portions: z.record(z.number().int().min(0))})),
+            .and(z.object({ portions: z.record(z.number().int().min(0)) })),
     }),
 ]);
 type ExpenseInput = z.infer<typeof zExpenseInput>;
@@ -72,18 +83,21 @@ export function AddExpenseCard(props: {
         paidOn: expenseToEdit.paidOn,
         splitId: expenseToEdit.splitId,
         // NOTE: required otherwise @tanstack/form fails to clean up after itself
-        split: {portions: {}},
+        split: { id: expenseToEdit.splitId, portions: {} },
         mode: "existing" as const,
     };
+    let prevSplitWasOneOff = false
 
     const form: Form = createForm<ExpenseInput, typeof zExpenseInput>(() => ({
         onSubmit: async ({ value }) => {
             // copy so the following changes are not reflected in the visible form state
-            value = deepClone(value)
+            value = deepClone(value);
             // convert to cents, since thats what we store everywhere else
             value.amount *= 100;
-            if (value.mode ==="new") {
-                value.split.portions = removeSpacesFromKeys(value.split.portions);
+            if (value.mode === "new") {
+                value.split.portions = removeSpacesFromKeys(
+                    value.split.portions
+                );
             }
             if (value.mode === "existing") {
                 // FIXME: server side validation here so that errors can be displayed
@@ -104,7 +118,7 @@ export function AddExpenseCard(props: {
             }
             try {
                 if (isEditing) {
-                    const e = Object.assign({}, expenseToEdit, value);
+                    const e = Object.assign({}, expenseToEdit, value, {prevSplitWasOneOff});
                     await mutations.expenseWithOneOffSplitEdit(e);
                 } else {
                     await mutations.expenseWithOneOffSplitCreate(value);
@@ -115,13 +129,19 @@ export function AddExpenseCard(props: {
         },
         validatorAdapter: zodValidator,
         onSubmitInvalid: (props) => {
-            console.error("invalid", props.value, zExpenseInput.safeParse(props.value));
+            console.error(
+                "invalid",
+                props.value,
+                zExpenseInput.safeParse(props.value)
+            );
         },
         defaultValues,
         validators: {
             onSubmit: zExpenseInput,
         },
     }));
+
+    // dbgFormValue(form, "portions", (f) => f.values.split);
 
     return (
         <form.Provider>
@@ -133,12 +153,11 @@ export function AddExpenseCard(props: {
                     e.stopPropagation();
                     console.log("submit", form.state.values);
                     try {
-                        await form
-                            .handleSubmit()
+                        await form.handleSubmit();
                         props.onSubmit?.();
-                        console.log("submitted expense")
+                        console.log("submitted expense");
                     } catch (e) {
-                        console.error(e)
+                        console.error(e);
                     }
                 }}
             >
@@ -158,7 +177,7 @@ export function AddExpenseCard(props: {
                     step="any"
                     form={form}
                 />
-                <SplitSelect form={form} />
+                <SplitField form={form} editingID={expenseToEdit?.splitId} setPrevWasOneOff={() => prevSplitWasOneOff = true} />
                 <Field
                     name="paidOn"
                     label="Paid On"
@@ -262,43 +281,77 @@ function useFormValue<V>(
 }
 
 function dbg<T>(label: string, val: T) {
-    console.log(label, val)
-    return val
+    console.log(label, val);
+    return val;
 }
 
-function SplitSelect(props: { form: Form }) {
-    const ExistingTab = <ExistingSplitSelect form={props.form} />;
-    const NewTab = <CreateNewOneOffSplit form={props.form} />;
+function dbgFormValue<V>(
+    form: Form,
+    label: string,
+    selector: (f: FormState<ExpenseInput>) => V
+) {
+    const value = useFormValue(form, selector);
+    createEffect(() => {
+        console.log(label, value());
+    });
+}
+
+function SplitField(props: { form: Form; editingID?: string, setPrevWasOneOff: (val: true) => void }) {
+    const ExistingTab = <SplitSelect form={props.form} />;
+    const NewTab = (
+        <CreateNewOneOffSplit form={props.form} editingID={props.editingID} />
+    );
+    const editingID = props.editingID;
+    const prevSplit = useSplit(() => editingID ?? "/");
+    const defaultValue = createMemo(() => {
+        if (editingID == null) return "existing" as const;
+        const split = prevSplit();
+        if (split == null) return null;
+        if (split.isOneOff) {
+            props.setPrevWasOneOff(true)
+            return "new" as const;
+        }
+        return "existing" as const;
+    });
     return (
-        <props.form.Field name="mode" defaultValue="existing">
-            {(field) => (
-                <Tabs
-                    defaultValue={field().state.value}
-                    class="h-32"
-                    onChange={(value) =>
-                        field().handleChange(value as SplitMode)
-                    }
-                >
-                    <TabsList class="justify-center">
-                        <TabsTrigger
-                            class="text-muted-foreground"
-                            value="existing"
+        <Show when={defaultValue()}>
+            {(defaultValue) => (
+                <props.form.Field name="mode" defaultValue={defaultValue()}>
+                    {(field) => (
+                        <Tabs
+                            defaultValue={field().state.value}
+                            class="h-32"
+                            onChange={(value) =>
+                                field().handleChange(value as SplitMode)
+                            }
                         >
-                            Split
-                        </TabsTrigger>
-                        <TabsTrigger class="text-muted-foreground" value="new">
-                            One Off Split
-                        </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="existing">{ExistingTab}</TabsContent>
-                    <TabsContent value="new">{NewTab}</TabsContent>
-                </Tabs>
+                            <TabsList class="justify-center">
+                                <TabsTrigger
+                                    class="text-muted-foreground"
+                                    value="existing"
+                                >
+                                    Split
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    class="text-muted-foreground"
+                                    value="new"
+                                >
+                                    One Off Split
+                                </TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="existing">
+                                {ExistingTab}
+                            </TabsContent>
+                            <TabsContent value="new">{NewTab}</TabsContent>
+                        </Tabs>
+                    )}
+                </props.form.Field>
             )}
-        </props.form.Field>
+        </Show>
     );
 }
 
-function ExistingSplitSelect(props: { form: Form }) {
+function SplitSelect(props: { form: Form }) {
     const splits = useSplits();
     const allOptions = createMemo(() =>
         (splits() ?? []).map((split) => ({
@@ -382,25 +435,56 @@ function ExistingSplitSelect(props: { form: Form }) {
     );
 }
 
-function CreateNewOneOffSplit(props: { form: Form }) {
+function CreateNewOneOffSplit(props: { form: Form; editingID?: string }) {
     const users = useUsers();
+
+    const editingID = props.editingID;
+    const prevSplit = useSplit(() => editingID ?? "/");
+    const portions = createMemo(() => {
+        if (props.editingID == null) {
+            // if not editing use default state
+            return {};
+        }
+        const split = prevSplit()
+
+        // returning null will cause the field to delay rendering until split isn't undefined (undefined === loading)
+        if (split === undefined) return null
+
+        // if a split with the id isn't found or the split isn't a one off, use the default
+        // state for creating a one-off split
+        if (split === null || !split.isOneOff) return {}
+
+        // return the previous one-off split portions!
+        return split.portions
+    });
+
     return (
         <div>
-            <For each={users()}>
-                {(user) => (
-                    <props.form.Field name={`split.portions. ${user.id} `} defaultValue={0}>
-                        {(field) => (
-                            <ToggleButton
-                                onChange={(pressed) =>
-                                    field().handleChange(pressed ? 1 : 0)
-                                }
+            <Show when={portions()}>
+                {(portions) => (
+                    <For each={users()}>
+                        {(user) => (
+                            <props.form.Field
+                                name={`split.portions. ${user.id} `}
+                                defaultValue={portions()[user.id] ?? 0}
                             >
-                                <UserRenderer userId={user.id} />
-                            </ToggleButton>
+                                {(field) => (
+                                    <ToggleButton
+                                        pressed={field().state.value > 0}
+                                        onChange={(pressed) =>
+                                            field().handleChange(
+                                                pressed ? 1 : 0
+                                            )
+                                        }
+                                    >
+                                        <UserRenderer userId={user.id} />
+                                    </ToggleButton>
+                                )}
+                            </props.form.Field>
                         )}
-                    </props.form.Field>
+                    </For>
                 )}
-            </For>
+            </Show>
         </div>
     );
 }
@@ -487,7 +571,6 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
         if (nVal == null || isNaN(nVal)) {
             nVal = undefined;
         }
-        // console.log({ fVal, nVal });
         return nVal;
     };
     return (
@@ -498,35 +581,41 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
             }}
         >
             {(field) => {
-                const rawValue = createMemo(() => transformValue(field().state.value))
-                return <NumberField
-                    rawValue={rawValue()}
-                    onRawValueChange={(value) => {
-                        if (isNaN(value)) {
-                            // @ts-ignore used to get "Required" error instead of "got nan" error when no value
-                            value = undefined;
+                const rawValue = createMemo(() =>
+                    transformValue(field().state.value)
+                );
+                return (
+                    <NumberField
+                        rawValue={rawValue()}
+                        onRawValueChange={(value) => {
+                            if (isNaN(value)) {
+                                // @ts-ignore used to get "Required" error instead of "got nan" error when no value
+                                value = undefined;
+                            }
+                            field().handleChange(value);
+                        }}
+                        validationState={
+                            field().getMeta().touchedErrors.length > 0
+                                ? "invalid"
+                                : "valid"
                         }
-                        field().handleChange(value);
-                    }}
-                    validationState={
-                        field().getMeta().touchedErrors.length > 0
-                            ? "invalid"
-                            : "valid"
-                    }
-                    format
-                    formatOptions={{
-                        style: "currency",
-                        currency: "USD",
-                    }}
-                >
-                    <NumberFieldLabel>{label}</NumberFieldLabel>
-                    <NumberFieldInput placeholder={placeholder} />
-                    <NumberFieldErrorMessage>
-                        <For each={field().state.meta.errors}>
-                            {(error) => <div class="text-red-500">{error}</div>}
-                        </For>
-                    </NumberFieldErrorMessage>
-                </NumberField>
+                        format
+                        formatOptions={{
+                            style: "currency",
+                            currency: "USD",
+                        }}
+                    >
+                        <NumberFieldLabel>{label}</NumberFieldLabel>
+                        <NumberFieldInput placeholder={placeholder} />
+                        <NumberFieldErrorMessage>
+                            <For each={field().state.meta.errors}>
+                                {(error) => (
+                                    <div class="text-red-500">{error}</div>
+                                )}
+                            </For>
+                        </NumberFieldErrorMessage>
+                    </NumberField>
+                );
             }}
         </form.Field>
     );
