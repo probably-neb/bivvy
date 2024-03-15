@@ -95,19 +95,31 @@ function CardInner(props: { title?: () => JSX.Element; owed?: Owed }) {
         if (owe === undefined) {
             return [];
         }
-        return Array.from(Object.keys(owe.to));
+        return Array.from(Object.keys(owe.to)).sort((a, b) => (owe.to[a] ?? 0) - (owe.to[b] ?? 0));
     });
     return (
         <div class="flex justify-between items-center">
             <div class="flex flex-col gap-2">
                 <Show when={props.title}>{(t) => <>{t()}</>}</Show>
                 <For each={otherUsers()}>
-                    {(user) => (
-                        <div class="grid grid-cols-2 gap-2">
+                    {(user) => {
+                        const owed = createMemo(() => {
+                            const owed = props.owed?.to[user]
+                            if (owed == null) return 0
+                            // invert because the other user being owed -$10 is good for the current user!
+                            return -1 * owed
+                        })
+                        return <div class="grid grid-cols-3 gap-2">
+                            <Show when={owed() < 0}>
+                                you owe
+                            </Show>
                             <UserRenderer userId={user} />
-                            <MoneyRenderer amount={props.owed?.to[user] ?? 0} color />
+                            <Show when={owed() >= 0}>
+                                owes you
+                            </Show>
+                            <span class="font-bold"><MoneyRenderer amount={owed()} color /></span>
                         </div>
-                    )}
+                    }}
                 </For>
             </div>
         </div>
