@@ -422,6 +422,7 @@ function parseSplit(s: DBSplit) {
             ),
         )
         .rename("group_id", "groupId")
+        .rename("is_one_off", "isOneOff")
         .value();
 }
 

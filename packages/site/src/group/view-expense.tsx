@@ -3,6 +3,7 @@ import { ParentProps, Show } from "solid-js";
 import {
     DateRenderer,
     MoneyRenderer,
+    SplitRenderer,
     UserRenderer,
 } from "@/components/renderers";
 
@@ -25,6 +26,11 @@ export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
             <KV k="Description">
                 <Show when={expense()?.description}>
                     {(description) => <span>{description()}</span>}
+                </Show>
+            </KV>
+            <KV k="Split">
+                <Show when={expense()?.splitId}>
+                    {(splitId) => <SplitRenderer splitId={splitId()} />}
                 </Show>
             </KV>
             <KV k="Paid On">
