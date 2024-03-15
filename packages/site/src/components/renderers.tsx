@@ -86,10 +86,12 @@ export function DateRenderer(props: DateProps) {
     return <span>{format()}</span>;
 }
 
-export function MoneyRenderer(props: { amount: number; showPlus?: boolean }) {
-    const sign = createMemo(() =>
-        props.amount < 0 ? "-" : props.showPlus ? "+" : "",
-    );
+export function MoneyRenderer(props: { amount: number; showSign?: boolean, color?: boolean}) {
+    const sign = createMemo(() => {
+        if (!props.showSign) return ""
+        if (props.amount < 0) return "-"
+        return "+"
+    });
     const amount = createMemo(() => {
         // show amount in dollars instead of cents
         // also convert to float if it ins't already
@@ -97,8 +99,14 @@ export function MoneyRenderer(props: { amount: number; showPlus?: boolean }) {
         // don't show that many decimal places because who cares
         return a.toFixed(2);
     });
+    const color = createMemo(() => {
+        if (!props.color) return ""
+        if (props.amount === 0) return "text-blue-700"
+        if (props.amount < 0) return "text-red-700"
+        return "text-green-700"
+    })
     return (
-        <span>
+        <span class={color()}>
             {sign()}${amount()}
         </span>
     );

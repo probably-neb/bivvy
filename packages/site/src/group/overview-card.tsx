@@ -25,9 +25,9 @@ export function OverviewCard() {
             return "All even!";
         }
         if (total > 0) {
-            return "You Are Owed";
+            return "You Are Owed:";
         }
-        return "You Owe";
+        return "You Owe:";
     });
 
     const title = () => <OverviewTitle label={label()} total={owed()?.total} />;
@@ -81,8 +81,10 @@ function ExpandableCard(props: ParentProps<{ title: () => JSX.Element }>) {
 function OverviewTitle(props: { label: string; total?: number }) {
     return (
         <div class="text-lg font-bold flex gap-2">
-            <span>{props.label}:</span>
-            <Render value={props.total} c={MoneyRenderer} key="amount" />
+            <span>{props.label}</span>
+            <Show when={props.total} keyed>
+                {total => <MoneyRenderer amount={total} color/>}
+            </Show>
         </div>
     );
 }
@@ -102,12 +104,8 @@ function CardInner(props: { title?: () => JSX.Element; owed?: Owed }) {
                 <For each={otherUsers()}>
                     {(user) => (
                         <div class="grid grid-cols-2 gap-2">
-                            <UserRenderer userId={user} />{" "}
-                            <Render
-                                value={props.owed?.to[user]}
-                                c={MoneyRenderer}
-                                key="amount"
-                            />
+                            <UserRenderer userId={user} />
+                            <MoneyRenderer amount={props.owed?.to[user] ?? 0} color />
                         </div>
                     )}
                 </For>
