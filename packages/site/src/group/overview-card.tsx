@@ -95,7 +95,18 @@ function CardInner(props: { title?: () => JSX.Element; owed?: Owed }) {
         if (owe === undefined) {
             return [];
         }
-        return Array.from(Object.keys(owe.to)).sort((a, b) => (owe.to[a] ?? 0) - (owe.to[b] ?? 0));
+        const LT = -1
+        const GT = 1
+        return Array.from(Object.keys(owe.to)).sort((a, b) => {
+            const owedToA = owe.to[a] ?? 0
+            const owedToB = owe.to[b] ?? 0
+            // push zeros to the bottom
+            if (owedToA === 0) return GT
+            if (owedToB === 0) return LT
+
+            // positive above negative
+            return owedToA - owedToB
+        })
     });
     return (
         <div class="flex justify-between items-center">
@@ -110,11 +121,8 @@ function CardInner(props: { title?: () => JSX.Element; owed?: Owed }) {
                             return -1 * owed
                         })
                         return <div class="grid grid-cols-3 gap-2">
-                            <Show when={owed() < 0}>
-                                you owe
-                            </Show>
                             <UserRenderer userId={user} />
-                            <Show when={owed() >= 0}>
+                            <Show when={owed() > 0} fallback={"is owed"}>
                                 owes you
                             </Show>
                             <span class="font-bold"><MoneyRenderer amount={owed()} color /></span>
