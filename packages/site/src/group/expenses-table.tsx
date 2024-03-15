@@ -177,23 +177,23 @@ function useTableExpenses() {
 
 export function ExpensesTable(props: ExpenseButtonProps) {
     watchShow();
-    const expenses = useTableExpenses();
-    const table = createMemo(() => {
-        return createSolidTable<Expense>({
-            data: expenses.data,
+    const expenses = useExpenses();
+    const table = createSolidTable<Expense>({
+            get data() {
+                return expenses() ?? []
+            },
             columns,
             getCoreRowModel: getCoreRowModel(),
-        });
     });
     return (
         <ExpensesTableWrapper
             addExpenseButtonProps={props.addExpenseButtonProps}
         >
             <Table>
-                <TableHeaders headerGroups={table().getHeaderGroups()} />
+                <TableHeaders headerGroups={table.getHeaderGroups()} />
                 <TableBody class="min-h-0 max-h-[80vh] overflow-y-auto">
                     <TableRows
-                        rows={table().getRowModel().rows}
+                        rows={table.getRowModel().rows}
                         viewExpense={props.viewExpense}
                     />
                 </TableBody>
