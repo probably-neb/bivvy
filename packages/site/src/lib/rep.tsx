@@ -35,12 +35,22 @@ const mutators = {
         const expense = Object.assign(expenseNoSplitID, {splitId: split.id})
         await tx.set(P.expense.id(expense.groupId, expense.id), expense)
         await tx.set(P.split.id(split.groupId, split.id), split)
+        await createExpenseSideEffects(tx, expense)
     },
     async expenseWithOneOffSplitEdit(tx: WriteTransaction, expenseInput: ExpenseWithOneOffSplit) {
         const [expenseNoSplitID, {split}] = removeKeys(expenseInput, ["split"])
+
         const expense = Object.assign(expenseNoSplitID, {splitId: split.id})
+
+        const prev = await tx.get<Expense>(P.expense.id(expense.groupId, expense.id))
+        if (prev != null) {
+            await cleanupExpenseSideEffects(tx, prev, prev.groupId)
+        }
+
         await tx.set(P.expense.id(expense.groupId, expense.id), expense)
         await tx.set(P.split.id(split.groupId, split.id), split)
+
+        await createExpenseSideEffects(tx, expense)
     },
     async deleteExpense(
         tx: WriteTransaction,
@@ -123,7 +133,10 @@ async function cleanupExpenseSideEffects(
     groupId: Group["id"],
 ) {
     let split = await tx.get<Split>(P.split.id(groupId, expense.splitId));
-    assert(split != null, "split not found")
+    if (split == null) {
+        console.warn("failed to cleanup effects of expense with null split", {expense})
+        return
+    }
     const total = -expense.amount;
     await updateOwed(tx, expense.paidBy, groupId, total, split.portions);
 }

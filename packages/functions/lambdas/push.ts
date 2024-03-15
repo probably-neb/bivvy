@@ -459,6 +459,10 @@ async function getExpenseSplitIfOneOff(tx: Tx, expenseID: string) {
         return null
     }
     const prevSplit = prevSplitExp.split
+    if (prevSplit == null) {
+        console.warn(`no split found for expense with ID: ${expenseID}`)
+        return null
+    }
     if (prevSplit.is_one_off !== true) {
         return null
     }
@@ -470,7 +474,25 @@ async function getExpenseSplitIfOneOff(tx: Tx, expenseID: string) {
 
 async function expenseEdit(args: Expense, userID: string) {
     await db.transaction(async tx => {
+        const expenseID = args.id
+        const groupID = args.groupId
+
+        const prevSplit = await getExpenseSplitIfOneOff(tx, expenseID)
+
         await _expenseEdit(tx, args, userID)
+
+        if (prevSplit == null) {
+            // NOTE: warn to be nice to user
+            // if error was thrown they would be unable to fix what should be an impossible situation
+            console.warn(`could not find split for expense with id: ${expenseID} while looking for one off`)
+            return
+        }
+        assert(
+            prevSplit.id !== args.splitId,
+            "editing expense so that it has a one-off split when it didn't previously should be done with the expenseWithOneOffSplitEdit mutation"
+        )
+        // previous split was a one-off and therefore should be deleted
+        await _splitDelete(tx, {id: prevSplit.id, groupId: groupID})
     })
     return true;
 }
@@ -495,7 +517,6 @@ async function _expenseEdit(tx: Tx, args: Expense, userID: string) {
 
     const groupID = e.group_id
     const expenseID = e.id
-    const prevSplit = await getExpenseSplitIfOneOff(tx, expenseID)
 
     await tx
         .update(schema.expenses)
@@ -511,18 +532,6 @@ async function _expenseEdit(tx: Tx, args: Expense, userID: string) {
             ),
         );
 
-    if (prevSplit == null) {
-        // NOTE: warn to be nice to user
-        // if error was thrown they would be unable to fix what should be an impossible situation
-        console.warn(`could not find split for expense with id: ${expenseID} while looking for one off`)
-        return
-    }
-    assert(
-        prevSplit.id !== args.splitId,
-        "editing expense so that it has a one-off split when it didn't previously should be done with the expenseWithOneOffSplitEdit mutation"
-    )
-    // previous split was a one-off and therefore should be deleted
-    await _splitDelete(tx, {id: prevSplit.id, groupId: groupID})
 }
 
 async function expenseWithOneOffSplitEdit(args: ExpenseWithOneOffSplit, userID: string) {

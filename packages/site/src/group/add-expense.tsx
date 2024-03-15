@@ -306,7 +306,8 @@ function SplitField(props: { form: Form; editingID?: string, setPrevWasOneOff: (
     const defaultValue = createMemo(() => {
         if (editingID == null) return "existing" as const;
         const split = prevSplit();
-        if (split == null) return null;
+        if (split === undefined) return null;
+        if (split === null) return "existing" as const
         if (split.isOneOff) {
             props.setPrevWasOneOff(true)
             return "new" as const;
