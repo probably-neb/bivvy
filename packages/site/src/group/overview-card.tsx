@@ -25,9 +25,9 @@ export function OverviewCard() {
             return "All even!";
         }
         if (total > 0) {
-            return "You Are Owed";
+            return "You Are Owed:";
         }
-        return "You Owe";
+        return "You Owe:";
     });
 
     const title = () => <OverviewTitle label={label()} total={owed()?.total} />;
@@ -81,8 +81,10 @@ function ExpandableCard(props: ParentProps<{ title: () => JSX.Element }>) {
 function OverviewTitle(props: { label: string; total?: number }) {
     return (
         <div class="text-lg font-bold flex gap-2">
-            <span>{props.label}:</span>
-            <Render value={props.total} c={MoneyRenderer} key="amount" />
+            <span>{props.label}</span>
+            <Show when={props.total} keyed>
+                {total => <MoneyRenderer amount={total} color/>}
+            </Show>
         </div>
     );
 }
@@ -93,23 +95,39 @@ function CardInner(props: { title?: () => JSX.Element; owed?: Owed }) {
         if (owe === undefined) {
             return [];
         }
-        return Array.from(Object.keys(owe.to));
+        const LT = -1
+        const GT = 1
+        return Array.from(Object.keys(owe.to)).sort((a, b) => {
+            const owedToA = owe.to[a] ?? 0
+            const owedToB = owe.to[b] ?? 0
+            // push zeros to the bottom
+            if (owedToA === 0) return GT
+            if (owedToB === 0) return LT
+
+            // positive above negative
+            return owedToA - owedToB
+        })
     });
     return (
         <div class="flex justify-between items-center">
             <div class="flex flex-col gap-2">
                 <Show when={props.title}>{(t) => <>{t()}</>}</Show>
                 <For each={otherUsers()}>
-                    {(user) => (
-                        <div class="grid grid-cols-2 gap-2">
-                            <UserRenderer userId={user} />{" "}
-                            <Render
-                                value={props.owed?.to[user]}
-                                c={MoneyRenderer}
-                                key="amount"
-                            />
+                    {(user) => {
+                        const owed = createMemo(() => {
+                            const owed = props.owed?.to[user]
+                            if (owed == null) return 0
+                            // invert because the other user being owed -$10 is good for the current user!
+                            return -1 * owed
+                        })
+                        return <div class="grid grid-cols-3 gap-2">
+                            <UserRenderer userId={user} />
+                            <Show when={owed() > 0} fallback={"is owed"}>
+                                owes you
+                            </Show>
+                            <span class="font-bold"><MoneyRenderer amount={owed()} color /></span>
                         </div>
-                    )}
+                    }}
                 </For>
             </div>
         </div>

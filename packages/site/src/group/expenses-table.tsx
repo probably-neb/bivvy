@@ -52,6 +52,7 @@ import {
     flexRender,
     getCoreRowModel,
 } from "@tanstack/solid-table";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -59,7 +60,6 @@ const columnFields = [
     "amount",
     "splitId",
     "description",
-    "status",
     "paidOn",
     "createdAt",
 ] as const;
@@ -70,7 +70,6 @@ const titles: Record<Column, string> = {
     paidBy: "Paid By",
     amount: "Amount",
     description: "Description",
-    status: "Status",
     paidOn: "Paid On",
     createdAt: "Added On",
     splitId: "Split",
@@ -81,7 +80,6 @@ const showAt: Record<Column, Size> = {
     amount: "sm",
     description: "sm",
     splitId: "sm",
-    status: "md",
     paidOn: "md",
     createdAt: "md",
 };
@@ -90,7 +88,6 @@ const actions: Record<Column, Component> = {
     paidBy: () => null,
     amount: () => null,
     description: () => null,
-    status: () => null,
     paidOn: () => null,
     createdAt: () => null,
     splitId: () => <CreateSplitButton />,
@@ -287,8 +284,18 @@ type RowRenderer<Key extends Column> = (
 const renderers: { [key in Column]: RowRenderer<key> } = {
     paidBy: (paidBy) => <UserRenderer userId={paidBy} />,
     amount: (amount) => <MoneyRenderer amount={amount} />,
-    description: (description) => <span>{description}</span>,
-    status: (status) => <span class="uppercase">{status}</span>,
+    description: (description) => (
+        <HoverCard>
+            <HoverCardTrigger>
+                <span class="block text-nowrap truncate  w-24 lg:w-32">
+                    {description}
+                </span>
+            </HoverCardTrigger>
+            <HoverCardContent>
+                <span>{description}</span>
+            </HoverCardContent>
+        </HoverCard>
+    ),
     paidOn: (paidOn) => (
         <Show when={paidOn}>
             <DateRenderer date={paidOn!} />

@@ -422,6 +422,7 @@ function parseSplit(s: DBSplit) {
             ),
         )
         .rename("group_id", "groupId")
+        .rename("is_one_off", "isOneOff")
         .value();
 }
 
@@ -462,8 +463,14 @@ async function getOwedForUser(userID: string) {
         where: eq(schema.users_to_group.user_id, userID),
         with: {
             group: {
+                columns: {id: true},
                 with: {
                     expenses: {
+                        columns: {
+                            id: true,
+                            amount: true,
+                            paid_by_user_id: true
+                        },
                         with: {
                             split: {
                                 with: {
@@ -526,21 +533,17 @@ async function getOwedForUser(userID: string) {
             }
         }
     }
-    return {
+    return dbg({
         total,
         perGroup,
-    };
+    });
 }
 
-export function calculatePortion({
-    amount,
-    partsOwed,
-    totalParts,
-}: {
-    amount: number;
-    partsOwed: number;
-    totalParts: number;
-}) {
+export function calculatePortion(
+    amount: number,
+    partsOwed: number,
+    totalParts: number,
+) {
     return (amount * partsOwed) / totalParts;
 }
 
@@ -571,48 +574,43 @@ function calculateOwed(
 
         // by default, portion equals to the amount owed by the current user
         // to another user who paid for the expense
-        const portion = calculatePortion({ amount, partsOwed, totalParts });
-
-        const portionIsForUser = pDef.user_id === userID;
-        const paidByUser = paidByUserID === userID;
-
-        const doesNotInvolveCurrentUser = !portionIsForUser && !paidByUser;
-        const isPortionOfExpensePaidByCurUser = portionIsForUser && paidByUser;
-        const isOwedToAnotherUser = portionIsForUser && !paidByUser;
-        const isOwedToCurUser = !portionIsForUser && paidByUser;
+        const portion = calculatePortion(amount, partsOwed, totalParts);
 
         const portionUserID = pDef.user_id
+        const portionIsForUser = portionUserID === userID;
+        const paidByUser = paidByUserID === userID;
 
         switch (true) {
-            case isPortionOfExpensePaidByCurUser:
+            case portionIsForUser && paidByUser:
                 // if the user paid for the expense and the portion is for the user
                 // then the user is owed the full amount minus their portion
                 owed.push([userID, amount - portion])
                 break;
-            case doesNotInvolveCurrentUser:
+            case !portionIsForUser && !paidByUser:
                 // if the user didn't pay for the expense and the portion is not for the user
                 // then we don't care!
                 owed.push([portionUserID, 0])
                 break;
-            case isOwedToAnotherUser:
-                // if the user didn't pay for the expense and the portion is for the user
-                // then the current users balance should be reduced by their portion
-                // owedToUser = -portion;
-                owed.push([portionUserID, -portion])
-                owed.push([paidByUserID, -portion])
+            case portionIsForUser && !paidByUser:
+                // if the requesting user didn't pay for the expense and the portion is for the requesting user
+                // the requesting user is owed -(their portion) less
+                // and the user who paid for the expense is owed the requesting users portion
+                owed.push([userID, -portion])
+                owed.push([paidByUserID, portion])
                 break;
-            case isOwedToCurUser:
-                // if the user paid for the expense and the portion is for another user
-                // they owe the full portion
-                owed.push([portionUserID, portion])
+            case !portionIsForUser && paidByUser:
+                // if the requesting user paid for the expense and the portion is for another user
+                // the requesting user is owed the other users portion
+                // and the other user is owed -(their portion) less
+                owed.push([userID, portion])
+                owed.push([portionUserID, -portion])
                 break;
         }
-
     }
     return owed;
 }
 
-function dbg(val: unknown) {
+function dbg<T>(val: T) {
     console.dir(val, {depth: null})
     return val
 }

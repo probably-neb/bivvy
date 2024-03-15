@@ -19,14 +19,7 @@ import { InitSession } from "@/lib/session";
 import { createStore, reconcile } from "solid-js/store";
 import { useSession, useUserId } from "./session";
 import { useCurrentGroupId } from "./group";
-import { removeKeys } from "./utils";
-
-function assert(value: unknown, message?: string): asserts value {
-    if (value)
-        return
-    console.assert(value, message)
-    throw new Error(`Assertion Error: ${message ?? ""} -- ${value} is Falsy`)
-}
+import { removeKeys, assert} from "./utils";
 
 // NOTE: wrappers around these mutators are required because the mutators will be run by the server
 // with the same arguments (this being the contents of the push request). For consistency we want
@@ -36,6 +29,28 @@ const mutators = {
     async addExpense(tx: WriteTransaction, expense: Expense) {
         await tx.set(P.expense.id(expense.groupId, expense.id), expense);
         await createExpenseSideEffects(tx, expense);
+    },
+    async expenseWithOneOffSplitCreate(tx: WriteTransaction, expenseInput: ExpenseWithOneOffSplit) {
+        const [expenseNoSplitID, {split}] = removeKeys(expenseInput, ["split"])
+        const expense = Object.assign(expenseNoSplitID, {splitId: split.id})
+        await tx.set(P.expense.id(expense.groupId, expense.id), expense)
+        await tx.set(P.split.id(split.groupId, split.id), split)
+        await createExpenseSideEffects(tx, expense)
+    },
+    async expenseWithOneOffSplitEdit(tx: WriteTransaction, expenseInput: ExpenseWithOneOffSplit) {
+        const [expenseNoSplitID, {split}] = removeKeys(expenseInput, ["split"])
+
+        const expense = Object.assign(expenseNoSplitID, {splitId: split.id})
+
+        const prev = await tx.get<Expense>(P.expense.id(expense.groupId, expense.id))
+        if (prev != null) {
+            await cleanupExpenseSideEffects(tx, prev, prev.groupId)
+        }
+
+        await tx.set(P.expense.id(expense.groupId, expense.id), expense)
+        await tx.set(P.split.id(split.groupId, split.id), split)
+
+        await createExpenseSideEffects(tx, expense)
     },
     async deleteExpense(
         tx: WriteTransaction,
@@ -67,7 +82,7 @@ const mutators = {
         await tx.set(P.split.id(split.groupId, split.id), split);
     },
     async createGroup(tx: WriteTransaction, input: CreateGroupInput) {
-        const [group, { defaultSplitId }] = removeKeys(input, [
+        const [group, _] = removeKeys(input, [
             "defaultSplitId",
         ]) satisfies readonly [Group, any];
         tx.set(P.group.id(group.id), group);
@@ -93,7 +108,7 @@ const mutators = {
             ...invite,
             id: inviteId,
             accepted: true,
-            acceptedAt: new Date().getTime(),
+            acceptedAt: Date.now()
         };
         tx.set(P.invite.id(inviteId), updated);
     },
@@ -118,11 +133,9 @@ async function cleanupExpenseSideEffects(
     groupId: Group["id"],
 ) {
     let split = await tx.get<Split>(P.split.id(groupId, expense.splitId));
-    if (!split) {
-        // FIXME: uncomment
-        // throw new Error("split not found");
-        const userIds = await groupUserIds(tx, groupId);
-        split = createEvenSplit(userIds, expense.splitId, groupId);
+    if (split == null) {
+        console.warn("failed to cleanup effects of expense with null split", {expense})
+        return
     }
     const total = -expense.amount;
     await updateOwed(tx, expense.paidBy, groupId, total, split.portions);
@@ -313,7 +326,27 @@ export const groupUserSchema = z.object({
 export type GroupUser = z.infer<typeof groupUserSchema>;
 
 
-export const expenseSchema = z.object({
+const portionSchema = z.number().gte(0.0);
+
+export const zSplit = z.object({
+    name: z.string().min(1),
+    id: zID,
+    portions: z.record(userSchema.shape.id, portionSchema),
+    groupId: groupSchema.shape.id,
+    color: zHexString.nullable(),
+    isOneOff: z.boolean().default(false),
+});
+export type Split = z.infer<typeof zSplit>;
+
+export const zSplitInput = zSplit.pick({
+    name: true,
+    portions: true,
+    color: true,
+});
+
+export type SplitInput = z.infer<typeof zSplitInput>;
+
+export const zExpense = z.object({
     id: zID,
     description: z.string(),
     paidBy: userSchema.shape.id,
@@ -324,38 +357,31 @@ export const expenseSchema = z.object({
     groupId: groupSchema.shape.id,
     splitId: zID,
 });
-export type Expense = z.infer<typeof expenseSchema>;
+export type Expense = z.infer<typeof zExpense>;
 
-export const expenseInputSchema = expenseSchema.pick({
+export const zExpenseInput = zExpense.pick({
     description: true,
     amount: true,
     paidOn: true,
     splitId: true,
 });
-export type ExpenseInput = z.infer<typeof expenseInputSchema>;
+export type ExpenseInput = z.infer<typeof zExpenseInput>;
 
-const portionSchema = z.number().gte(0.0);
+export const zExpenseWithOneOffSplit = zExpense.omit({ splitId: true }).extend({
+    split: zSplit
+})
 
-export const splitSchema = z.object({
-    name: z.string().min(1),
-    id: zID,
-    portions: z.record(userSchema.shape.id, portionSchema),
-    groupId: groupSchema.shape.id,
-    color: zHexString.nullable(),
-});
-export type Split = z.infer<typeof splitSchema>;
+export type ExpenseWithOneOffSplit = z.infer<typeof zExpenseWithOneOffSplit>;
 
-export const splitInputSchema = splitSchema.pick({
-    name: true,
-    portions: true,
-    color: true,
-});
+export const zExpenseWithOneOffSplitInput = zExpenseInput.omit({ splitId: true }).extend({
+    split: zSplitInput.pick({ portions: true })
+})
 
-export type SplitInput = z.infer<typeof splitInputSchema>;
+export type ExpenseWithOneOffSplitInput = z.infer<typeof zExpenseWithOneOffSplitInput>;
 
 const createGroupInputSchema = groupSchema.extend({
     ownerId: userSchema.shape.id,
-    defaultSplitId: splitSchema.shape.id,
+    defaultSplitId: zSplit.shape.id,
 });
 
 type CreateGroupInput = z.infer<typeof createGroupInputSchema>;
@@ -384,10 +410,12 @@ export const inviteInputSchema = inviteSchema.pick({
 
 export type InviteInput = z.infer<typeof inviteInputSchema>;
 
-interface MutationMap extends Record<keyof Mutators, any> {}
+interface MutationMap extends Record<keyof Mutators, any> { }
 
 interface MutationWrapperInputs extends MutationMap {
     addExpense: ExpenseInput;
+    expenseAddWithOneOffSplit: ExpenseWithOneOffSplitInput,
+    expenseEditWithOneOffSplit: ExpenseWithOneOffSplitInput,
     deleteExpense: Expense["id"];
     createSplit: SplitInput;
     createGroup: GroupInput;
@@ -404,11 +432,11 @@ type MutationWrappers = {
 };
 
 const defualtMutations: MutationWrappers = Object.fromEntries(
-    Object.keys(mutators).map((k) => [k, async () => {}]),
+    Object.keys(mutators).map((k) => [k, async () => { }]),
 ) as MutationMap;
 
 type Ctx = [Accessor<Rep | null>, MutationWrappers, Signal<boolean>];
-const defaultCtx: Ctx = [() => null, defualtMutations, [() => true, () => {}]];
+const defaultCtx: Ctx = [() => null, defualtMutations, [() => true, () => { }]];
 const ReplicacheContext = createContext<Ctx>(defaultCtx);
 
 export function ReplicacheContextProvider(props: ParentProps) {
@@ -454,29 +482,48 @@ export function ReplicacheContextProvider(props: ParentProps) {
         };
     });
 
-    const mutations = {
+    const mutationWrappers = {
         async addExpense(expense: ExpenseInput) {
             const ctx = useCtx();
-            if (!ctx.isInit) {
-                throw new Error("Replicache not initialized");
+            assert(ctx.isInit, "Replicache not initialized")
+            const userID = ctx.userId
+            const groupID = ctx.groupId
+            assert(groupID != null, "Group not set")
+            const e = expandExpenseInput(expense, { userID, groupID });
+            await ctx.rep.mutate.addExpense(zExpense.parse(e));
+        },
+        async expenseWithOneOffSplitCreate(input: ExpenseWithOneOffSplitInput) {
+            const ctx = useCtx();
+            assert(ctx.isInit, "Replicache not initialized")
+            const userID = ctx.userId
+            const groupID = ctx.groupId
+            assert(groupID != null, "Group not set")
+
+            const expenseWOOS = expandExpenseWithOneOffSplitInput(input, { userID, groupID })
+            await ctx.rep.mutate.expenseWithOneOffSplitCreate(expenseWOOS)
+        },
+        async expenseWithOneOffSplitEdit(input: ExpenseWithOneOffSplit & { prevSplitWasOneOff: boolean}) {
+            const ctx = useCtx();
+            assert(ctx.isInit, "Replicache not initialized")
+            const groupID = ctx.groupId
+            assert(groupID != null, "Group not set")
+            console.log("input", JSON.parse(JSON.stringify(input)))
+
+            input.split.name = generateOneOffSplitName(input.id)
+            input.split.color = null
+            input.split.isOneOff = true
+            assert(input.prevSplitWasOneOff != null, "did not pass prevSplitWasOneOff!")
+            if (!input.prevSplitWasOneOff) {
+                input.split.id = nanoid()
             }
-            if (!ctx.groupId) {
-                throw new Error("Group not set");
-            }
-            // TODO: consider sanity collision check
-            const id = nanoid();
-            // FIXME: use passed split id
-            let e: Expense = {
-                // copy because replicache responses are Readonly
-                ...expense,
-                createdAt: new Date().getTime(),
-                paidOn: expense.paidOn ?? null,
-                status: "unpaid" as const,
-                paidBy: ctx.userId,
-                groupId: ctx.groupId,
-                id,
-            };
-            await rep()!.mutate.addExpense(expenseSchema.parse(e));
+
+            const split = zSplit.parse(expandSplitInput(input.split, groupID))
+
+            input.split = split
+            const expenseWOOS = zExpenseWithOneOffSplit.parse(input)
+            console.log("output", JSON.parse(JSON.stringify(expenseWOOS)))
+
+            await ctx.rep.mutate.expenseWithOneOffSplitEdit(expenseWOOS)
         },
         async deleteExpense(id: Expense["id"]) {
             const ctx = useCtx();
@@ -491,28 +538,20 @@ export function ReplicacheContextProvider(props: ParentProps) {
         async expenseEdit(expense: Expense) {
             const ctx = useCtx();
             assert(ctx.isInit, "Replicache not initialized")
-            await ctx.rep.mutate.expenseEdit(expenseSchema.parse(expense));
+            await ctx.rep.mutate.expenseEdit(zExpense.parse(expense));
         },
         async createSplit(splitInput: SplitInput) {
             const ctx = useCtx();
             assert(ctx.isInit, "Replicache not initialized")
-            if (!ctx.groupId) {
-                throw new Error("Group not set");
-            }
-            const split: Split = Object.assign(
-                {
-                    groupId: ctx.groupId,
-                    id: nanoid(),
-                    createdAt: Date.now()
-                },
-                splitInput,
-            );
-            await ctx.rep.mutate.createSplit(splitSchema.parse(split));
+            const groupID = ctx.groupId
+            assert(groupID != null, "Group not set")
+            const split = expandSplitInput(splitInput, groupID)
+            await ctx.rep.mutate.createSplit(zSplit.parse(split));
         },
         async splitEdit(split: Split) {
             const ctx = useCtx();
             assert(ctx.isInit, "Replicache not initialized")
-            await ctx.rep.mutate.splitEdit(splitSchema.parse(split));
+            await ctx.rep.mutate.splitEdit(zSplit.parse(split));
         },
         async createGroup(groupInput: GroupInput) {
             const ctx = useCtx();
@@ -546,7 +585,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
             assert(i.groupId, "Group not set in invte")
             assert(i.id, "no invite id")
             const invite = Object.assign({}, i, {
-                createdAt: new Date().getTime(),
+                createdAt: Date.now(),
                 acceptedAt: null,
             }) satisfies Invite;
             await ctx.rep.mutate.createInvite(inviteSchema.parse(invite));
@@ -559,10 +598,52 @@ export function ReplicacheContextProvider(props: ParentProps) {
     } satisfies MutationWrappers;
 
     return (
-        <ReplicacheContext.Provider value={[rep, mutations, closed]}>
+        <ReplicacheContext.Provider value={[rep, mutationWrappers, closed]}>
             {props.children}
         </ReplicacheContext.Provider>
     );
+}
+
+function expandExpenseInput(input: ExpenseInput, ctx: { userID: string, groupID: string }) {
+    const id = nanoid();
+    let e: Expense = {
+        // copy because replicache responses are Readonly
+        ...input,
+        createdAt: Date.now(),
+        paidOn: input.paidOn ?? null,
+        status: "unpaid" as const,
+        paidBy: ctx.userID,
+        groupId: ctx.groupID,
+        id,
+    };
+    return e
+}
+
+function expandSplitInput(input: SplitInput, groupID: string) {
+    const split: Split = Object.assign(
+        {
+            groupId: groupID,
+            id: nanoid(),
+            createdAt: Date.now(),
+            isOneOff: false,
+        },
+        input,
+    );
+    return split
+}
+
+function expandExpenseWithOneOffSplitInput(input: ExpenseWithOneOffSplitInput, ctx: { userID: string, groupID: string }) {
+    const expenseInput = Object.assign(input, { splitId: "_____PLACEHOLDER_____" })
+    const expense = expandExpenseInput(expenseInput, ctx)
+    const splitInput = Object.assign(input.split, { name: generateOneOffSplitName(expense.id), color: null })
+    const split = expandSplitInput(splitInput, ctx.groupID)
+    split.isOneOff = true
+    const output = Object.assign(expense, { split })
+    return output
+}
+
+function generateOneOffSplitName(expenseID: string) {
+    return `one-off-${expenseID}`
 }
 
 export function useRep() {
@@ -585,11 +666,11 @@ export function useGroup(group: Accessor<Group["id"]>) {
 }
 
 export function useCurrentGroup() {
-    return use((tx, {groupId}) => tx.get<Group>(P.group.id(groupId)))
+    return use((tx, { groupId }) => tx.get<Group>(P.group.id(groupId)))
 }
 
 export function useOwnsCurrentGroup() {
-    return use(async (tx, {groupId}) => {
+    return use(async (tx, { groupId }) => {
         const userID = await tx.get<string>(P.currentUserID)
         assert(userID, "No logged in user set")
         const group = await tx.get<Group>(P.group.id(groupId))
@@ -745,30 +826,41 @@ export function useUser(
 
 export function useSplits() {
     const splits = use(async (tx, { groupId }) => {
-        return await tx
+        return (await tx
             .scan<Split>({ prefix: P.split.prefix(groupId) })
             .values()
-            .toArray();
+            .toArray())
+            .filter((item) => !item.isOneOff)
     });
     return splits;
 }
 
 export function useSortedSplits() {
     const splits = use(async (tx, { groupId }) => {
-        const items =  await tx
+        const items = (await tx
             .scan<Split>({ prefix: P.split.prefix(groupId) })
             .values()
-            .toArray();
-        items.sort((a, b) => a.name.localeCompare(b.name));
+            .toArray()
+        )
+            .filter((item) => !item.isOneOff)
+            .sort((a, b) => a.name.localeCompare(b.name))
+
         return items
     });
     return splits;
 
 }
 
+// null -> not found
+// undefined -> still loading
 export function useSplit(id: Accessor<Split["id"]>) {
     const split = useWithOpts(id, async (tx, id, { groupId }) => {
-        return await tx.get<Split>(P.split.id(groupId, id));
+        const split = await tx.get<Split>(P.split.id(groupId, id));
+        // return null explicitly so the caller can differentiate using
+        // null -> not found
+        // undefined -> still loading
+        if (split == null) return null
+        return split
     });
     return split;
 }
@@ -982,20 +1074,4 @@ function useGroupId(group?: Accessor<Group["id"]>) {
         return id!;
     });
     return id;
-}
-
-function createEvenSplit(userIds: string[], splitId: string, groupId: string) {
-    const portions: Split["portions"] = {};
-    for (const id of userIds) {
-        portions[id] = 1.0;
-    }
-    return {
-        id: splitId,
-        portions,
-        name: "Even Split",
-        groupId,
-        color: null,
-        // TODO: use this in backend
-        createdAt: Date.now()
-    } satisfies Split;
 }

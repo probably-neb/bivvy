@@ -3,6 +3,8 @@ import {Config as DrizzleConfig} from "drizzle-kit"
 console.log(process.env)
 const DB_TOKEN = process.env.DB_TOKEN!;
 let DB_URL = process.env.DB_URL!;
+// FIXME: why is DB_URL not being set?
+DB_URL = "https://bivvy-probably-neb.turso.io"
 if (DB_URL.startsWith("http")) {
     DB_URL = DB_URL.replace("https", "libsql")
 }

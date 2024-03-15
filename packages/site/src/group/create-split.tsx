@@ -7,7 +7,7 @@ import {
 import {
     Split,
     SplitInput,
-    splitInputSchema,
+    zSplitInput,
     useMutations,
     useSortedUsers,
 } from "@/lib/rep";
@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import "./no-spinners.css";
 import { AiOutlineMinus, AiOutlinePlus } from "solid-icons/ai";
 import { not } from "@/lib/utils";
+import { randomColor, usePossibleColors } from "@/lib/patterns";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
 
@@ -46,13 +47,13 @@ export function CreateSplitDialog(props: {
 
 function addSpacesToKeys(obj: Record<string, any>) {
     return Object.fromEntries(
-        Object.entries(obj).map(([k, v]) => [` ${k} `, v]),
+        Object.entries(obj).map(([k, v]) => [` ${k} `, v])
     );
 }
 
 function removeSpacesFromKeys(obj: Record<string, any>) {
     return Object.fromEntries(
-        Object.entries(obj).map(([k, v]) => [k.trim(), v]),
+        Object.entries(obj).map(([k, v]) => [k.trim(), v])
     );
 }
 
@@ -68,7 +69,14 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
     const editingSplit = props.split;
     const isEditing = editingSplit != null;
 
-    const defaultValues = props.split && getDefaultValuesFromSplit(props.split);
+    const defaultValues =
+        props.split != null
+            ? getDefaultValuesFromSplit(props.split)
+            : {
+                  name: "",
+                  color: randomColor(),
+                  portions: {},
+              };
     const form = createForm(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
@@ -91,10 +99,10 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
             console.log("invalid", e.formApi.state.errors);
         },
         validators: {
-            onSubmit: splitInputSchema.omit({ portions: true }).and(
+            onSubmit: zSplitInput.omit({ portions: true }).and(
                 z.object({
                     portions: z.record(zParts),
-                }),
+                })
             ),
         },
         defaultValues,
@@ -102,14 +110,6 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
             canSubmit: false,
         },
     }));
-    // createEffect(on(() => props.split, (split) => {
-    //     form.setFieldValue("color", split?.color ?? null, {touch: false})
-    //     form.setFieldValue("name", split?.name as any, {touch: false})
-    //     form.setFieldValue("portions", split?.portions && addSpacesToKeys(split.portions) as any, {touch: false})
-    // //     form.update({
-    // //         defaultValues: split && getDefaultValuesFromSplit(split)
-    // //     })
-    // }))
 
     return (
         <form.Provider>
@@ -121,7 +121,7 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
                     e.stopPropagation();
                     console.log(
                         "values",
-                        splitInputSchema.safeParse(form.state.values),
+                        zSplitInput.safeParse(form.state.values)
                     );
                     await form.handleSubmit();
                 }}
@@ -132,13 +132,13 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
                         name="name"
                         label="Name"
                         placeholder="Utilities"
-                        validator={splitInputSchema.shape.name}
+                        validator={zSplitInput.shape.name}
                         type="text"
                         form={form}
                     />
                     <SplitColorPick form={form} />
                 </div>
-                <PortionParts form={form} />
+                <PortionParts form={form} isEditing={isEditing} />
                 <div class="inline-flex justify-center">
                     <Button
                         type="submit"
@@ -153,7 +153,20 @@ export function CreateSplit(props: { onSubmit?: () => void; split?: Split }) {
     );
 }
 
-const colors = [
+function SplitColorPick(props: { form: SplitForm }) {
+    return (
+        <props.form.Field name="color">
+            {(field) => (
+                <ColorPicker
+                    value={field().state.value}
+                    set={field().handleChange}
+                />
+            )}
+        </props.form.Field>
+    );
+}
+
+const SPLIT_COLORS = [
     "#D9E3F0",
     "#F47373",
     "#697689",
@@ -165,36 +178,12 @@ const colors = [
     "#ba68c8",
 ];
 
-function randomHexColor() {
-    return `#${colors[Math.floor(Math.random() * colors.length)]}`;
-}
-
-function SplitColorPick(props: { form: SplitForm }) {
-    return (
-        <props.form.Field name="color">
-            {(field) => (
-                <ColorPicker
-                    value={field().state.value}
-                    set={field().setValue}
-                />
-            )}
-        </props.form.Field>
-    );
-}
-
 function ColorPicker(props: {
     set: (color: string | null, opts: { touch: boolean }) => void;
     value: string | null;
     errors?: string[];
 }) {
-    const color = createMemo(() => props.value || randomHexColor());
-    onMount(
-        on(color, (color) => {
-            if (color === null) {
-                props.set(randomHexColor(), { touch: false });
-            }
-        }),
-    );
+    const color = createMemo(() => props.value ?? undefined);
 
     const [open, setOpen] = createSignal(false);
 
@@ -208,7 +197,7 @@ function ColorPicker(props: {
             <DropdownMenuTrigger>
                 <div
                     class="h-[2rem] w-[3rem] ring-1 ring-gray-400 rounded-md"
-                    style={{ background: color() }}
+                    style={{ background: color()}}
                 ></div>
                 <For each={props.errors}>
                     {(error) => <div class="text-red-500">{error}</div>}
@@ -216,7 +205,7 @@ function ColorPicker(props: {
             </DropdownMenuTrigger>
             <DropdownMenuContent>
                 <BlockPicker
-                    colors={colors}
+                    colors={SPLIT_COLORS}
                     color={color()}
                     onChangeComplete={onChange}
                 />
@@ -229,7 +218,7 @@ const zParts = z.number().min(0).max(100);
 
 function useTotalPortions(form: SplitForm) {
     const portions = subscribeToField(form, (values) =>
-        Object.values(values.portions ?? {}),
+        Object.values(values.portions ?? {})
     );
     const total = createMemo(() => {
         const total = portions()?.reduce((acc, val) => acc + val, 0) ?? 0.0;
@@ -238,7 +227,7 @@ function useTotalPortions(form: SplitForm) {
     return total;
 }
 
-export function PortionParts(props: { form: SplitForm }) {
+export function PortionParts(props: { form: SplitForm, isEditing: boolean}) {
     // TODO: store portions, total in portion types + db
     // i.e. calculate owed as parts * amount / numParts
     // where for pecentage numparts is 1.0 (25% * amount / 1.0)
@@ -252,6 +241,7 @@ export function PortionParts(props: { form: SplitForm }) {
                 <UserPortionParts
                     form={props.form}
                     userId={user.id}
+                    isEditing={props.isEditing}
                     totalPortions={totalPortions()}
                 />
             )}
@@ -260,7 +250,7 @@ export function PortionParts(props: { form: SplitForm }) {
 
     return (
         <div class="flex">
-            <div class="shrink grid grid-cols-3 items-center gap-4">
+            <div class="shrink grid grid-cols-3 justify-start items-center gap-4">
                 {usersList}
             </div>
         </div>
@@ -271,6 +261,7 @@ function UserPortionParts(props: {
     form: SplitForm;
     userId: string;
     totalPortions: number;
+    isEditing: boolean;
 }) {
     // NOTE: spaces around userId here because form will recognize ids that are valid integers as array indices
     // see `onSubmit` where we use `trim` to remove the spaces
@@ -281,21 +272,24 @@ function UserPortionParts(props: {
     // when remounting with a new split to edit
     const portion = props.form.state.values.portions?.[userID];
     if (not(portion)) {
-        props.form.setFieldValue(id, 1);
+        let defaultPortion = 1
+        if (props.isEditing) {
+            defaultPortion = 0
+        }
+        props.form.setFieldValue(id, defaultPortion);
     }
-
     return (
         <props.form.Field name={id}>
             {(field) => (
                 <>
                     <UserRenderer userId={props.userId} />
-                    <Incrementer
-                        value={field().state.value}
-                        onChange={field().setValue}
-                    />
                     <PercentagePreview
                         total={props.totalPortions}
                         value={field().state.value}
+                    />
+                    <Incrementer
+                        value={field().state.value}
+                        onChange={field().setValue}
                     />
                 </>
             )}
@@ -308,25 +302,26 @@ function PercentagePreview(props: { total: number; value: number }) {
         const value = (props.value / props.total) * 100;
         return `${value.toFixed(2)}%`;
     });
-    return <div class="text-slate-600 italic">{percent()}</div>;
+    return <span class="text-slate-600 italic">{percent()}</span>;
 }
 
 function Incrementer(props: { value: number; onChange: Setter<number> }) {
-    const onChange = (value: number) => props.onChange(isNaN(value) || value < 0 ? 0 : value);
+    const onChange = (value: number) =>
+        props.onChange(isNaN(value) || value < 0 ? 0 : value);
     const decrement = () =>
         props.onChange((value) => (value <= 0 ? 0 : value - 1));
     const increment = () => props.onChange((value) => value + 1);
     const btnclass =
         "text-xl rounded-full h-6 w-6 flex items-center justify-center select-none text-white bg-gray-900 hover:bg-gray-700";
     return (
-        <div class="flex items-center gap-2">
+        <div class="justify-center flex items-center gap-1">
             <button class={btnclass} type="button" onClick={decrement}>
                 <AiOutlineMinus />
             </button>
             <TextField>
                 <TextFieldInput
                     type="number"
-                    class={`no-spinners w-12 px-0 text-center rounded-full py-0`}
+                    class="no-spinners w-12 px-0 text-center rounded-full py-0"
                     value={props.value}
                     onChange={(e) => onChange(e.target.valueAsNumber)}
                 />
@@ -340,7 +335,7 @@ function Incrementer(props: { value: number; onChange: Setter<number> }) {
 
 function subscribeToField<Form extends FormApi<any, any>, V>(
     form: Form,
-    selector: (f: SplitInput) => V,
+    selector: (f: SplitInput) => V
 ) {
     const formState = form.useStore();
     const value = createMemo(() => selector(formState().values));
@@ -361,7 +356,7 @@ type ZodForm<Validator extends Zod.ZodTypeAny> = FormApi<
 
 type FieldProps<
     Validator extends Zod.ZodTypeAny,
-    Form extends ZodForm<Validator> = ZodForm<Validator>,
+    Form extends ZodForm<Validator> = ZodForm<Validator>
 > = {
     validator: Zod.ZodType;
     name: FieldOf<Form>;
@@ -374,7 +369,7 @@ type FieldProps<
 };
 
 // TODO: move to components
-export function Field(props: FieldProps<typeof splitInputSchema>) {
+export function Field(props: FieldProps<typeof zSplitInput>) {
     const { validator, name, label, type, form, step, placeholder } = props;
     return (
         <form.Field
@@ -399,7 +394,7 @@ export function Field(props: FieldProps<typeof splitInputSchema>) {
                         step={step}
                         onChange={(e) =>
                             field().setValue(
-                                props.parse?.(e.target.value) ?? e.target.value,
+                                props.parse?.(e.target.value) ?? e.target.value
                             )
                         }
                     />
