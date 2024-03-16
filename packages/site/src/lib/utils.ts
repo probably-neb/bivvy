@@ -52,3 +52,26 @@ export function assert(value: unknown, message?: string): asserts value {
 export function deepClone<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj))
 }
+
+export function dbg<T>(value: T, label?: string) {
+    if (label != null) {
+        console.log(label, value)
+    } else {
+        console.log(value)
+    }
+    return value
+}
+
+export function when<T, R extends T>(val: T, pred: (val: T) => val is R): R
+export function when<T, R extends T>(val: T, pred: (val: T) => any) {
+    if (pred(val))
+        return val as R
+    return null
+}
+
+// usefull for defining `data-*` attributes conditionally
+export function attrWhen(val: any) {
+    if (val)
+        return ""
+    return null
+}

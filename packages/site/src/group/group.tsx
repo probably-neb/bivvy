@@ -129,10 +129,10 @@ export default function GroupPage() {
             class="shadow-none"
         >
             <TabsList class="justify-center">
-                <TabsTrigger value="expenses">Expenses</TabsTrigger>
-                <TabsTrigger value="users">Members</TabsTrigger>
-                <TabsTrigger value="splits">Splits</TabsTrigger>
-                <TabsTrigger value="group">Group</TabsTrigger>
+                <TabsTrigger class="text-md" value="expenses">Expenses</TabsTrigger>
+                <TabsTrigger class="text-md" value="users">Members</TabsTrigger>
+                <TabsTrigger class="text-md" value="splits">Splits</TabsTrigger>
+                <TabsTrigger class="text-md" value="group">Group</TabsTrigger>
             </TabsList>
             <TabsContent value="expenses">
                 <ExpensesTab />

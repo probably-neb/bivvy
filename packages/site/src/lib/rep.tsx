@@ -657,7 +657,6 @@ export function useMutations() {
 export function useGroups() {
     return use(
         (tx) => tx.scan<Group>({ prefix: P.group.prefix }).values().toArray(),
-        false,
     );
 }
 
@@ -666,11 +665,11 @@ export function useGroup(group: Accessor<Group["id"]>) {
 }
 
 export function useCurrentGroup() {
-    return use((tx, { groupId }) => tx.get<Group>(P.group.id(groupId)))
+    return useWithGroupID((tx, { groupId }) => tx.get<Group>(P.group.id(groupId)))
 }
 
 export function useOwnsCurrentGroup() {
-    return use(async (tx, { groupId }) => {
+    return useWithGroupID(async (tx, { groupId }) => {
         const userID = await tx.get<string>(P.currentUserID)
         assert(userID, "No logged in user set")
         const group = await tx.get<Group>(P.group.id(groupId))
@@ -685,12 +684,22 @@ export async function fetchGroup(groupId: Group["id"]) {
 }
 
 export function useExpenses() {
-    const expenses = use(async (tx, { groupId }) => {
+    const expenses = useWithGroupID(async (tx, { groupId }) => {
         return await tx
             .scan<Expense>({ prefix: P.expense.prefix(groupId) })
             .values()
             .toArray();
     });
+    return expenses;
+}
+
+export function useTableExpenses() {
+    const expenses = useWithGroupID(async (tx, { groupId }) => {
+        return await tx
+            .scan<Expense>({ prefix: P.expense.prefix(groupId) })
+            .values()
+            .toArray();
+    }, {reconcile: false});
     return expenses;
 }
 
@@ -705,7 +714,7 @@ export function useExpense(id: Accessor<Expense["id"]>) {
 
 export function useUserExpenses(id: User["id"]) {
     // PERF: compare against filterAsyncIterator in Replicache (requires custom toArray impl)
-    const expenses = use(async (tx, { groupId }) =>
+    const expenses = useWithGroupID(async (tx, { groupId }) =>
         (
             await tx
                 .scan<Expense>({ prefix: P.expense.prefix(groupId) })
@@ -758,7 +767,7 @@ export type Owed = {
 };
 
 export function useOwed() {
-    const info = use(async (tx, { groupId, userId }) => {
+    const info = useWithGroupID(async (tx, { groupId, userId }) => {
         const owed: Owed = {
             total: 0,
             to: {},
@@ -804,7 +813,7 @@ export function useCurrentUser() {
             return null;
         }
         return await tx.get<User>(P.user.id(userID));
-    }, false);
+    });
     createEffect(() => {
         console.log("currentUser", user());
     });
@@ -825,7 +834,7 @@ export function useUser(
 }
 
 export function useSplits() {
-    const splits = use(async (tx, { groupId }) => {
+    const splits = useWithGroupID(async (tx, { groupId }) => {
         return (await tx
             .scan<Split>({ prefix: P.split.prefix(groupId) })
             .values()
@@ -836,7 +845,7 @@ export function useSplits() {
 }
 
 export function useSortedSplits() {
-    const splits = use(async (tx, { groupId }) => {
+    const splits = useWithGroupID(async (tx, { groupId }) => {
         const items = (await tx
             .scan<Split>({ prefix: P.split.prefix(groupId) })
             .values()
@@ -866,27 +875,16 @@ export function useSplit(id: Accessor<Split["id"]>) {
 }
 
 /// Helper function that wraps a Replicache query subscription in a SolidJS signal
-type Getter<R, WithGroupId> = (
+type Getter<R> = (
     tx: ReadTransaction,
     opts: {
-        groupId: WithGroupId extends true ? Expense["groupId"] : undefined;
         userId: User["id"];
+        groupId: Group["id"] | undefined
     },
 ) => Promise<R>;
 
-// this mumbo jumbo makes it so if you pass false as the second arg to use the current group id won't be null asserted
-// and you'll get a typesafe result
-export function use<R, W extends false>(
-    g: Getter<R, W>,
-    withGroupId: false,
-): Accessor<R | undefined>;
-export function use<R, W extends true>(
-    g: Getter<R, W>,
-    withGroupId?: true | undefined,
-): Accessor<R | undefined>;
-export function use<R, W extends true | false>(
-    getter: Getter<R, W>,
-    withGroupId?: true | false,
+export function use<R>(
+    getter: Getter<R>,
 ) {
     const ctxVals = createMemo(() => {
         const rep = useRep();
@@ -924,7 +922,7 @@ export function use<R, W extends true | false>(
     createEffect(
         on(ctxVals, (ctx) => {
             const { isInit, groupId, userId, rep } = ctx;
-            if (!isInit || (!groupId && withGroupId !== false)) {
+            if (!isInit) {
                 if (ctx.isClosed) {
                     console.log("closed")
                     return;
@@ -940,10 +938,7 @@ export function use<R, W extends true | false>(
                     async (tx) =>
                         getter(
                             tx,
-                            opts as {
-                                groupId: W extends true ? string : undefined;
-                                userId: string;
-                            },
+                            opts,
                         ),
                     (val) => {
                         setValue(
@@ -1063,6 +1058,95 @@ export function useWithOpts<Opts, Result>(
     return () => value.value;
 }
 
+type UseWithGroupIDGetter<R> = (
+    tx: ReadTransaction,
+    opts: {
+        userId: User["id"];
+        groupId: Group["id"];
+    },
+) => Promise<R>;
+
+export function useWithGroupID<R>(
+    getter: UseWithGroupIDGetter<R>,
+    options?: {reconcile?: boolean}
+) {
+    const ctxVals = createMemo(() => {
+        const rep = useRep();
+        const groupId = useGroupId();
+        const userId = useUserId();
+        const isClosed = useIsClosed()
+        if (isClosed()) {
+            return {
+                isInit: false,
+                isClosed: true,
+            } as const
+        }
+        if (!rep() || !userId()) {
+            console.log("not init", {
+                rep: rep(),
+                groupId: groupId(),
+                userId: userId(),
+            });
+            return {
+                isInit: false,
+            } as const;
+        }
+        return {
+            isInit: true,
+            rep: rep()!,
+            userId: userId()!,
+            groupId: groupId(),
+        } as const;
+    });
+
+    const [value, setValue] = createStore<{ value: R | undefined }>({
+        value: undefined,
+    });
+
+    createEffect(
+        on(ctxVals, (ctx) => {
+            const { isInit, groupId, userId, rep } = ctx;
+            if (!isInit || !groupId) {
+                if (ctx.isClosed) {
+                    console.log("closed")
+                    return;
+                }
+                console.log("not init");
+                setValue("value", undefined);
+                return;
+            }
+
+            const valSignal: Accessor<R | undefined> = from(() => {
+                const opts = { groupId, userId };
+                const unsub = rep.subscribe(
+                    async (tx) =>
+                        getter(
+                            tx,
+                            opts,
+                        ),
+                    (val) => {
+                        const update = val as Exclude<R, Function>
+                        setValue(
+                            "value",
+                            options?.reconcile === false ? update : reconcile(update),
+                        );
+                    },
+                );
+                return unsub;
+            });
+            // [ I THINK ] returning the signal is necessary here so that it is kept alive
+            // and not cleaned up until next time this effect is ran (aka when the session context
+            // changes). This happens because solid allows returning a value within an effect that
+            // will be passed to the next run of the effect (aka persist the value)
+            // consequently, the signal is kept alive until the next run of the effect and the
+            // subscription is cleaned up when it should be (and not before!)
+            return valSignal;
+        }),
+    );
+
+    // TODO: return store directly instead of pretending to be a signal
+    return () => value.value;
+}
 function useGroupId(group?: Accessor<Group["id"]>) {
     const curId = useCurrentGroupId();
     const id = createMemo(() => {

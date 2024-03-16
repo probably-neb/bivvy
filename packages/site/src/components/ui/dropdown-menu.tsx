@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
 import { DropdownMenu as DropdownMenuPrimitive } from "@kobalte/core"
 import { TbCheck, TbChevronRight, TbCircleFilled } from "solid-icons/tb"
-import type { ComponentProps, VoidComponent } from "solid-js"
+import type { ComponentProps, ParentProps, VoidComponent } from "solid-js"
 import { mergeProps, splitProps, type ParentComponent } from "solid-js"
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
@@ -65,6 +65,10 @@ export const DropdownMenuGroupLabel: ParentComponent<
 			{...rest}
 		/>
 	)
+}
+
+export function DropdownMenuTitle(props: ParentProps<{class?: string}>) {
+    return <span class={cn("px-2 py-1.5 text-sm font-semibold", props.class)}>{props.children}</span>
 }
 
 export const DropdownMenuItemLabel: ParentComponent<

@@ -146,11 +146,15 @@ export function DateRenderer(props: DateProps) {
     return <span>{format()}</span>;
 }
 
-export function MoneyRenderer(props: { amount: number; showSign?: boolean, color?: boolean}) {
+export function MoneyRenderer(props: {
+    amount: number;
+    showSign?: boolean;
+    color?: boolean;
+}) {
     const sign = createMemo(() => {
-        if (!props.showSign) return ""
-        if (props.amount < 0) return "-"
-        return "+"
+        if (!props.showSign) return "";
+        if (props.amount < 0) return "-";
+        return "+";
     });
     const amount = createMemo(() => {
         // show amount in dollars instead of cents
@@ -160,11 +164,11 @@ export function MoneyRenderer(props: { amount: number; showSign?: boolean, color
         return a.toFixed(2);
     });
     const color = createMemo(() => {
-        if (!props.color) return ""
-        if (props.amount === 0) return "text-blue-700"
-        if (props.amount < 0) return "text-red-700"
-        return "text-green-700"
-    })
+        if (!props.color) return "";
+        if (props.amount === 0) return "text-blue-700";
+        if (props.amount < 0) return "text-red-700";
+        return "text-green-700";
+    });
     return (
         <span class={color()}>
             {sign()}${amount()}
@@ -191,16 +195,22 @@ export function SplitRenderer(props: { splitId: Split["id"]; class?: string }) {
 function OneOffSplitUsers(props: { split: Split }) {
     // TODO: create useSortedUserIDs hook that takes list of userIDs and sorts them by the users name
     const userIDs = createMemo(() => {
-        const ids = Object.entries(props.split.portions).filter(([_userID, parts]) => parts > 0).map(([userID]) => userID);
+        const ids = Object.entries(props.split.portions)
+            .filter(([_userID, parts]) => parts > 0)
+            .map(([userID]) => userID);
         return ids;
     });
+    return <UserProfileListRenderer userIDs={userIDs()} />;
+}
+
+export function UserProfileListRenderer(props: { userIDs: string[] }) {
     return (
         <div class="inline-flex gap-1">
             <Show
-                when={userIDs().length !== 1}
-                fallback={<UserRenderer userId={userIDs()[0]} />}
+                when={props.userIDs.length !== 1}
+                fallback={<UserRenderer userId={props.userIDs[0]} />}
             >
-                <For each={userIDs()}>
+                <For each={props.userIDs}>
                     {(id) => <UserProfileRenderer userID={id} />}
                 </For>
             </Show>
