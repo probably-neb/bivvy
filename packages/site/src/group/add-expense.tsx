@@ -340,10 +340,10 @@ function SplitField(props: { form: Form; editingID?: string, setPrevWasOneOff: (
                                     One Off Split
                                 </TabsTrigger>
                             </TabsList>
-                            <TabsContent value="existing">
+                            <TabsContent value="existing" class="px-0">
                                 {ExistingTab}
                             </TabsContent>
-                            <TabsContent value="new">{NewTab}</TabsContent>
+                            <TabsContent value="new" class="px-0">{NewTab}</TabsContent>
                         </Tabs>
                     )}
                 </props.form.Field>
