@@ -143,31 +143,73 @@ async function cleanupExpenseSideEffects(
 
 async function updateOwed(
     tx: WriteTransaction,
-    paidById: string,
+    paidByID: string,
     groupId: string,
-    total: number,
+    amount: number,
     portions: Split["portions"],
 ) {
-    const groupUsers = await tx
-        .scan<GroupUser>({ prefix: P.groupUser.prefix(groupId) })
-        .values()
-        .toArray();
+    // when client side paid by is always the current user
+    const userID = paidByID;
     const totalParts = Math.max(
         Math.abs(Object.values(portions).reduce((a, b) => a + b, 0)),
         1.0,
     );
-    for (const user of groupUsers) {
-        const portion = (total * (portions[user.id] ?? 0)) / totalParts;
-        let owed = user.owed ?? 0;
-        if (user.id === paidById) {
-            owed = owed + total - portion;
-        } else {
-            owed = owed + portion;
+    const owed = new Array<[string, number]>();
+    const splitParts = Object.entries(portions)
+
+    const userKey = P.groupUser.id(groupId, userID)
+    let user = await tx.get<GroupUser>(userKey)
+    if (user == null) {
+        user = {id: userID, owed: 0}
+    }
+    let userOwed = user.owed
+
+    let userParts = 0
+    for (let i = 0; i< splitParts.length; i++) {
+        const [partUserID, parts] = splitParts[i]
+        if (partUserID === userID) {
+            userParts = parts
+            break
         }
-        await tx.set(P.groupUser.id(groupId, user.id), {
-            ...user,
-            owed,
-        });
+    }
+    const userPortion = (amount * userParts) / totalParts
+
+    const paidByUser = paidByID === userID;
+
+    async function updateUserOwed(userID: string, delta: number) {
+        const key = P.groupUser.id(groupId, userID)
+        const user = await tx.get<GroupUser>(key)
+        await tx.set(key, {id: userID, owed: (user?.owed ?? 0) + delta})
+    }
+
+    if (!paidByUser) {
+        // If not paid by user and user owes nothing we don't care anymore
+        if (userParts === 0) return owed
+
+        // If another user paid for the expense they are owed the requesting
+        // users portion and the requesting user is owed their portion less
+        userOwed -= userPortion
+        await tx.set(userKey, {...user, owed: userOwed})
+
+        updateUserOwed(paidByID, userPortion)
+        return
+    }
+
+    // if the user paid for the expense they are owed the amount of the expense
+    // minus their portion
+    userOwed += amount - userPortion
+    await tx.set(userKey, {...user, owed: userOwed})
+
+    for (let i = 0; i < splitParts.length; i++) {
+        const [portionUserID, portionParts] = splitParts[i]
+
+        if (portionUserID === userID) continue
+        if (portionParts === 0) continue
+
+        const portion = (amount * portionParts) / totalParts
+        // if the user paid for the expense the other users are owed
+        // their portion less
+        await updateUserOwed(portionUserID, -portion)
     }
 }
 
