@@ -21,8 +21,10 @@ export const handler = AuthHandler({
     providers: {
         local: createLocalAdapter(),
         google: GoogleAdapter({
-            mode: "oidc",
+            mode: "oauth",
             clientID: Config.GOOGLE_CLIENT_ID,
+            clientSecret: Config.GOOGLE_CLIENT_ID_SECRET,
+            scope: "openid profile email",
             onSuccess: async (tokenset) => {
                 const claims = tokenset.claims();
                 const userId = await upsertUser(claims);
@@ -91,11 +93,13 @@ async function upsertUser(claims: IdTokenClaims) {
         claims.name ||
         claims.nickname ||
         claims.preferred_username ||
-        claims.email ||
         claims.given_name ||
         claims.family_name ||
+        claims.email ||
         "unknown";
     const profileUrl = claims.picture ?? null;
+
+    console.dir({name, id, email, profileUrl}, {depth: null})
 
     await db
         .insert(schema.users)
