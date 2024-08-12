@@ -224,11 +224,10 @@ export function useSessionVars() {
 
 export function useUserId() {
     const [session] = useSession();
-    const userId = createMemo(() => session.userId)
-    return userId
+    return createMemo(() => session.userId)
 }
 
 export function useToken() {
     const [session] = useSession();
-    return () => session.token;
+    return createMemo(() => session.token);
 }

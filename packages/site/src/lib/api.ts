@@ -74,14 +74,6 @@ type FetchOpts<T> = RequestInit & {
     validator?: ZodType<T>;
 };
 
-const raiseForStatus = (response: Response) => {
-    if (!response.ok) {
-        console.error(response.statusText);
-        throw new Error(response.statusText);
-    }
-    return response;
-};
-
 async function fetch<T = any>(path: string, init?: FetchOpts<T>): Promise<T> {
     if (!path.startsWith("/")) {
         path = `/${path}`;
@@ -109,9 +101,18 @@ async function fetch<T = any>(path: string, init?: FetchOpts<T>): Promise<T> {
         );
     }
     const res = await window.fetch(path, init);
-    raiseForStatus(res);
+
+    // raiseForStatus(res);
+    {
+        if (!res.ok) {
+            console.error('fetch to', path, 'failed - reason:', res.statusText);
+            throw new Error(res.statusText);
+        }
+    }
+
+    // console.log('body', await res.text())
     const json = await res.json();
-    console.log("fetch", path, json);
+    // console.log("fetch", path, json);
     if (init?.validator) {
         return init.validator.parse(json);
     }
