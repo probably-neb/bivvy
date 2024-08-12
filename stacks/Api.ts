@@ -68,8 +68,7 @@ export default function API({ stack }: StackContext) {
             },
             "POST /scan/receipt": {
                 function: {
-                    handler: "packages/functions/lambdas/scan/receipt/receipt.go",
-                    runtime: "go",
+                    handler: "packages/functions/scan/receipt.handler",
                     permissions: ["ssm", "textract:AnalyzeExpense"],
                 },
             },
