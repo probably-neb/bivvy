@@ -56,7 +56,7 @@ export function Pattern(props: { name: string; fill?: string, color?: string }) 
     return (
         <div
             // ref={el => setRef(el)}
-            class="bg-blue-500 rounded-t-xl bg-repeat w-full h-full "
+            class="bg-blue-500 bg-repeat w-full h-full "
             style={style()}
         ></div>
     );
