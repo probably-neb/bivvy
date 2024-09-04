@@ -49,7 +49,7 @@ export function authUrl(provider: string) {
 }
 
 export async function scanReceipt(file: File) {
-    const res = await fetch("/scan/receipt", {
+    const res = await fetch<import(".././../../functions/scan/receipt").ReceiptInfo>("/scan/receipt", {
         method: "POST",
         body: file,
     });
@@ -100,7 +100,14 @@ async function fetch<T = any>(path: string, init?: FetchOpts<T>): Promise<T> {
             init.headers
         );
     }
-    const res = await window.fetch(path, init);
+
+    let res: Response
+    try {
+        res = await window.fetch(path, init);
+    } catch (e) {
+        console.error('request to', path, 'failed:', e)
+        return null as any;
+    }
 
     // raiseForStatus(res);
     {
