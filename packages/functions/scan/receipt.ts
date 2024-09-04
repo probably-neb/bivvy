@@ -7,12 +7,13 @@ import {
 } from "@aws-sdk/client-textract";
 import Status from "util/status";
 
-interface ReceiptInfoValue {
+export interface ReceiptInfoValue {
     value: string;
     confidence: number;
     suggestion?: string;
 }
-interface ReceiptInfo {
+
+export interface ReceiptInfo {
     total: ReceiptInfoValue;
     date: ReceiptInfoValue;
     purchaseLocation: ReceiptInfoValue;
@@ -166,6 +167,7 @@ async function analyzeReceipt(receiptImage: Buffer): Promise<ReceiptInfo> {
                         continue;
                     }
 
+                    console.log(fieldType)
                     if (fieldType === "ITEM") {
                         itemName = field.ValueDetection?.Text ?? "";
                         confidenceName = expenseFieldConfidence(field);
