@@ -35,7 +35,7 @@ export function ComboboxControl<T>(props: Omit<ComboboxPrimitive.ComboboxTrigger
             return (
             <>
               <ComboboxPrimitive.Trigger
-                    class="flex h-9 w-full items-center justify-between rounded-md border border-input shadow-sm px-3"
+                    class="flex h-9 w-full items-center justify-between ring-1 ring-input px-3"
                         {...rest}
                     >
               <div>
@@ -60,7 +60,7 @@ export const ComboboxTrigger: ParentComponent<
 		<ComboboxPrimitive.Control>
 			<ComboboxPrimitive.Trigger
 				class={cn(
-					"flex h-9 w-full items-center justify-between rounded-md border border-input shadow-sm px-3",
+					"flex h-9 w-full items-center justify-between ring-1 ring-input px-3",
 					local.class
 				)}
 				{...rest}
@@ -82,7 +82,7 @@ export const ComboboxContent: VoidComponent<
 		<ComboboxPrimitive.Portal>
 			<ComboboxPrimitive.Content
 				class={cn(
-					"relative z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95",
+					"relative z-50 min-w-[8rem] overflow-hidden ring-1 ring-input bg-popover text-popover-foreground shadow-md data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95",
 					local.class
 				)}
 				{...rest}
@@ -100,7 +100,7 @@ export const ComboboxItem: ParentComponent<
 	return (
 		<ComboboxPrimitive.Item
 			class={cn(
-				"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex w-full cursor-default select-none items-center py-1.5 pl-2 pr-8 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 				local.class
 			)}
 			{...rest}

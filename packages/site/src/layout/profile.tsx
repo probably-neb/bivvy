@@ -20,8 +20,13 @@ export function Profile() {
             <DropdownMenuTrigger>
                 <Show when={user()}>
                     {(user) => (
-                        <div class="text-primary-foreground text-xl bg-primary-foreground/20 hover:bg-primary-foreground/40 px-4 py-2 rounded-lg">
-                            <UserRenderer userId={user().id} />
+                        <div class="ring-2 ring-foreground relative">
+                            <div class="-translate-y-1/2 px-2 absolute top-0 left-4 bg-background z-0">
+                                USER
+                            </div>
+                            <div class="relative text-foreground text-xl bg-primary-foreground/20 z-10 hover:bg-primary-foreground/40 px-4 py-2 rounded-lg">
+                                <UserRenderer userId={user().id} />
+                            </div>
                         </div>
                     )}
                 </Show>
@@ -46,7 +51,6 @@ export function Profile() {
         </DropdownMenu>
     );
 }
-
 
 // TODO: consider rebranding as "sync" and including in non-local
 function ForcePullButton() {
@@ -93,5 +97,3 @@ function LogoutButton() {
         </Show>
     );
 }
-
-

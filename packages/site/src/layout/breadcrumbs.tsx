@@ -6,7 +6,7 @@ import { Accessor, For, Show, createMemo, on } from "solid-js";
 export function BreadCrumbs() {
     const crumbs = useCrumbs();
     return (
-        <div class="flex flex-row pl-2 text-slate-200 text-2xl">
+        <div class="flex flex-row pl-2 text-foreground text-2xl">
             <For each={crumbs()}>
                 {(Crumb, i) => (
                     <>
@@ -122,7 +122,7 @@ function Crumb(props: { name: string; path: string }) {
     return (
         <A
             href={props.path}
-            class="px-2 rounded-md hover:bg-white/10 hover:text-white"
+            class="px-2 hover:underline "
         >
             {props.name}
         </A>

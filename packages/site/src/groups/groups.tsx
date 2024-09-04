@@ -15,18 +15,18 @@ export default function Groups() {
     // TODO: overview card with total owed in all groups
     return (
         <div class="w-full h-full bg-background p-8 ring-2 ring-foreground">
-        <div class="flex flex-wrap gap-4 h-min w-full gap-y-8">
-            <Show when={groups()} fallback={<LoadingCard />}>
-                {(groups) => (
-                    <>
-                        <For each={groups()}>
-                            {(group) => <GroupCard group={group} />}
-                        </For>
-                        <NewGroupCard />
-                    </>
-                )}
-            </Show>
-        </div>
+            <div class="flex flex-wrap gap-4 h-min w-full gap-y-8">
+                <Show when={groups()} fallback={<LoadingCard />}>
+                    {(groups) => (
+                        <>
+                            <For each={groups()}>
+                                {(group) => <GroupCard group={group} />}
+                            </For>
+                            <NewGroupCard />
+                        </>
+                    )}
+                </Show>
+            </div>
         </div>
     );
 }
@@ -69,26 +69,31 @@ function GroupCard(props: { group: Group }) {
 
 function NewGroupCard() {
     const [createGroupModalOpen, setCreateGroupModalOpen] = createSignal(false);
-    const onClick = (open: boolean) => {
-        setCreateGroupModalOpen(open);
-    };
     return (
         <>
-
-        <div class="w-64 h-32 bg-stone-300">
-            <Card
-                onClick={[onClick, true]}
-                class=" hover:-translate-x-2 hover:-translate-y-2 w-64 h-32 grow-0 shrink-0 bg-background ring-2 ring-foreground flex items-center justify-center relative rounded-none"
-            >
-                <CardTitle class="absolute top-0 left-4 -translate-y-1/2 bg-background p-1 ring-2 ring-foreground max-w-48 text-ellipsis">
-                    NEW GROUP
-                </CardTitle>
-                <TiPlus size={50} color="#000000" />
-                <CreateGroupModal
-                    open={createGroupModalOpen}
-                    setOpen={setCreateGroupModalOpen}
-                />
-            </Card>
+            <div class="w-64 h-32 bg-stone-300">
+                <Card
+                    onClick={[setCreateGroupModalOpen, true]}
+                    class=" hover:-translate-x-2 hover:-translate-y-2 w-64 h-32 grow-0 shrink-0 bg-background ring-2 ring-foreground flex items-center justify-center relative rounded-none"
+                >
+                    <CardTitle class="absolute top-0 left-4 -translate-y-1/2 bg-background p-1 ring-2 ring-foreground max-w-48 text-ellipsis">
+                        NEW GROUP
+                    </CardTitle>
+                    <TiPlus size={50} color="#000000" />
+                    <Show when={createGroupModalOpen()}>
+                        <CreateGroupModal
+                            open={createGroupModalOpen}
+                            setOpen={(open) => {
+                                console.log(
+                                    "open",
+                                    open,
+                                    createGroupModalOpen()
+                                );
+                                setCreateGroupModalOpen(open);
+                            }}
+                        />
+                    </Show>
+                </Card>
             </div>
         </>
     );

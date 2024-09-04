@@ -3,7 +3,7 @@ import { fade } from "@/lib/fade";
 import { BreadCrumbs } from "./breadcrumbs";
 import { Profile } from "./profile";
 
-const NAME = "Bivvy";
+const NAME = "BIVVY";
 
 export default function Layout({ children }: ParentProps) {
     // TODO: current user hook (and store current user at known key in rep)
@@ -12,10 +12,10 @@ export default function Layout({ children }: ParentProps) {
     // TODO: breadcrumbs in title bar
     return (
         <>
-            <main class={`h-screen w-full min-h-screen bg-gradient-to-br ${fade}`}>
-                <div class="flex flex-row justify-between items-center px-4 pt-4 h-[8%]">
+            <main class={`h-screen w-full min-h-screen bg-gradient-to-br ${fade} pt-6`}>
+                <div class="flex flex-row justify-between items-center mx-8 ring-2 ring-foreground px-4 pt-4 h-[8%] bg-background">
                     <div class="text-white flex items-baseline overflow-x-hidden">
-                        <h1 class="text-3xl font-bold">{NAME}</h1>
+                        <h1 class="text-3xl font-bold text-foreground">{NAME}</h1>
                         <BreadCrumbs />
                     </div>
                     <div class="flex justify-evenly gap-2 items-center">

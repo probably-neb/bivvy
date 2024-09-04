@@ -13,7 +13,7 @@ export const DropdownMenu: ParentComponent<
 	DropdownMenuPrimitive.DropdownMenuRootProps
 > = (props) => {
 	const merge = mergeProps(
-		{ gutter: 4 } as DropdownMenuPrimitive.DropdownMenuRootProps,
+		{ gutter: 12 } as DropdownMenuPrimitive.DropdownMenuRootProps,
 		props
 	)
 	return <DropdownMenuPrimitive.Root {...merge} />
@@ -27,7 +27,7 @@ export const DropdownMenuContent: ParentComponent<
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.Content
 				class={cn(
-					"z-50 min-w-8rem overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95",
+					"z-50 min-w-8rem overflow-hidden ring-2 ring-foreground bg-popover p-1 text-popover-foreground data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95",
 					local.class
 				)}
 				{...rest}
@@ -45,7 +45,7 @@ export const DropdownMenuItem: ParentComponent<
 	return (
 		<DropdownMenuPrimitive.Item
 			class={cn(
-				"relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex cursor-default select-none items-center px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 				local.inset && "pl-8",
 				local.class
 			)}
@@ -118,7 +118,7 @@ export const DropdownMenuSubTrigger: ParentComponent<
 	return (
 		<DropdownMenuPrimitive.SubTrigger
 			class={cn(
-				"flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[expanded]:bg-accent",
+				"flex cursor-default select-none items-center px-2 py-1.5 text-sm outline-none focus:bg-accent data-[expanded]:bg-accent",
 				local.class
 			)}
 			{...rest}
@@ -137,7 +137,7 @@ export const DropdownMenuSubContent: ParentComponent<
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.SubContent
 				class={cn(
-					"z-50 min-w-8rem overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95",
+					"z-50 min-w-8rem overflow-hidden border bg-popover p-1 text-popover-foreground shadow-md data-[expanded]:animate-in data-[closed]:animate-out data-[closed]:fade-out-0 data-[expanded]:fade-in-0 data-[closed]:zoom-out-95 data-[expanded]:zoom-in-95",
 					local.class
 				)}
 				{...rest}
@@ -153,7 +153,7 @@ export const DropdownMenuCheckboxItem: ParentComponent<
 	return (
 		<DropdownMenuPrimitive.CheckboxItem
 			class={cn(
-				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex cursor-default select-none items-center py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 				local.class
 			)}
 			{...rest}
@@ -173,7 +173,7 @@ export const DropdownMenuRadioItem: ParentComponent<
 	return (
 		<DropdownMenuPrimitive.RadioItem
 			class={cn(
-				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				"relative flex cursor-default select-none items-center py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 				local.class
 			)}
 			{...rest}

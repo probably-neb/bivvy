@@ -1,4 +1,12 @@
-import { Accessor, For, Show, createMemo, createSignal, onMount, on} from "solid-js";
+import {
+    Accessor,
+    For,
+    Show,
+    createMemo,
+    createSignal,
+    onMount,
+    on,
+} from "solid-js";
 import { Button } from "@/components/ui/button";
 import {
     TextField,
@@ -8,17 +16,34 @@ import {
 } from "@/components/ui/textfield";
 import { createForm, FormApi, FormState } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
+import { useMutations, GroupInput, groupInputSchema, Group } from "@/lib/rep";
 import {
-    useMutations,
-    GroupInput,
-    groupInputSchema,
-    Group,
-} from "@/lib/rep";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Pattern, randomPattern, randomColor, usePatternNames, usePossibleColors } from "@/lib/patterns";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Pattern,
+    randomPattern,
+    randomColor,
+    usePatternNames,
+    usePossibleColors,
+} from "@/lib/patterns";
 import { createFilter } from "@kobalte/core";
-import { Combobox, ComboboxContent, ComboboxInput, ComboboxTrigger, ComboboxTriggerMode, ComboboxItem} from "@/components/ui/combobox";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+    Combobox,
+    ComboboxContent,
+    ComboboxInput,
+    ComboboxTrigger,
+    ComboboxTriggerMode,
+    ComboboxItem,
+} from "@/components/ui/combobox";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { BlockPicker, ColorResult } from "solid-color";
 
 type Form = FormApi<GroupInput, typeof zodValidator>;
@@ -28,30 +53,50 @@ export function CreateGroupModal(props: {
     setOpen: (open: boolean) => void;
     group?: Group;
 }) {
-    const [patternPreview, _setPatternPreview] = createSignal({color: props.group?.color ?? randomColor(), pattern: props.group?.pattern ?? randomPattern()});
+    const [patternPreview, _setPatternPreview] = createSignal({
+        color: props.group?.color ?? randomColor(),
+        pattern: props.group?.pattern ?? randomPattern(),
+    });
     const setPatternPreview = (pattern: string, color: string) => {
-        const preview = {pattern, color}
+        const preview = { pattern, color };
         _setPatternPreview(preview);
-    }
-    const isEditing = props.group != null
+    };
+    const isEditing = props.group != null;
     return (
         <Dialog open={props.open()} onOpenChange={props.setOpen}>
-            <DialogContent class="sm:max-w-[425px] max-w-[80%] p-0">
-                <DialogHeader class="w-full h-16 p-0 rounded-t-xl">
-                    <Pattern name={patternPreview().pattern} color={patternPreview().color}/>
-                </DialogHeader>
-                <div class="p-4">
-                    <DialogTitle>{`${isEditing ? "Edit" : "Create"} Group`}</DialogTitle>
-                    <CreateGroupForm onSubmit={() => props.setOpen(false)} setPatternPreview={setPatternPreview} patternPreview={patternPreview()} group={props.group} />
+            <DialogContent class="w-[425px] p-0 ring-2 ring-foreground rounded-none">
+                <div class="w-full h-full p-0 relative">
+                    <DialogTitle class="absolute top-0 left-4 -translate-y-1/2 px-2 ring-2 ring-foreground bg-background rounded-none">
+                        <span>{`${isEditing ? "EDIT" : "CREATE"} GROUP`}</span>
+                    </DialogTitle>
+                    <DialogHeader class="w-full h-16">
+                        <Pattern
+                            name={patternPreview().pattern}
+                            color={patternPreview().color}
+                        />
+                    </DialogHeader>
+                    <div class="p-4">
+                        <CreateGroupForm
+                            onSubmit={() => props.setOpen(false)}
+                            setPatternPreview={setPatternPreview}
+                            patternPreview={patternPreview()}
+                            group={props.group}
+                        />
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
     );
 }
 
-export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: {pattern: string, color: string}, setPatternPreview?: (pattern: string, color: string) => void, group?: Group}) {
-    const { createGroup, groupEdit} = useMutations();
-    const isEditing = props.group != null
+export function CreateGroupForm(props: {
+    onSubmit?: () => void;
+    patternPreview?: { pattern: string; color: string };
+    setPatternPreview?: (pattern: string, color: string) => void;
+    group?: Group;
+}) {
+    const { createGroup, groupEdit } = useMutations();
+    const isEditing = props.group != null;
     const defaultValues = {
         name: "",
         pattern: null,
@@ -60,15 +105,15 @@ export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: 
         // Pattern Preview defaults to group colors so it should overide groups
         // to cover the case where group color, pattern are null
         ...props.patternPreview,
-    }
+    };
     const form: Form = createForm(() => ({
         onSubmit: async ({ value }) => {
             // FIXME: server side validation here so that errors can be displayed
             console.log("submit", value);
             try {
                 if (isEditing) {
-                    const group = Object.assign({}, props.group, value)
-                    await groupEdit(group)
+                    const group = Object.assign({}, props.group, value);
+                    await groupEdit(group);
                 } else {
                     await createGroup(value);
                 }
@@ -88,15 +133,15 @@ export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: 
     }));
 
     const onPatternChange = (pattern: string) => {
-        form.setFieldValue("pattern", pattern, {touch: true});
-        const color = form.state.values.color
+        form.setFieldValue("pattern", pattern, { touch: true });
+        const color = form.state.values.color;
         props.setPatternPreview?.(pattern, color!);
-    }
+    };
 
     const onColorChange = (color: string) => {
-        const pattern = form.state.values.pattern!
-        props.setPatternPreview?.(pattern, color)
-    }
+        const pattern = form.state.values.pattern!;
+        props.setPatternPreview?.(pattern, color);
+    };
 
     return (
         <form.Provider>
@@ -107,8 +152,8 @@ export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: 
                     e.preventDefault();
                     e.stopPropagation();
                     await form
-                    .handleSubmit()
-                    .then(() => console.log("submitted"));
+                        .handleSubmit()
+                        .then(() => console.log("submitted"));
                 }}
             >
                 <Field
@@ -120,11 +165,15 @@ export function CreateGroupForm(props: {onSubmit?: () => void, patternPreview?: 
                     form={form}
                 />
                 <div class="w-full grid grid-cols-7 items-end gap-2">
-                    <div class="col-span-6 mb-1"><PatternSelect form={form} onChange={onPatternChange} /></div>
-                    <div class="col-span-1"><GroupColorPick form={form} onChange={onColorChange} /></div>
+                    <div class="col-span-6 mb-1">
+                        <PatternSelect form={form} onChange={onPatternChange} />
+                    </div>
+                    <div class="col-span-1">
+                        <GroupColorPick form={form} onChange={onColorChange} />
+                    </div>
                 </div>
                 <Button type="submit" disabled={!form.state.canSubmit}>
-                    {isEditing ? "Edit" :  "Create"}
+                    {isEditing ? "Edit" : "Create"}
                 </Button>
             </form>
         </form.Provider>
@@ -168,7 +217,7 @@ export function Field(props: FieldProps) {
                         step={step}
                         onChange={(e) =>
                             field().handleChange(
-                                props.parse?.(e.target.value) ?? e.target.value,
+                                props.parse?.(e.target.value) ?? e.target.value
                             )
                         }
                     />
@@ -185,45 +234,43 @@ export function Field(props: FieldProps) {
 
 function useFormValue<V>(
     form: Form,
-    selector: (f: FormState<GroupInput>) => V,
+    selector: (f: FormState<GroupInput>) => V
 ) {
     const formState = form.useStore();
     const value = createMemo(() => selector(formState()));
     return value;
 }
 
-function PatternSelect(props: { form: Form, onChange: (p: string) => void}) {
-    const _patterns = usePatternNames()
-    const patterns = _patterns.sort((a, b) => a.localeCompare(b))
-    type Option = typeof patterns[number]
+function PatternSelect(props: { form: Form; onChange: (p: string) => void }) {
+    const _patterns = usePatternNames();
+    const patterns = _patterns.sort((a, b) => a.localeCompare(b));
+    type Option = typeof patterns[number];
 
     const [inputValue, onInputChange] = createSignal("");
     const filter = createFilter({ sensitivity: "base" });
 
     const options = createMemo(() => {
-        const val = inputValue()
+        const val = inputValue();
         if (val === "") {
             return patterns;
         }
-        return patterns.filter((option) =>
-            filter.contains(option, val),
-        );
+        return patterns.filter((option) => filter.contains(option, val));
     });
     const selected = useFormValue(
         props.form,
-        (f) => f.values.pattern as string | undefined,
+        (f) => f.values.pattern as string | undefined
     );
     const onChange = (value: Option | null) => {
         if (!value) {
             return;
         }
         console.log("setting field", value);
-        props.onChange(value)
+        props.onChange(value);
     };
 
     const onOpenChange = (
         isOpen: boolean,
-        triggerMode?: ComboboxTriggerMode,
+        triggerMode?: ComboboxTriggerMode
     ) => {
         if (isOpen && triggerMode === "manual") {
             onInputChange("");
@@ -236,20 +283,26 @@ function PatternSelect(props: { form: Form, onChange: (p: string) => void}) {
             onInputChange={onInputChange}
             onChange={onChange}
             onOpenChange={onOpenChange}
-            itemComponent={props => <ComboboxItem item={props.item} >{props.item.rawValue}</ComboboxItem>}
+            itemComponent={(props) => (
+                <ComboboxItem item={props.item}>
+                    {props.item.rawValue}
+                </ComboboxItem>
+            )}
         >
             <TextFieldLabel>Pattern</TextFieldLabel>
             <ComboboxTrigger>
                 <ComboboxInput />
             </ComboboxTrigger>
-            <ComboboxContent class="h-64 overflow-y-auto"/>
+            <ComboboxContent class="h-64 overflow-y-auto" />
         </Combobox>
     );
 }
 
-
-function GroupColorPick(props: { form: Form, onChange: (color: string) => void}) {
-    const colors = usePossibleColors()
+function GroupColorPick(props: {
+    form: Form;
+    onChange: (color: string) => void;
+}) {
+    const colors = usePossibleColors();
 
     return (
         <props.form.Field name="color">
@@ -257,9 +310,9 @@ function GroupColorPick(props: { form: Form, onChange: (color: string) => void})
                 <ColorPicker
                     value={field().state.value!}
                     set={(value) => {
-                        field().handleChange(value)
+                        field().handleChange(value);
                         if (value != null) {
-                            props.onChange(value)
+                            props.onChange(value);
                         }
                     }}
                     colors={colors}
@@ -273,11 +326,11 @@ function ColorPicker(props: {
     set: (color: string | null, opts: { touch: boolean }) => void;
     value: string;
     errors?: string[];
-    colors: string[]
+    colors: string[];
 }) {
     const color = createMemo(() => {
-        console.log("color", props.value)
-        return props.value
+        console.log("color", props.value);
+        return props.value;
     });
 
     const [open, setOpen] = createSignal(false);
