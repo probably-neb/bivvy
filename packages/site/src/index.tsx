@@ -1,6 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import "./index.css";
+import "./fonts.css"
 
 import { routes } from "@/routes";
 import { ParentProps, lazy } from "solid-js";

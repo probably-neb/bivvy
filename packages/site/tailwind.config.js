@@ -11,6 +11,9 @@ module.exports = {
             },
         },
         extend: {
+            fontFamily: {
+                'jetbrains-mono': ['"JetBrains Mono Nerd Font"', 'monospace'],
+            },
             colors: {
                 border: "hsl(var(--border))",
                 input: "hsl(var(--input))",
