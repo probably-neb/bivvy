@@ -13,36 +13,36 @@ export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
 
     return (
         <div class="grid grid-cols-2">
-            <KV k="Paid By">
+            <KV k="PAID BY:">
                 <Show when={expense()?.paidBy}>
                     {(paidBy) => <UserRenderer userId={paidBy()} />}
                 </Show>
             </KV>
-            <KV k="Amount">
+            <KV k="AMOUNT:">
                 <Show when={expense()?.amount}>
                     {(amount) => <MoneyRenderer amount={amount()} />}
                 </Show>
             </KV>
-            <KV k="Description">
-                <Show when={expense()?.description}>
-                    {(description) => <span>{description()}</span>}
-                </Show>
-            </KV>
-            <KV k="Split">
-                <Show when={expense()?.splitId}>
-                    {(splitId) => <SplitRenderer splitId={splitId()} />}
-                </Show>
-            </KV>
-            <KV k="Paid On">
+            <KV k="PAID ON:">
                 <Show when={expense()?.paidOn}>
                     {(paidOn) => <DateRenderer date={paidOn()} />}
                 </Show>
             </KV>
-            <KV k="Added On">
+            <KV k="ADDED ON:">
                 <Show when={expense()?.createdAt}>
                     {(createdAt) => (
                         <DateRenderer date={createdAt()} />
                     )}
+                </Show>
+            </KV>
+            <KV k="SPLIT:">
+                <Show when={expense()?.splitId}>
+                    {(splitId) => <SplitRenderer splitId={splitId()} />}
+                </Show>
+            </KV>
+            <KV k="DESCRIPTION:">
+                <Show when={expense()?.description}>
+                    {(description) => <span>{description()}</span>}
                 </Show>
             </KV>
         </div>
