@@ -1,5 +1,13 @@
 import { USERS, User, useSession } from "@/lib/session";
-import { For, JSX, Show, createMemo, createRenderEffect, on } from "solid-js";
+import {
+    For,
+    JSX,
+    Show,
+    createMemo,
+    createRenderEffect,
+    on,
+    onMount,
+} from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { routes } from "@/routes";
 import { Button } from "@/components/ui/button";
@@ -41,12 +49,14 @@ export default function () {
 
 function LoginCard() {
     const params = new URLSearchParams({
-            client_id: "local",
-            redirect_uri: location.origin,
-            response_type: "token",
-            provider: "google"
-        });
-    const googleUrl = `${import.meta.env.VITE_AUTH_URL}/google/authorize?${params.toString()}`;
+        client_id: "local",
+        redirect_uri: location.toString(),
+        response_type: "token",
+        provider: "google",
+    });
+    const googleUrl = `${
+        import.meta.env.VITE_AUTH_URL
+    }/google/authorize?${params.toString()}`;
     return (
         <Card class="min-w-fit md:w-1/3">
             <CardHeader>

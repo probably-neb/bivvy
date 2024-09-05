@@ -143,6 +143,9 @@ importers:
       nanoid:
         specifier: ^5.0.4
         version: 5.0.4
+      remeda:
+        specifier: ^2.12.0
+        version: 2.12.0
       replicache:
         specifier: ^14.0.3
         version: 14.0.3

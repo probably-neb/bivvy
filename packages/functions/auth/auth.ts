@@ -49,22 +49,24 @@ export const handler = auth.authorizer({
                 console.dir({input, ctx, req}, {depth: null})
                 const claims = input.tokenset.claims();
                 const userId = await upsertUser(claims);
-                return ctx.session({
+                const res = await ctx.session({
                     type: "user",
                     properties: {
                         userId
                     }
                 })
-                // const redirectURI = req.headers.cookie
-                // console.log({redirectURI})
-                // return new Response(null, {
-                //     status: 302,
-                //     headers: {
-                //         location: `http://localhost:5173/login?userId=${userId}&token=${token}`,
-                //     }
-                // })
-                // return queryParams(userId);
-                // return null
+                console.dir({res}, {depth: null})
+                const redirectLocation = res.headers.get("Location")
+                console.log(redirectLocation)
+                const redirectURL = new URL(redirectLocation!)
+
+                const accessToken = redirectURL.hash.split('&').at(0)?.trimStart().split('access_token=').at(1)
+                console.log({accessToken})
+                redirectURL.searchParams.set('token', accessToken!)
+                redirectURL.searchParams.set('userId', userId)
+                res.headers.set('Location', redirectURL.toString())
+                
+                return res;
             }
 
         }

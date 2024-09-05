@@ -8,6 +8,7 @@
     },
     "devDependencies": {
         "@types/aws-lambda": "^8.10.129",
+        "@types/luxon": "^3.4.2",
         "@types/node": "^20.9.4",
         "sst": "3.0.108",
         "vitest": "^0.34.6"
@@ -20,7 +21,10 @@
         "@paypals/db": "workspace:^",
         "@trpc/server": "^10.44.1",
         "fast-jwt": "^3.3.2",
+        "hono": "^4.5.11",
         "lodash-es": "^4.17.21",
+        "luxon": "^3.5.0",
+        "remeda": "^2.12.0",
         "replicache": "^14.0.3",
         "zod": "^3.22.4"
     }
