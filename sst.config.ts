@@ -33,6 +33,7 @@ export default $config({
                     "@libsql/linux-x64-gnu",
                 ],
             };
+            return args;
         });
 
         const DNS_MAPPING: Record<string, string> = {
@@ -76,6 +77,7 @@ export default $config({
 
         $transform(sst.aws.Function, (args, opts) => {
             args.link ??= [...(args.link ?? []), auth]
+            return args;
         })
 
 
