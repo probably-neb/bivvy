@@ -4,7 +4,7 @@ import { splitProps, type ComponentProps, type ParentComponent } from "solid-js"
 export const Table: ParentComponent<ComponentProps<"table">> = (props) => {
 	const [local, rest] = splitProps(props, ["class"])
 	return (
-		<div class="w-full overflow-auto">
+		<div class={cn("w-full overflow-auto", local.class)}>
 			<table
 				class={cn("w-full caption-bottom text-sm", local.class)}
 				{...rest}

@@ -14,8 +14,8 @@ export default function Groups() {
 
     // TODO: overview card with total owed in all groups
     return (
-        <div class="w-full h-full bg-background p-8 ring-2 ring-foreground">
-            <div class="flex flex-wrap gap-4 h-min w-full gap-y-8">
+        <div class="w-full h-full bg-background p-8 lg:p-16 ring-2 ring-foreground">
+            <div class="flex flex-wrap gap-4 lg:gap-32 h-min w-full gap-y-8 lg:gap-y-16">
                 <Show when={groups()} fallback={<LoadingCard />}>
                     {(groups) => (
                         <>
@@ -38,8 +38,8 @@ function GroupCard(props: { group: Group }) {
     const randomPatternForGroup = randomPattern();
     console.log(props.group);
     return (
-        <A href={routes.group(props.group.id)} class="bg-stone-300 h-32 w-64">
-            <Card class="hover:-translate-x-2 hover:-translate-y-2 border-none w-64 h-32 grow-0 shrink-0 relative rounded-none shadow-none ring-2 ring-foreground">
+        <A href={routes.group(props.group.id)} class="bg-stone-300 h-32 w-64 lg:scale-125">
+            <Card class="transition duration-100 ease-in transform hover:-translate-x-2 hover:-translate-y-2 border-none w-64 h-32 grow-0 shrink-0 relative rounded-none shadow-none ring-2 ring-foreground">
                 <CardTitle class="absolute top-0 left-4 -translate-y-1/2 bg-background p-1 ring-2 ring-foreground max-w-48 text-ellipsis">
                     {props.group.name}
                 </CardTitle>
@@ -71,10 +71,10 @@ function NewGroupCard() {
     const [createGroupModalOpen, setCreateGroupModalOpen] = createSignal(false);
     return (
         <>
-            <div class="w-64 h-32 bg-stone-300">
+            <div class="w-64 h-32 bg-stone-300 lg:scale-125">
                 <Card
                     onClick={[setCreateGroupModalOpen, true]}
-                    class=" hover:-translate-x-2 hover:-translate-y-2 w-64 h-32 grow-0 shrink-0 bg-background ring-2 ring-foreground flex items-center justify-center relative rounded-none"
+                    class="transition duration-100 ease-in transform hover:-translate-x-2 hover:-translate-y-2 w-64 h-32 grow-0 shrink-0 bg-background ring-2 ring-foreground flex items-center justify-center relative rounded-none"
                 >
                     <CardTitle class="absolute top-0 left-4 -translate-y-1/2 bg-background p-1 ring-2 ring-foreground max-w-48 text-ellipsis">
                         NEW GROUP

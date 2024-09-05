@@ -126,14 +126,17 @@ export default function GroupPage() {
             defaultValue="expenses"
             value={tab()}
             onChange={onChange}
-            class="shadow-none"
+            class="shadow-none w-full h-full bg-background ring-2 ring-foreground pt-4 relative"
         >
-            <TabsList class="justify-center">
-                <TabsTrigger class="text-md" value="expenses">Expenses</TabsTrigger>
-                <TabsTrigger class="text-md" value="users">Members</TabsTrigger>
-                <TabsTrigger class="text-md" value="splits">Splits</TabsTrigger>
-                <TabsTrigger class="text-md" value="group">Group</TabsTrigger>
+            <div class="absolute top-0 -translate-y-1/2 w-full">
+            <TabsList class="justify-center rounded-none h-[2rem] md:h-[3rem] p-4 text-sm md:text-default lg:text-lg ring-2 ring-foreground bg-background ">
+                <TabsTrigger class="text-md" value="expenses">EXPENSES</TabsTrigger>
+                <TabsTrigger class="text-md" value="users">MEMBERS</TabsTrigger>
+                <TabsTrigger class="text-md" value="splits">SPLITS</TabsTrigger>
+                <TabsTrigger class="text-md" value="group">GROUP</TabsTrigger>
             </TabsList>
+            </div>
+            <div class="md:h-[calc(100%-3rem)] h-[calc(100%-2rem)]">
             <TabsContent value="expenses">
                 <ExpensesTab />
             </TabsContent>
@@ -146,6 +149,7 @@ export default function GroupPage() {
             <TabsContent value="group">
                 <GroupTab />
             </TabsContent>
+            </div>
         </Tabs>
     );
 }
@@ -158,11 +162,11 @@ function ExpensesTab() {
     // wrap in tracking scope
     const addExpenseButtonProps = createMemo(getAddExpenseButtonProps);
     return (
-        <div class="flex flex-col justify-center lg:flex-row gap-6 lg:gap-12">
-            <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
+        <div class="flex flex-col h-full justify-center lg:flex-row">
+            <aside class="w-full h-full flex flex-col justify-start lg:w-1/3 lg:order-last lg:border-l-2 lg:border-dashed lg:border-l-foreground lg:pl-6">
                 <ExpenseCardWrapper />
             </aside>
-            <section class="w-full lg:w-2/3">
+            <section class="w-full lg:w-2/3 h-full pr-4">
                 <ExpensesTable
                     viewExpense={viewExpense}
                     addExpenseButtonProps={addExpenseButtonProps()}
@@ -398,10 +402,8 @@ function ExpenseCardWrapper() {
 function ExpenseCardModal(props: { title: string }) {
     return (
         <Dialog open={expenseCardOpen()} onOpenChange={setExpenseCardOpen}>
-            <DialogContent class="sm:max-w-[425px] max-w-[80%]">
-                <ExpenseCardHeader>
-                    <DialogTitle>{props.title}</DialogTitle>
-                </ExpenseCardHeader>
+            <DialogContent class="sm:max-w-[425px] max-w-[80%] ring-2 ring-foreground">
+                <DialogTitle class="absolute top-0 left-4 -translate-y-1/2 px-2 ring-2 ring-foreground bg-background uppercase text-md">{props.title}</DialogTitle>
                 <ExpenseCardInner />
                 <Show when={expenseCardMode().mode === "view"}>
                     <DialogFooter>

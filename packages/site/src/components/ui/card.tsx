@@ -6,7 +6,7 @@ export const Card: ParentComponent<ComponentProps<"div">> = (props) => {
 	return (
 		<div
 			class={cn(
-				"rounded-xl border bg-card text-card-foreground shadow",
+				"border bg-card text-card-foreground ring-2 ring-foreground",
 				local.class
 			)}
 			{...rest}

@@ -13,9 +13,8 @@ import {
 } from "@/lib/rep";
 import { createForm, FormApi } from "@tanstack/solid-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
-import { For, Setter, createMemo, createSignal, onMount } from "solid-js";
+import { For, Setter, createMemo, createSignal } from "solid-js";
 import z from "zod";
-import { on } from "solid-js";
 import { UserRenderer } from "@/components/renderers";
 import { BlockPicker, ColorResult } from "solid-color";
 import {
@@ -27,7 +26,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import "./no-spinners.css";
 import { AiOutlineMinus, AiOutlinePlus } from "solid-icons/ai";
 import { not } from "@/lib/utils";
-import { randomColor, usePossibleColors } from "@/lib/patterns";
+import { randomColor } from "@/lib/patterns";
 
 type SplitForm = FormApi<SplitInput, typeof zodValidator>;
 
@@ -37,8 +36,8 @@ export function CreateSplitDialog(props: {
 }) {
     return (
         <Dialog open={props.open} onOpenChange={props.setOpen}>
-            <DialogContent>
-                <DialogTitle>New Split</DialogTitle>
+            <DialogContent  class="ring-2 ring-foreground">
+                <DialogTitle class="absolute top-0 left-4 -translate-y-1/2 ring-2 ring-foreground bg-background px-2">NEW SPLIT</DialogTitle>
                 <CreateSplit onSubmit={() => props.setOpen(false)} />
             </DialogContent>
         </Dialog>

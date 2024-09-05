@@ -11,7 +11,6 @@ import { ViewExpense } from "@/group/group";
 import { type Expense, useTableExpenses } from "@/lib/rep";
 import {
     Accessor,
-    Component,
     For,
     ParentProps,
     Show,
@@ -41,6 +40,7 @@ import { AiOutlinePlus } from "solid-icons/ai";
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
@@ -73,7 +73,8 @@ import {
     HoverCardContent,
 } from "@/components/ui/hover-card";
 import { As } from "@kobalte/core";
-import { TbSelector } from "solid-icons/tb";
+import { TbArrowsUpDown, TbSelector } from "solid-icons/tb";
+import { FaSolidBoxesStacked } from 'solid-icons/fa'
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -127,12 +128,12 @@ declare module "@tanstack/solid-table" {
 }
 
 function render<TValue>(ctx: CellContext<Expense, TValue>) {
-    return flexRender(ctx.column.columnDef.cell, ctx)
+    return flexRender(ctx.column.columnDef.cell, ctx);
 }
 
 const columns: ColumnDef<Expense>[] = [
     {
-        header: "Paid By",
+        header: "PAID BY",
         accessorKey: "paidBy",
         cell: (params) => (
             <UserRenderer userId={params.getValue<Expense["paidBy"]>()} />
@@ -151,7 +152,7 @@ const columns: ColumnDef<Expense>[] = [
         },
     },
     {
-        header: "Amount",
+        header: "AMOUNT",
         accessorKey: "amount",
         cell: (params) => (
             <MoneyRenderer amount={params.getValue<Expense["amount"]>()} />
@@ -166,7 +167,7 @@ const columns: ColumnDef<Expense>[] = [
     {
         header: () => (
             <>
-                Split <CreateSplitButton />
+                SPLIT <CreateSplitButton />
             </>
         ),
         accessorKey: "splitId",
@@ -181,7 +182,7 @@ const columns: ColumnDef<Expense>[] = [
         },
     },
     {
-        header: "Description",
+        header: "DESCRIPTION",
         accessorKey: "description",
         cell: (params) => (
             <Show when={params.getValue<Expense["description"]>()}>
@@ -209,7 +210,7 @@ const columns: ColumnDef<Expense>[] = [
         },
     },
     {
-        header: "Paid On",
+        header: "PAID ON",
         id: "paidOn",
         accessorFn: (val) => {
             // TODO: create custom `getGroupedRowModel` that does this on demand
@@ -239,14 +240,17 @@ const columns: ColumnDef<Expense>[] = [
                     <Switch>
                         <Match
                             when={
-                                when(extent(), (ex): ex is [number, number] =>
-                                    ex[0] !== ex[1] && ex.every((v) => v != null)
+                                when(
+                                    extent(),
+                                    (ex): ex is [number, number] =>
+                                        ex[0] !== ex[1] &&
+                                        ex.every((v) => v != null)
                                 ) /* both dates not null */
                             }
                         >
                             {(extent) => (
                                 <>
-                                    <DateRenderer date={extent()[0]} />{" "}-{" "}
+                                    <DateRenderer date={extent()[0]} /> -{" "}
                                     <DateRenderer date={extent()[1]} />
                                 </>
                             )}
@@ -277,7 +281,7 @@ const columns: ColumnDef<Expense>[] = [
         },
     },
     {
-        header: "Added On",
+        header: "ADDED ON",
         id: "createdAt",
         accessorFn: (val) => {
             const ca = new Date(val.createdAt);
@@ -301,12 +305,15 @@ const columns: ColumnDef<Expense>[] = [
                 fallback={render(params)}
             >
                 {(extent) => (
-                <Show when={extent()[0] !== extent()[1]} fallback={<DateRenderer date={extent()[0]} />}>
-                    <div>
-                        <DateRenderer date={extent()[0]} /> -{" "}
-                        <DateRenderer date={extent()[1]} />
-                    </div>
-                </Show>
+                    <Show
+                        when={extent()[0] !== extent()[1]}
+                        fallback={<DateRenderer date={extent()[0]} />}
+                    >
+                        <div>
+                            <DateRenderer date={extent()[0]} /> -{" "}
+                            <DateRenderer date={extent()[1]} />
+                        </div>
+                    </Show>
                 )}
             </Show>
         ),
@@ -354,7 +361,7 @@ export function ExpensesTable(props: ExpenseButtonProps) {
             table={table}
             addExpenseButtonProps={props.addExpenseButtonProps}
         >
-            <Table>
+            <Table class="h-full w-full overflow-y-auto relative">
                 <TableHeaders
                     headerGroups={table.getHeaderGroups()}
                     isGrouped={state.grouping.length > 0}
@@ -376,28 +383,33 @@ function ExpensesTableWrapper(
     }>
 ) {
     return (
-        <Card class="mt-6">
-            <CardHeader class="flex flex-row justify-between items-center p-3 pl-6">
-                <CardTitle>Expenses</CardTitle>
-                <div class="flex flex-row gap-2">
+        <div class="mt-6 h-full">
+            <div class="flex flex-row justify-center md:justify-end items-center p-3 pl-6">
+                <div class="flex flex-row gap-2 scale-75 md:scale-100">
                     <DisplaySettingsMenu table={props.table} />
                     <AddExpenseButton {...props.addExpenseButtonProps} />
                     <Show when={isDev()}>
                         <UploadExpensesButton />
                     </Show>
                 </div>
-            </CardHeader>
-            <CardContent>{props.children}</CardContent>
-        </Card>
+            </div>
+            <div class="w-full h-full pb-24">{props.children}</div>
+        </div>
     );
 }
 
 function DisplaySettingsMenu(props: { table: ExpenseTable }) {
-    function setSorting(value: string) {
-        const [id, dir] = value.split("-");
-        const desc = dir === "desc";
-        console.log({ id, desc });
-        props.table.setSorting(() => [{ id, desc }]);
+    function setSortingCol(id: string) {
+        props.table.setSorting((state) => [
+            { id, desc: state.at(0)?.desc ?? true },
+        ]);
+    }
+    function setSortingDesc(value: string) {
+        props.table.setSorting((state) =>
+            state.at(0)?.id != null
+                ? [{ id: state.at(0)!.id, desc: value === "true" }]
+                : []
+        );
     }
     function setGrouping(value: string) {
         if (value === "none") {
@@ -414,69 +426,78 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
         return undefined;
     };
     return (
-        <DropdownMenu placement="bottom">
-            <DropdownMenuTrigger asChild>
-                <As component={Button} variant="outline">
-                    Display
-                </As>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-                <DropdownMenuTitle>Display Settings</DropdownMenuTitle>
-                <DropdownMenuSeparator />
-                <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>Sort By</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                        <DropdownMenuRadioGroup
-                            value={valAnd(
-                                props.table.getState().sorting.at(0),
-                                (sort) =>
-                                    `${sort.id}-${sort.desc ? "desc" : "asc"}`
-                            )}
-                            onChange={setSorting}
+        <>
+            <DropdownMenu placement="bottom">
+                <DropdownMenuTrigger asChild>
+                    <As component={Button} variant="outline">
+                        <TbArrowsUpDown />&nbsp;SORT
+                    </As>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuRadioGroup
+                        value={String(
+                            props.table.getState().sorting.at(0)?.desc
+                        )}
+                        onChange={setSortingDesc}
+                    >
+                        <DropdownMenuRadioItem value="false">
+                            ASCENDING
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem
+                            value="true"
+                            class="data-[selected]:underline"
                         >
-                            <DropdownMenuRadioItem value="createdAt-asc">
-                                Date Added ^
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="createdAt-desc">
-                                Date Added v
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuRadioItem value="paidOn-asc">
-                                Date Paid ^
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="paidOn-desc">
-                                Date Paid v
-                            </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>Group By</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                        <DropdownMenuRadioGroup
-                            value={props.table.getState().grouping.at(0) ?? 'none'}
-                            onChange={setGrouping}
-                        >
-                            <DropdownMenuRadioItem value="none">
-                                None
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="createdAt">
-                                Date Added
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="paidOn">
-                                Date Paid
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="splitId">
-                                Split
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="paidBy">
-                                Paid By
-                            </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                    </DropdownMenuSubContent>
-                </DropdownMenuSub>
-            </DropdownMenuContent>
-        </DropdownMenu>
+                            DESCENDING
+                        </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup
+                        value={props.table.getState().sorting.at(0)?.id ?? "none"}
+                        onChange={setSortingCol}
+                        class="data-[selected]:underline"
+                    >
+                        <DropdownMenuRadioItem value="none">
+                            NONE
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="createdAt">
+                            DATE ADDED
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="paidOn">
+                            DATE PAID
+                        </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu placement="bottom">
+                <DropdownMenuTrigger asChild>
+                    <As component={Button} variant="outline">
+                        <FaSolidBoxesStacked />&nbsp;GROUP
+                    </As>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuRadioGroup
+                        value={props.table.getState().grouping.at(0) ?? "none"}
+                        onChange={setGrouping}
+                    >
+                        <DropdownMenuRadioItem value="none">
+                            None
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="createdAt">
+                            Date Added
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="paidOn">
+                            Date Paid
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="splitId">
+                            Split
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="paidBy">
+                            Paid By
+                        </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </>
     );
 }
 
@@ -485,8 +506,8 @@ function TableHeaders(props: {
     isGrouped: boolean;
 }) {
     return (
-        <TableHeader>
-            <TableRow>
+        <TableHeader class="sticky top-0 bg-background z-10">
+            <TableRow class="hover:bg-background">
                 <Show when={props.isGrouped}>
                     <TableHead class="w-2 px-0"></TableHead>
                     {/* "Expand" Column */}
@@ -495,7 +516,10 @@ function TableHeaders(props: {
                     {(header) => (
                         <Show when={true /* show[field] */}>
                             <TableHead
-                                class={header.column.columnDef.meta?.width}
+                                class={
+                                    header.column.columnDef.meta?.width +
+                                    " text-foreground md:text-lg"
+                                }
                             >
                                 <Show when={!header.isPlaceholder}>
                                     {flexRender(
@@ -508,6 +532,9 @@ function TableHeaders(props: {
                     )}
                 </For>
             </TableRow>
+            <tr>
+                <th colspan="20" class="h-[0.125rem] bg-foreground" />
+            </tr>
         </TableHeader>
     );
 }
@@ -521,7 +548,7 @@ function TopLevelTableRows(props: {
         <Show
             when={props.isGrouped}
             fallback={
-                <TableBody class="min-h-0 max-h-[80vh] overflow-y-auto">
+                <TableBody class="min-h-0 max-h-full overflow-y-auto ring-2 ring-foreground">
                     <For each={props.rows}>
                         {(row) => (
                             <ExpenseTableRow
@@ -539,7 +566,7 @@ function TopLevelTableRows(props: {
                     return (
                         <Show when={row.getIsGrouped()}>
                             <TableRow>
-                                <TableCell class="w-2 p-0 items-center text-muted-foreground">
+                                <TableCell class="w-2 p-0 items-center text-muted-foreground ">
                                     <span>{row.subRows.length}</span>
                                     <Button
                                         variant="ghost"
@@ -549,7 +576,7 @@ function TopLevelTableRows(props: {
                                     </Button>
                                 </TableCell>
                                 <For each={row.getVisibleCells()}>
-                                    {(cell, i) => (
+                                    {(cell) => (
                                         <TableCell
                                             data-aggregate
                                             class={`${
@@ -680,7 +707,7 @@ function AddExpenseButton(props: AddExpenseButtonProps) {
             onClick={props.onClick}
             disabled={props.disabled()}
         >
-            <AiOutlinePlus /> Add
+            <AiOutlinePlus /> ADD
         </Button>
     );
 }

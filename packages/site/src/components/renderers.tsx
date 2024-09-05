@@ -3,7 +3,7 @@ import { TiUserOutline } from "solid-icons/ti";
 import { For, Accessor, JSX, Show, createMemo } from "solid-js";
 import { Badge } from "./ui/badge";
 import { ImageRoot, Image, ImageFallback } from "./ui/image";
-import { assert } from "@/lib/utils";
+import { assert, cn } from "@/lib/utils";
 import { usePossibleColors } from "@/lib/patterns";
 
 // TODO: make renderers take a value instead of an id,
@@ -14,13 +14,27 @@ export function UserRenderer(props: {
 }) {
     const user = useUser(() => props.userId, props.groupId);
 
+    const name = createMemo(() => {
+        const name = user()?.name;
+        if (!name) return "";
+        if (name.length < 10) return name;
+
+        const parts = name.split(" ").filter((p) => p !== "");
+        console.log('parts', parts)
+        if (parts.length >= 2) {
+            return parts[0] + " " + parts.at(-1)?.[0];
+        } else {
+            return parts.at(0) ?? name;
+        }
+    });
+
     return (
-        <div class="flex gap-2 items-center">
+        <div class="flex gap-2 items-center uppercase">
             <UserProfileRenderer
                 userID={props.userId}
                 groupID={props.groupId}
             />
-            <h3>{user()?.name}</h3>
+            <h3>{name()}</h3>
         </div>
     );
 }
@@ -221,7 +235,7 @@ export function UserProfileListRenderer(props: { userIDs: string[] }) {
 function SplitBadge(props: { split: Split; class?: string }) {
     return (
         <Badge
-            class={props.class}
+            class={cn("rounded-none shadow-none uppercase", props.class)}
             style={`background-color: ${props.split.color}`}
         >
             {props.split.name}

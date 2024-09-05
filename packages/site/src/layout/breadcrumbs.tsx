@@ -130,26 +130,26 @@ function Crumb(props: { name: string; path: string }) {
 }
 
 const CRUMB = {
-    Login: () => <Crumb name="Login" path={routes.auth} />,
-    Groups: () => <Crumb name="Groups" path={routes.groups} />,
+    Login: () => <Crumb name="LOGIN" path={routes.auth} />,
+    Groups: () => <Crumb name="GROUPS" path={routes.groups} />,
     GROUP: {
         Group: (name: Accessor<string | undefined>, groupId: string) => () => (
-            <Crumb name={name() ?? "Group"} path={routes.group(groupId)} />
+            <Crumb name={name() ?? "GROUP"} path={routes.group(groupId)} />
         ),
         Users: (groupId: string) => () => (
-            <Crumb name="Users" path={routes.groupUsers(groupId)} />
+            <Crumb name="MEMBERS" path={routes.groupUsers(groupId)} />
         ),
         Splits: (groupId: string) => () => (
-            <Crumb name="Splits" path={routes.groupSplits(groupId)} />
+            <Crumb name="SPLITS" path={routes.groupSplits(groupId)} />
         ),
         Info: (groupId: string) => () => (
-            <Crumb name="Info" path={routes.groupInfo(groupId)} />
+            <Crumb name="INFO" path={routes.groupInfo(groupId)} />
         ),
         ScanReceipt: (groupId: string) => () => (
-            <Crumb name="Upload" path={routes.scanReceipt(groupId)} />
+            <Crumb name="UPLOAD" path={routes.scanReceipt(groupId)} />
         ),
         ScanSpreadsheet: (groupId: string) => () => (
-            <Crumb name="Upload" path={routes.scanSpreadsheet(groupId)} />
+            <Crumb name="UPLOAD" path={routes.scanSpreadsheet(groupId)} />
         ),
     },
 };

@@ -39,7 +39,7 @@ export const DialogContent: ParentComponent<
 					{...rest}
 				>
 					{local.children}
-					<DialogPrimitive.CloseButton class="absolute right-4 top-0 -translate-y-1/2 ring-2 ring-foreground bg-background px-2 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+					<DialogPrimitive.CloseButton class="absolute right-4 top-0 -translate-y-1/2 ring-2 ring-foreground bg-background px-2 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none">
                         CLOSE
 					</DialogPrimitive.CloseButton>
 				</DialogPrimitive.Content>
