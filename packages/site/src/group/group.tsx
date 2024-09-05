@@ -62,11 +62,9 @@ type ExpenseCardMode =
     | ExpenseCardView
     | ExpenseCardEdit;
 
-const [expenseCardMode, _setExpenseCardMode] = createSignal<ExpenseCardMode>(
-    {
-        mode: "add",
-    },
-);
+const [expenseCardMode, _setExpenseCardMode] = createSignal<ExpenseCardMode>({
+    mode: "add",
+});
 export { expenseCardMode as asideCardMode };
 
 const [expenseCardOpen, setExpenseCardOpen] = createSignal(false);
@@ -129,26 +127,34 @@ export default function GroupPage() {
             class="shadow-none w-full h-full bg-background ring-2 ring-foreground pt-4 relative"
         >
             <div class="absolute top-0 -translate-y-1/2 w-full">
-            <TabsList class="justify-center rounded-none h-[2rem] md:h-[3rem] p-4 text-sm md:text-default lg:text-lg ring-2 ring-foreground bg-background ">
-                <TabsTrigger class="text-md" value="expenses">EXPENSES</TabsTrigger>
-                <TabsTrigger class="text-md" value="users">MEMBERS</TabsTrigger>
-                <TabsTrigger class="text-md" value="splits">SPLITS</TabsTrigger>
-                <TabsTrigger class="text-md" value="group">GROUP</TabsTrigger>
-            </TabsList>
+                <TabsList class="justify-center rounded-none h-[2rem] md:h-[3rem] p-4 text-sm md:text-default lg:text-lg ring-2 ring-foreground bg-background ">
+                    <TabsTrigger class="text-md" value="expenses">
+                        EXPENSES
+                    </TabsTrigger>
+                    <TabsTrigger class="text-md" value="users">
+                        MEMBERS
+                    </TabsTrigger>
+                    <TabsTrigger class="text-md" value="splits">
+                        SPLITS
+                    </TabsTrigger>
+                    <TabsTrigger class="text-md" value="group">
+                        GROUP
+                    </TabsTrigger>
+                </TabsList>
             </div>
             <div class="md:h-[calc(100%-3rem)] h-[calc(100%-2rem)]">
-            <TabsContent value="expenses">
-                <ExpensesTab />
-            </TabsContent>
-            <TabsContent value="splits">
-                <SplitsTab />
-            </TabsContent>
-            <TabsContent value="users">
-                <UsersTab />
-            </TabsContent>
-            <TabsContent value="group">
-                <GroupTab />
-            </TabsContent>
+                <TabsContent value="expenses">
+                    <ExpensesTab />
+                </TabsContent>
+                <TabsContent value="splits">
+                    <SplitsTab />
+                </TabsContent>
+                <TabsContent value="users">
+                    <UsersTab />
+                </TabsContent>
+                <TabsContent value="group">
+                    <GroupTab />
+                </TabsContent>
             </div>
         </Tabs>
     );
@@ -181,8 +187,8 @@ function SplitsTab() {
     const users = useSortedUsers();
     const [editingSplit, setEditingSplit] = createSignal<Split | null>(null);
     return (
-        <div class="flex flex-col justify-center lg:flex-row gap-6">
-            <aside class="w-full flex flex-col justify-start gap-6 lg:w-1/3 lg:order-last">
+        <div class="flex flex-col justify-between lg:flex-row gap-6 h-full">
+            <aside class="w-full flex flex-col h-1/3 lg:h-full justify-start gap-6 lg:w-1/3 lg:order-last">
                 <Card class="p-4 max-w-fit">
                     <Show
                         when={editingSplit()}
@@ -198,8 +204,8 @@ function SplitsTab() {
                     </Show>
                 </Card>
             </aside>
-            <section class="w-full lg:w-2/3 min-h-0 max-h-[80vh] overflow-y-auto scrollbar-none">
-                <div class="flex flex-wrap gap-4">
+            <section class="w-full lg:w-2/3 min-h-0 h-1/3 lg:h-full overflow-y-auto scrollbar-none">
+                <div class="flex flex-wrap gap-6 lg:gap-y-8 overflow-y-auto p-2 pt-4 lg:pt-6">
                     <For each={splits()}>
                         {(split) => (
                             <SplitCard
@@ -234,21 +240,21 @@ function SplitCard(props: {
         return total;
     });
     return (
-        <Card class="min-w-min max-h-min p-0">
-            <CardHeader>
-                <div class="w-full flex justify-between align-center">
-                    <div class="shrink">
-                        <SplitRenderer
-                            class={"font-medium text-lg shrink"}
-                            splitId={props.split.id}
-                        />
-                    </div>
-                    <Button variant="ghost" onClick={props.editSplit}>
-                        <BiRegularEdit size="1.5em" />
-                    </Button>
-                </div>
-            </CardHeader>
-            <CardContent class="size-max">
+        <Card class="min-w-min max-h-min p-0 ring-2 ring-foreground relative">
+            <div class="absolute top-0 left-4 -translate-y-1/2 ring-2 ring-foreground h-min">
+                <SplitRenderer
+                    class={"font-medium text-lg shrink"}
+                    splitId={props.split.id}
+                />
+            </div>
+            <Button
+                variant="ghost"
+                onClick={props.editSplit}
+                class="absolute top-0 right-4 -translate-y-1/2 ring-2 ring-foreground h-min w-min p-2 py-0 bg-background"
+            >
+                EDIT
+            </Button>
+            <CardContent class="size-max pt-6">
                 <SplitCardPortions
                     users={props.users}
                     total={total()}
@@ -270,7 +276,7 @@ function SplitCardPortions(props: {
                 <For each={props.users}>
                     {(user) => {
                         const portion = createMemo(
-                            () => props.portions[user.id] ?? 0,
+                            () => props.portions[user.id] ?? 0
                         );
                         return (
                             <Show when={portion() !== 0}>
@@ -403,7 +409,9 @@ function ExpenseCardModal(props: { title: string }) {
     return (
         <Dialog open={expenseCardOpen()} onOpenChange={setExpenseCardOpen}>
             <DialogContent class="sm:max-w-[425px] max-w-[80%] ring-2 ring-foreground">
-                <DialogTitle class="absolute top-0 left-4 -translate-y-1/2 px-2 ring-2 ring-foreground bg-background uppercase text-md">{props.title}</DialogTitle>
+                <DialogTitle class="absolute top-0 left-4 -translate-y-1/2 px-2 ring-2 ring-foreground bg-background uppercase text-md">
+                    {props.title}
+                </DialogTitle>
                 <ExpenseCardInner />
                 <Show when={expenseCardMode().mode === "view"}>
                     <DialogFooter>
@@ -419,19 +427,15 @@ function ExpenseCardModal(props: { title: string }) {
 
 function ExpenseCard(props: { title: string }) {
     return (
-        <Card>
-            <CardHeader>
-                <ExpenseCardHeader>
-                    <CardTitle>{props.title}</CardTitle>
-                </ExpenseCardHeader>
-            </CardHeader>
+        <Card class="relative pt-4">
+            <CardTitle class="absolute top-0 left-4 -translate-y-1/2 bg-background uppercase py-1 px-2">
+                {props.title}
+            </CardTitle>
             <CardContent class="px-10">
                 <ExpenseCardInner />
             </CardContent>
             <Show when={expenseCardMode().mode === "view"} keyed>
-                <CardFooter>
-                    <ViewExpenseCardFooter expenseId={expenseCardMode().id!} />
-                </CardFooter>
+                <ViewExpenseCardFooter expenseId={expenseCardMode().id!} />
             </Show>
         </Card>
     );
@@ -452,10 +456,14 @@ function ExpenseCardHeader(props: ParentProps) {
 
 function ViewExpenseCardFooter(props: { expenseId: Expense["id"] }) {
     return (
-        <div class="w-full flex justify-evenly">
-            <DeleteExpenseButton expenseId={props.expenseId} />
-            <EditExpenseButton expenseId={props.expenseId} />
-        </div>
+        <>
+            <div class="absolute top-0 right-28 -translate-y-1/2 min-w-12 bg-background ring-2 ring-foreground">
+                <DeleteExpenseButton expenseId={props.expenseId} />
+            </div>
+            <div class="absolute top-0 right-4 -translate-y-1/2 min-w-12 bg-background ring-2 ring-foreground">
+                <EditExpenseButton expenseId={props.expenseId} />
+            </div>
+        </>
     );
 }
 
@@ -474,11 +482,8 @@ function DeleteExpenseButton(props: { expenseId: Expense["id"] }) {
     };
     return (
         <Show when={allowed()}>
-            <Button variant="destructive" onClick={onClickDelete}>
-                <TiTrash
-                    size="1.5em"
-                    class="fill-destructive-foreground bg-red"
-                />
+            <Button variant="destructive" onClick={onClickDelete} class="py-0 px-2 h-7 bg-destructive text-foreground">
+                DELETE
             </Button>
         </Show>
     );
@@ -491,13 +496,14 @@ function EditExpenseButton(props: { expenseId: Expense["id"] }) {
     return (
         <Show when={allowed()}>
             <Button
-                variant="default"
+                variant="ghost"
                 onClick={[
                     setExpenseCardMode,
                     { mode: "edit", expense: expense()! },
                 ]}
+                class="py-0 px-2 h-7 bg-background text-foreground"
             >
-                <BiRegularEdit size="1.5em" class="fill-background" />
+                EDIT
             </Button>
         </Show>
     );
@@ -515,14 +521,17 @@ function ExpenseCardInner() {
     return (
         <Switch>
             <Match when={modeIs("add")} keyed>
-                {(_expenseCardMode) => { 
-                    console.log("adding", _expenseCardMode)
-                    return <AddExpenseCard
-                    onSubmit={() => {
-                        setExpenseCardMode({mode: "add"})
-                        setExpenseCardOpen(false);
-                    }}
-                /> }}
+                {(_expenseCardMode) => {
+                    console.log("adding", _expenseCardMode);
+                    return (
+                        <AddExpenseCard
+                            onSubmit={() => {
+                                setExpenseCardMode({ mode: "add" });
+                                setExpenseCardOpen(false);
+                            }}
+                        />
+                    );
+                }}
             </Match>
             <Match when={modeIs("view")} keyed>
                 {(expenseCardMode) => (
@@ -536,10 +545,7 @@ function ExpenseCardInner() {
                             setExpenseCardMode({ mode: "add" });
                             setExpenseCardOpen(false);
                         }}
-                        expense={dbg(
-                            "expense",
-                            expenseCardMode.expense,
-                        )}
+                        expense={dbg("expense", expenseCardMode.expense)}
                     />
                 )}
             </Match>
