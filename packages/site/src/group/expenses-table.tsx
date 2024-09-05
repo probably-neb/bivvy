@@ -465,6 +465,9 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
                         <DropdownMenuRadioItem value="paidOn">
                             DATE PAID
                         </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="amount">
+                            AMOUNT
+                        </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
             </DropdownMenu>
