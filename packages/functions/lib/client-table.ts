@@ -1,7 +1,6 @@
 import {DynamoDBClient, UpdateItemCommand} from '@aws-sdk/client-dynamodb';
 import {DynamoDBDocumentClient, GetCommand,QueryCommand,  PutCommand} from '@aws-sdk/lib-dynamodb';
-import { Config } from 'sst/node/config';
-import { Table } from 'sst/node/table';
+import { Resource } from 'sst';
 
 function initClient() {
     const client = new DynamoDBClient({});
@@ -39,7 +38,7 @@ export class ClientGroupTable {
     cg: ClientGroupData | null = null;
 
     constructor(private clientGroupId: string, private client = initClient()) {
-        this.TABLE_NAME = Table.clientTable.tableName;
+        this.TABLE_NAME = Resource.clientTable.tableName;
     }
 
     createNewClientGroup(userId: string) {
@@ -135,7 +134,7 @@ export class ClientGroupTable {
 
     async get() {
         const command = new QueryCommand({
-            TableName: Table.clientTable.tableName,
+            TableName: Resource.clientTable.tableName,
             KeyConditionExpression: 'ClientGroupId = :partitionKeyVal',
             ExpressionAttributeValues: {
                 ":partitionKeyVal": this.clientGroupId,
