@@ -22,7 +22,7 @@ export default function Layout({ children }: ParentProps) {
                         <Profile />
                     </div>
                 </div>
-                <div class="p-8 w-full h-[94%]">{children}</div>
+                <div class="p-8 px-2 lg:px-8 w-full h-[94%]">{children}</div>
             </main>
         </>
     );
