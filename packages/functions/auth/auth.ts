@@ -1,39 +1,75 @@
-import { useQueryParam } from "sst/api";
-import {Resource} from "sst"
-import {
-    AuthHandler,
-    GoogleAdapter,
-    Session,
-    createAdapter,
-} from "sst/auth";
-import {auth} from "sst/aws/auth"
-import {GoogleAdapter} from "sst/auth/adapter"
+// import { useQueryParam } from "sst/api";
+// import {Resource} from "sst"
+// import {
+//     AuthHandler,
+//     GoogleAdapter,
+//     Session,
+//     createAdapter,
+// } from "sst/auth";
+// import {auth} from "sst/aws/auth"
+// import {GoogleAdapter} from "sst/auth/adapter"
+
+import { Resource } from "sst";
+import { auth } from "sst/aws/auth";
+import { GoogleAdapter } from "sst/auth/adapter";
+import { session } from "./session";
 
 const NANOID_ID_LENGTH = 21;
 
-declare module "sst/node/auth" {
-    export interface SessionTypes {
-        user: {
-            userId: string;
-        };
-    }
-}
+// declare module "sst/node/auth" {
+//     export interface SessionTypes {
+//         user: {
+//             userId: string;
+//         };
+//     }
+// }
 
-export const handler = AuthHandler({
+export const handler = auth.authorizer({
+    session,
     providers: {
-        local: createLocalAdapter(),
+        // local: createLocalAdapter(),
         google: GoogleAdapter({
             mode: "oauth",
-            clientID: Resource.GOOGLE_CLIENT_ID,
-            clientSecret: Config.GOOGLE_CLIENT_ID_SECRET,
+            clientID: Resource.GOOGLE_CLIENT_ID.value,
+            clientSecret: Resource.GOOGLE_CLIENT_ID_SECRET.value,
             scope: "openid profile email",
-            onSuccess: async (tokenset) => {
-                const claims = tokenset.claims();
-                const userId = await upsertUser(claims);
-                return queryParams(userId);
-            },
+            // onSuccess: async (tokenset) => {
+            //     const claims = tokenset.claims();
+            //     const userId = await upsertUser(claims);
+            //     return queryParams(userId);
+            // },
         }),
     },
+    callbacks: {
+        auth: {
+            async allowClient(clientId, redirect: string) {
+                return true;
+            },
+            async success(ctx, input, req) {
+                console.dir({input, ctx, req}, {depth: null})
+                const claims = input.tokenset.claims();
+                const userId = await upsertUser(claims);
+                return ctx.session({
+                    type: "user",
+                    properties: {
+                        userId
+                    }
+                })
+                // const redirectURI = req.headers.cookie
+                // console.log({redirectURI})
+                // return new Response(null, {
+                //     status: 302,
+                //     headers: {
+                //         location: `http://localhost:5173/login?userId=${userId}&token=${token}`,
+                //     }
+                // })
+                // return queryParams(userId);
+                // return null
+            }
+
+        }
+
+    }
 });
 
 // converts sub from oath claims to 21 char id (matching nanoid)

@@ -11,7 +11,7 @@ export async function validateSessionToken(token: string) {
     console.log("validateSessionToken", token);
     const response = await fetch("/session", {
         headers: {
-            authorization: `Bearer ${token}`
+            authorization: `${token}`
         },
         validator: z.object({
             session: z.discriminatedUnion("type", [

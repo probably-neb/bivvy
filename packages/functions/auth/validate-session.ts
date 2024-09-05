@@ -1,13 +1,14 @@
-import { ApiHandler, Response } from "sst/node/api";
-import { useSession } from "sst/node/auth";
+// import { Response } from "sst/api";
+import { session } from "./session";
 
-export const handler = ApiHandler(async () => {
-    const session = useSession();
-    return new Response({
+export const handler = async (event, context) => {
+    const token = event.headers.authorization
+    const result = await session.verify(token)
+    return {
         statusCode: 200,
-        body: JSON.stringify({ session }),
+        body: JSON.stringify({ session: result }),
         headers: {
             "content-type": "application/json",
         }
-    }).result
-})
+    }
+}

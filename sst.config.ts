@@ -26,22 +26,13 @@ export default $config({
             args.link ??= [...(args.link ?? []), DB_URL, DB_TOKEN];
             args.architecture ??= "x86_64";
             args.nodejs ??= {
+                ...args.nodejs,
                 install: [
                     ...(args.nodejs?.install ?? []),
                     "@libsql/client",
                     "@libsql/linux-x64-gnu",
                 ],
-                ...args.nodejs,
             };
-        });
-
-        const DBKeepAlive = new sst.aws.Cron("KeepAlive", {
-            schedule: "rate(1 minute)",
-            job: {
-                handler: "packages/functions/lambdas/db/keep-alive.handler",
-                live: false,
-                link: [DB_URL, DB_TOKEN],
-            },
         });
 
         const DNS_MAPPING: Record<string, string> = {
@@ -54,6 +45,51 @@ export default $config({
         const stage = $app.stage;
         const zone = DNS_MAPPING[stage] || "dev.bivvy.cc";
         const domain = DNS_MAPPING[stage] || `${stage}.dev.bivvy.cc`;
+
+        const AUTH_DOMAIN = "auth." + domain;
+
+
+        let auth: sst.aws.Auth;
+        {
+            const gcid = new sst.Secret("GOOGLE_CLIENT_ID");
+            const gcids = new sst.Secret("GOOGLE_CLIENT_ID_SECRET");
+
+            auth = new sst.aws.Auth("auth", {
+                authenticator: {
+                    handler: "packages/functions/auth/auth.handler",
+                    link: [gcid, gcids, DB_URL, DB_TOKEN],
+                    // environment: {
+                    // SITE_URL,
+                    // },
+                },
+            });
+
+            const authRouter = new sst.aws.Router("AuthRouter", {
+                domain: AUTH_DOMAIN,
+                routes: {
+                    "/*": auth.url,
+                },
+            });
+
+            auth.url.apply(console.log.bind(null, "AUTH URL:"));
+        }
+
+        $transform(sst.aws.Function, (args, opts) => {
+            args.link ??= [...(args.link ?? []), auth]
+        })
+
+
+
+        const DBKeepAlive = new sst.aws.Cron("KeepAlive", {
+            schedule: "rate(1 minute)",
+            job: {
+                handler: "packages/functions/lambdas/db/keep-alive.handler",
+                live: false,
+                link: [DB_URL, DB_TOKEN],
+            },
+        });
+
+
 
         const clientTable = new sst.aws.Dynamo("clientTable", {
             fields: {
@@ -116,6 +152,7 @@ export default $config({
             // });
             api.route("GET /session", {
                 handler: "packages/functions/auth/validate-session.handler",
+                link: [auth]
             });
             api.route("GET /invite", {
                 handler: "packages/functions/auth/invite.createHandler",
@@ -136,7 +173,6 @@ export default $config({
             "lf7fcf72797fa44a3a0b0469a7af59d61"
         );
 
-        const AUTH_DOMAIN = "auth." + domain
 
         const site = new sst.aws.StaticSite("Site", {
             path: "packages/site",
@@ -165,26 +201,6 @@ export default $config({
             return url;
         });
 
-        const gcid = new sst.Secret("GOOGLE_CLIENT_ID");
-        const gcids = new sst.Secret("GOOGLE_CLIENT_ID_SECRET");
 
-        const auth = new sst.aws.Auth("auth", {
-            authenticator: {
-                handler: "packages/functions/auth/auth.handler",
-                link: [gcid, gcids, site],
-                environment: {
-                    SITE_URL,
-                },
-            },
-        });
-
-        const authRouter = new sst.aws.Router("AuthRouter", {
-            domain: AUTH_DOMAIN,
-            routes: {
-                "/*": auth.url,
-            },
-        });
-
-        auth.url.apply(console.log.bind(null, "AUTH URL:"));
     },
 });

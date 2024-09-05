@@ -17,15 +17,6 @@ import { isDev } from "@/lib/utils";
 
 type SelectItemProps<T> = { item: CollectionNode<T> };
 
-const AVAILABLE_PROVIDERS = ["google"] as const;
-type Provider = typeof AVAILABLE_PROVIDERS[number];
-
-const DEFAULT_PROVIDERS: Provider[] = ["google"];
-
-const PROVIDERS = Object.fromEntries(
-    DEFAULT_PROVIDERS.map((p) => [p, Api.authUrl(p)])
-);
-
 export default function () {
     console.log("Login");
     const [_, { isValid }] = useSession();
@@ -43,16 +34,23 @@ export default function () {
     );
     return (
         <div class="flex justify-center items-center px-4 pt-4">
-            <LoginCard providers={PROVIDERS} />
+            <LoginCard />
         </div>
     );
 }
 
-function LoginCard(props: { providers: Record<string, string> }) {
+function LoginCard() {
+    const params = new URLSearchParams({
+            client_id: "local",
+            redirect_uri: location.origin,
+            response_type: "token",
+            provider: "google"
+        });
+    const googleUrl = `${import.meta.env.VITE_AUTH_URL}/google/authorize?${params.toString()}`;
     return (
         <Card class="min-w-fit md:w-1/3">
             <CardHeader>
-                <CardTitle>Login</CardTitle>
+                <CardTitle>LOGIN</CardTitle>
             </CardHeader>
             <CardContent>
                 {/* TODO: email login */}
@@ -60,42 +58,16 @@ function LoginCard(props: { providers: Record<string, string> }) {
                     <GroupMembers />
                 </Show>
                 <div class="px-2 py-4 text-center text-sm text-muted-foreground">
-                    Continue With
+                    CONTINUE WITH
                 </div>
-                <Providers providers={props.providers} />
+
+                <a href={googleUrl} rel="noreferrer">
+                    <Button class="flex gap-2 w-full">
+                        <AiOutlineGoogle /> GOOGLE
+                    </Button>
+                </a>
             </CardContent>
         </Card>
-    );
-}
-
-function Providers(props: { providers: Record<string, string> }) {
-    return (
-        <div class="flex flex-col gap-2">
-            <For each={Object.entries(props.providers)}>
-                {([provider, url]) => (
-                    <Provider provider={provider as Provider} url={url} />
-                )}
-            </For>
-        </div>
-    );
-}
-
-const ICONS: Record<Provider, () => JSX.Element> = {
-    google: () => <AiOutlineGoogle />,
-};
-
-const TITLES: Record<Provider, string> = {
-    google: "Google",
-};
-
-function Provider(props: { provider: Provider; url: string }) {
-    const icon = createMemo(() => ICONS[props.provider]());
-    return (
-        <a href={props.url} rel="noreferrer">
-            <Button class="flex gap-2 w-full">
-                {icon()} {TITLES[props.provider]}
-            </Button>
-        </a>
     );
 }
 
