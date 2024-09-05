@@ -31,7 +31,7 @@ export const createHandler: Handler<APIGatewayEvent> = async (event, ctx) => {
             "content-type": "application/json"
         }
     }
-})
+}
 
 export const validateHandler: Handler<APIGatewayEvent> = async (event) => {
     const token = event.queryStringParameters?.['token'] // useQueryParam("token");
