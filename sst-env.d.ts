@@ -3,6 +3,10 @@
 import "sst"
 declare module "sst" {
   export interface Resource {
+    "AuthRouter": {
+      "type": "sst.aws.Router"
+      "url": string
+    }
     "DB_TOKEN": {
       "type": "sst.sst.Secret"
       "value": string
@@ -27,9 +31,22 @@ declare module "sst" {
       "type": "sst.aws.StaticSite"
       "url": string
     }
+    "api": {
+      "type": "sst.aws.ApiGatewayV2"
+      "url": string
+    }
     "auth": {
       "publicKey": string
       "type": "sst.aws.Auth"
+    }
+    "authAuthenticator": {
+      "name": string
+      "type": "sst.aws.Function"
+      "url": string
+    }
+    "clientTable": {
+      "name": string
+      "type": "sst.aws.Dynamo"
     }
   }
 }

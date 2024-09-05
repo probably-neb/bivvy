@@ -4,8 +4,8 @@
     "version": "0.0.0",
     "type": "module",
     "scripts": {
-        "dev": "sst bind vite",
-        "build": "sst bind vite build",
+        "dev": "vite",
+        "build": "vite build",
         "preview": "vite preview",
         "shadd": "bunx shadcn-solid@latest add"
     },

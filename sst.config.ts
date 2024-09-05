@@ -71,7 +71,6 @@ export default $config({
             ttl: "ExpireAt",
         });
 
-
         const api = new sst.aws.ApiGatewayV2("api", {
             cors: {
                 // TODO: prod url
@@ -83,11 +82,13 @@ export default $config({
             },
         });
         {
+            api.addAuthorizer;
             api.route("POST /pull", {
                 handler: "packages/functions/lambdas/pull.handler",
                 link: [clientTable],
                 environment: {
                     CLIENT_TABLE_NAME: clientTable.name,
+                    REGION: $app.providers!.aws.region,
                     // SST_REGION: clientTable.nodes.table.restoreSourceName,
                 },
             });
@@ -99,16 +100,20 @@ export default $config({
                     // SST_REGION: stack.region,
                 },
             });
-            api.route("POST /scan/receipt", {
-                handler: "packages/functions/lambdas/scan/receipt/receipt.go",
-                runtime: "go",
-                permissions: ["ssm", "textract:AnalyzeExpense"],
-            });
-            api.route("POST /scan/spreadsheet", {
-                handler: "packages/functions/lambdas/scan/table/table.go",
-                runtime: "go",
-                permissions: ["ssm"],
-            });
+            // api.route("POST /scan/receipt", {
+            //     handler: "packages/functions/lambdas/scan/receipt/receipt.go",
+            //     // runtime: "go",
+            //     permissions: [
+            //         {
+            //             actions: ["textract:AnalyzeExpense"],
+            //             resources: ["*"],
+            //         },
+            //     ],
+            // });
+            // api.route("POST /scan/spreadsheet", {
+            //     handler: "packages/functions/lambdas/scan/table/table.go",
+            //     runtime: "go",
+            // });
             api.route("GET /session", {
                 handler: "packages/functions/auth/validate-session.handler",
             });
@@ -131,6 +136,8 @@ export default $config({
             "lf7fcf72797fa44a3a0b0469a7af59d61"
         );
 
+        const AUTH_DOMAIN = "auth." + domain
+
         const site = new sst.aws.StaticSite("Site", {
             path: "packages/site",
             build: {
@@ -140,6 +147,7 @@ export default $config({
             environment: {
                 VITE_IS_LOCAL: String($dev),
                 VITE_API_URL: api.url,
+                VITE_AUTH_URL: "https://" + AUTH_DOMAIN,
                 VITE_REPLICACHE_LICENSE_KEY: REPLICACHE_LICENSE_KEY.value,
             },
             domain: !$dev
@@ -149,16 +157,16 @@ export default $config({
                 : undefined,
         });
 
-        const gcid = new sst.Secret("GOOGLE_CLIENT_ID");
-        const gcids = new sst.Secret("GOOGLE_CLIENT_ID_SECRET");
-
         let SITE_URL = site.url.apply((url) => {
             if ($dev) return "http://localhost:5173";
             if (!url.startsWith("http")) {
                 return "https://" + url;
             }
-            return url
+            return url;
         });
+
+        const gcid = new sst.Secret("GOOGLE_CLIENT_ID");
+        const gcids = new sst.Secret("GOOGLE_CLIENT_ID_SECRET");
 
         const auth = new sst.aws.Auth("auth", {
             authenticator: {
@@ -169,5 +177,14 @@ export default $config({
                 },
             },
         });
+
+        const authRouter = new sst.aws.Router("AuthRouter", {
+            domain: AUTH_DOMAIN,
+            routes: {
+                "/*": auth.url,
+            },
+        });
+
+        auth.url.apply(console.log.bind(null, "AUTH URL:"));
     },
 });

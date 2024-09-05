@@ -1,11 +1,13 @@
-import { useQueryParam } from "sst/node/api";
+import { useQueryParam } from "sst/api";
+import {Resource} from "sst"
 import {
     AuthHandler,
     GoogleAdapter,
     Session,
     createAdapter,
-} from "sst/node/auth";
-import { Config } from "sst/node/config";
+} from "sst/auth";
+import {auth} from "sst/aws/auth"
+import {GoogleAdapter} from "sst/auth/adapter"
 
 const NANOID_ID_LENGTH = 21;
 
@@ -22,7 +24,7 @@ export const handler = AuthHandler({
         local: createLocalAdapter(),
         google: GoogleAdapter({
             mode: "oauth",
-            clientID: Config.GOOGLE_CLIENT_ID,
+            clientID: Resource.GOOGLE_CLIENT_ID,
             clientSecret: Config.GOOGLE_CLIENT_ID_SECRET,
             scope: "openid profile email",
             onSuccess: async (tokenset) => {
