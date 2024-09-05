@@ -1,8 +1,9 @@
 import { alias, db, eq, schema, sql } from "@paypals/db";
+import { session as Session } from "auth/session";
 import { ClientGroupTable } from "lib/client-table";
 import type { ClientID, JSONValue, ReadonlyJSONValue } from "replicache";
-import { ApiHandler } from "sst/node/api";
-import { useSession } from "sst/node/auth";
+// import { ApiHandler } from "sst/node/api";
+// import { useSession } from "sst/node/auth";
 import Parser from "util/parser";
 import z from "zod";
 
@@ -94,13 +95,13 @@ const zBodyParser = z
     .transform((s) => JSON.parse(s))
     .pipe(zPullRequest);
 
-export const handler = ApiHandler(async (req) => {
-    const body = zBodyParser.safeParse(req.body);
+export const handler = async (event) => {
+    const body = zBodyParser.safeParse(event.body);
     if (!body.success) {
         console.error("Invalid body", body.error, body);
         return errResponse({ ok: false, error: "Invalid body" });
     }
-    const session = useSession();
+    const session = Session.verify(event.headers.authorization);
     if (session.type !== "user") {
         console.error("Invalid session", session);
         return errResponse({ ok: false, error: "Invalid session" });
@@ -117,7 +118,7 @@ export const handler = ApiHandler(async (req) => {
     };
 
     return okResponse(response);
-});
+};
 
 function calculateNextCookie(cookie: number | null) {
     if (cookie == null) {
