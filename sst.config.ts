@@ -20,18 +20,28 @@ export default $config({
         const DB_URL = new sst.Secret("DB_URL");
         const DB_TOKEN = new sst.Secret("DB_TOKEN");
 
+        $transform(sst.aws.Function, (args, opts) => {
+            // Set the default if it's not set by the component
+            args.runtime ??= "nodejs20.x";
+            args.link ??= [...(args.link ?? []), DB_URL, DB_TOKEN];
+            args.architecture ??= "x86_64";
+            args.nodejs ??= {
+                install: [
+                    ...(args.nodejs?.install ?? []),
+                    "@libsql/client",
+                    "@libsql/linux-x64-gnu",
+                ],
+                ...args.nodejs,
+            };
+        });
+
         const DBKeepAlive = new sst.aws.Cron("KeepAlive", {
             schedule: "rate(1 minute)",
-            job: new sst.aws.Function("KeepAliveLambda", {
+            job: {
                 handler: "packages/functions/lambdas/db/keep-alive.handler",
-                runtime: "nodejs20.x",
-                architecture: "x86_64",
-                nodejs: {
-                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
-                },
                 live: false,
                 link: [DB_URL, DB_TOKEN],
-            }),
+            },
         });
 
         const DNS_MAPPING: Record<string, string> = {
@@ -49,38 +59,24 @@ export default $config({
             fields: {
                 ClientGroupId: "string",
                 ClientId: "string",
-                LastMutationId: "number",
-                UserId: "string",
-                ExpireAt: "number",
+                // LastMutationId: "number",
+                // UserId: "string",
+                // ExpireAt: "number",
             },
             // FIXME: ttl attribute
             primaryIndex: {
-                partitionKey: "ClientGroupId",
-                sortKey: "ClientId",
+                hashKey: "ClientGroupId",
+                rangeKey: "ClientId",
             },
             ttl: "ExpireAt",
         });
 
-        $transform(sst.aws.Function, (args, opts) => {
-            // Set the default if it's not set by the component
-            args.runtime ??= "nodejs20.x";
-            args.link ??= [...args.link, DB_URL, DB_TOKEN];
-            args.architecture ??= "x86_64";
-            args.nodejs ??= {
-                install: [
-                    ...args.nodejs?.install,
-                    "@libsql/client",
-                    "@libsql/linux-x64-gnu",
-                ],
-                ...args.nodejs,
-            };
-        });
 
         const api = new sst.aws.ApiGatewayV2("api", {
             cors: {
                 // TODO: prod url
                 allowOrigins: ["*"],
-                allowMethods: ["ANY"],
+                allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             },
             domain: {
                 name: "api." + domain,
@@ -90,7 +86,6 @@ export default $config({
             api.route("POST /pull", {
                 handler: "packages/functions/lambdas/pull.handler",
                 link: [clientTable],
-                permissions: ["ssm"],
                 environment: {
                     CLIENT_TABLE_NAME: clientTable.name,
                     // SST_REGION: clientTable.nodes.table.restoreSourceName,
@@ -99,7 +94,6 @@ export default $config({
             api.route("POST /push", {
                 handler: "packages/functions/lambdas/push.handler",
                 link: [clientTable],
-                permissions: ["ssm"],
                 environment: {
                     CLIENT_TABLE_NAME: clientTable.name,
                     // SST_REGION: stack.region,
