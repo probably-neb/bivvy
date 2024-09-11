@@ -123,20 +123,30 @@ export default $config({
             api.addAuthorizer;
             api.route("POST /pull", {
                 handler: "packages/functions/lambdas/pull.handler",
-                link: [clientTable],
+                link: [clientTable, DB_URL, DB_TOKEN, auth],
                 environment: {
                     CLIENT_TABLE_NAME: clientTable.name,
                     REGION: $app.providers!.aws.region,
                     // SST_REGION: clientTable.nodes.table.restoreSourceName,
                 },
+                runtime: "nodejs20.x",
+                architecture: "x86_64",
+                nodejs: {
+                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                }
             });
             api.route("POST /push", {
                 handler: "packages/functions/lambdas/push.handler",
-                link: [clientTable],
+                link: [clientTable, DB_URL, DB_TOKEN, auth],
                 environment: {
                     CLIENT_TABLE_NAME: clientTable.name,
                     // SST_REGION: stack.region,
                 },
+                runtime: "nodejs20.x",
+                architecture: "x86_64",
+                nodejs: {
+                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                }
             });
             // api.route("POST /scan/receipt", {
             //     handler: "packages/functions/lambdas/scan/receipt/receipt.go",
@@ -154,13 +164,30 @@ export default $config({
             // });
             api.route("GET /session", {
                 handler: "packages/functions/auth/validate-session.handler",
-                link: [auth]
+                link: [auth, DB_URL, DB_TOKEN],
+                runtime: "nodejs20.x",
+                architecture: "x86_64",
+                nodejs: {
+                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                }
             });
             api.route("GET /invite", {
                 handler: "packages/functions/auth/invite.createHandler",
+                link: [auth, DB_URL, DB_TOKEN],
+                runtime: "nodejs20.x",
+                architecture: "x86_64",
+                nodejs: {
+                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                }
             });
             api.route("GET /invite/validate", {
                 handler: "packages/functions/auth/invite.validateHandler",
+                link: [auth, DB_URL, DB_TOKEN],
+                runtime: "nodejs20.x",
+                architecture: "x86_64",
+                nodejs: {
+                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                }
             });
         }
 
