@@ -38,7 +38,7 @@ export class ClientGroupTable {
     cg: ClientGroupData | null = null;
 
     constructor(private clientGroupId: string, private client = initClient()) {
-        this.TABLE_NAME = Resource.clientTable.tableName;
+        this.TABLE_NAME = Resource.clientTable.name;
     }
 
     createNewClientGroup(userId: string) {
@@ -133,16 +133,20 @@ export class ClientGroupTable {
     }
 
     async get() {
+        const clientTableName = Resource.clientTable.name
+        console.log('clientTableName', clientTableName);
         const command = new QueryCommand({
-            TableName: Resource.clientTable.tableName,
+            TableName: clientTableName,
             KeyConditionExpression: 'ClientGroupId = :partitionKeyVal',
             ExpressionAttributeValues: {
                 ":partitionKeyVal": this.clientGroupId,
             },
             Select: 'ALL_ATTRIBUTES',
         });
+
         const result = await this.client.send(command);
         const items = result.Items;
+        console.log('items', items);
 
         if (items == null || items.length == 0) {
             console.error('No ClientGroup found');

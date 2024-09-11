@@ -214,7 +214,7 @@ export const handler: Handler<APIGatewayProxyEvent> = async (event) => {
     if (!body.success) {
         return errResponse(ErrorReason.InvalidRequest);
     }
-    const session = Session.verify(event.headers.authorization);
+    const session = await Session.verify(event.headers.authorization);
     if (session.type !== "user") {
         return errResponse(ErrorReason.AuthError);
     }
