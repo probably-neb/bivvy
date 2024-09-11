@@ -222,7 +222,7 @@ export function initReplicache(s: InitSession) {
 
     const rep = new Replicache<Mutators>({
         name: s.userId,
-        auth: `Bearer ${s.token}`,
+        auth: `${s.token}`,
         licenseKey,
         mutators,
         pushURL: import.meta.env.VITE_API_URL + "/push",
@@ -239,9 +239,9 @@ function useIsClosed() {
     return useContext(ReplicacheContext)[2][0];
 }
 
-export function closeRep() {
+export async function closeRep() {
     const [rep, _, [_closed, setClosed]] = useContext(ReplicacheContext);
-    rep()?.close();
+    await rep()?.close();
     // FIXME: use still logging "not init" after closing (logging out)
     setClosed(true);
 }
