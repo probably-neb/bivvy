@@ -163,7 +163,7 @@ export function AddExpenseCard(props: {
             >
                 <Field
                     name="description"
-                    label="Description"
+                    label="DESCRIPTION"
                     placeholder="Sparkling Apple Cider"
                     type="text"
                     validator={zBaseExpenseInput.shape.description}
@@ -171,7 +171,7 @@ export function AddExpenseCard(props: {
                 />
                 <MoneyField
                     name="amount"
-                    label="Amount"
+                    label="AMOUNT"
                     placeholder="10.00"
                     validator={zBaseExpenseInput.shape.amount}
                     step="any"
@@ -180,7 +180,7 @@ export function AddExpenseCard(props: {
                 <SplitField form={form} editingID={expenseToEdit?.splitId} setPrevWasOneOff={() => prevSplitWasOneOff = true} />
                 <Field
                     name="paidOn"
-                    label="Paid On"
+                    label="PAID ON"
                     placeholder="2021-01-01"
                     type="date"
                     validator={zBaseExpenseInput.shape.paidOn}
@@ -331,13 +331,13 @@ function SplitField(props: { form: Form; editingID?: string, setPrevWasOneOff: (
                                     class="text-muted-foreground"
                                     value="existing"
                                 >
-                                    Split
+                                    SPLIT
                                 </TabsTrigger>
                                 <TabsTrigger
                                     class="text-muted-foreground"
                                     value="new"
                                 >
-                                    One Off Split
+                                    ONE OFF SPLIT
                                 </TabsTrigger>
                             </TabsList>
                             <TabsContent value="existing" class="px-0">
@@ -413,7 +413,7 @@ function SplitSelect(props: { form: Form }) {
                             </ComboboxItem>
                         )}
                     >
-                        <TextFieldLabel>Split</TextFieldLabel>
+                        <TextFieldLabel>SPLIT</TextFieldLabel>
                         <ComboboxTrigger class="relative">
                             <Show when={!isSelecting() && selected()}>
                                 {(selected) => (

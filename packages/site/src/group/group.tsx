@@ -368,11 +368,11 @@ function CreateInviteButton() {
     return (
         <Show when={Boolean(groupId())}>
             <Button variant="outline" onClick={[setOpen, true]}>
-                New Invite
+                NEW INVITE
             </Button>
             <Dialog open={open()} onOpenChange={setOpen}>
-                <DialogContent class="sm:max-w-[425px] max-w-[80%]">
-                    <DialogTitle>Invite</DialogTitle>
+                <DialogContent class="sm:max-w-[425px] max-w-[80%] ring-2 ring-foreground">
+                    <DialogTitle class="absolute top-0 left-4 -translate-y-1/2 bg-background ring-2 ring-foreground text-md">INVITE</DialogTitle>
                     <CreateInviteForm
                         onSubmit={() => setOpen(false)}
                         groupId={groupId()!}

@@ -681,15 +681,15 @@ function UploadExpensesButton() {
             <DropdownMenu>
                 <DropdownMenuTrigger>
                     <Button variant="outline" class="gap-2 uppercase">
-                        <FiUpload /> Upload
+                        <FiUpload /> UPLOAD
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={[onClick, "receipt"]}>
-                        Receipt
+                        RECEIPT
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={[onClick, "table"]}>
-                        Spreadsheet
+                        SPREADSHEET
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
