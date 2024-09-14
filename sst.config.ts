@@ -1,4 +1,5 @@
 /// <reference path="./.sst/platform/config.d.ts" />
+
 export default $config({
     app(input) {
         return {
@@ -20,22 +21,6 @@ export default $config({
         const DB_URL = new sst.Secret("DB_URL");
         const DB_TOKEN = new sst.Secret("DB_TOKEN");
 
-        $transform(sst.aws.Function, (args, opts) => {
-            // Set the default if it's not set by the component
-            args.runtime ??= "nodejs20.x";
-            args.link ??= [...(args.link ?? []), DB_URL, DB_TOKEN];
-            args.architecture ??= "x86_64";
-            args.nodejs ??= {
-                ...args.nodejs,
-                install: [
-                    ...(args.nodejs?.install ?? []),
-                    "@libsql/client",
-                    "@libsql/linux-x64-gnu",
-                ],
-            };
-            return args;
-        });
-
         const DNS_MAPPING: Record<string, string> = {
             production: "bivvy.cc",
             prod: "bivvy.cc",
@@ -49,7 +34,6 @@ export default $config({
 
         const AUTH_DOMAIN = "auth." + domain;
 
-
         let auth: sst.aws.Auth;
         {
             const gcid = new sst.Secret("GOOGLE_CLIENT_ID");
@@ -59,13 +43,15 @@ export default $config({
                 authenticator: {
                     handler: "packages/functions/auth/auth.handler",
                     link: [gcid, gcids, DB_URL, DB_TOKEN],
-                    // environment: {
-                    // SITE_URL,
-                    // },
+                    runtime: "nodejs18.x",
+                    architecture: "x86_64",
+                    nodejs: {
+                        install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                    },
                 },
             });
 
-            const authRouter = new sst.aws.Router("AuthRouter", {
+            const _authRouter = new sst.aws.Router("AuthRouter", {
                 domain: AUTH_DOMAIN,
                 routes: {
                     "/*": auth.url,
@@ -76,11 +62,9 @@ export default $config({
         }
 
         $transform(sst.aws.Function, (args, opts) => {
-            args.link ??= [...(args.link ?? []), auth]
+            args.link ??= [...(args.link ?? []), auth];
             return args;
-        })
-
-
+        });
 
         const DBKeepAlive = new sst.aws.Cron("KeepAlive", {
             schedule: "rate(1 minute)",
@@ -88,10 +72,13 @@ export default $config({
                 handler: "packages/functions/lambdas/db/keep-alive.handler",
                 live: false,
                 link: [DB_URL, DB_TOKEN],
+                runtime: "nodejs18.x",
+                architecture: "x86_64",
+                nodejs: {
+                    install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                },
             },
         });
-
-
 
         const clientTable = new sst.aws.Dynamo("clientTable", {
             fields: {
@@ -129,11 +116,13 @@ export default $config({
                     REGION: $app.providers!.aws.region,
                     // SST_REGION: clientTable.nodes.table.restoreSourceName,
                 },
-                runtime: "nodejs20.x",
+                live: false,
+                memory: "2 GB",
+                runtime: "nodejs18.x",
                 architecture: "x86_64",
                 nodejs: {
                     install: ["@libsql/client", "@libsql/linux-x64-gnu"],
-                }
+                },
             });
             api.route("POST /push", {
                 handler: "packages/functions/lambdas/push.handler",
@@ -142,11 +131,11 @@ export default $config({
                     CLIENT_TABLE_NAME: clientTable.name,
                     // SST_REGION: stack.region,
                 },
-                runtime: "nodejs20.x",
+                runtime: "nodejs18.x",
                 architecture: "x86_64",
                 nodejs: {
                     install: ["@libsql/client", "@libsql/linux-x64-gnu"],
-                }
+                },
             });
             // api.route("POST /scan/receipt", {
             //     handler: "packages/functions/lambdas/scan/receipt/receipt.go",
@@ -165,29 +154,29 @@ export default $config({
             api.route("GET /session", {
                 handler: "packages/functions/auth/validate-session.handler",
                 link: [auth, DB_URL, DB_TOKEN],
-                runtime: "nodejs20.x",
+                runtime: "nodejs18.x",
                 architecture: "x86_64",
                 nodejs: {
                     install: ["@libsql/client", "@libsql/linux-x64-gnu"],
-                }
+                },
             });
             api.route("GET /invite", {
                 handler: "packages/functions/auth/invite.createHandler",
                 link: [auth, DB_URL, DB_TOKEN],
-                runtime: "nodejs20.x",
+                runtime: "nodejs18.x",
                 architecture: "x86_64",
                 nodejs: {
                     install: ["@libsql/client", "@libsql/linux-x64-gnu"],
-                }
+                },
             });
             api.route("GET /invite/validate", {
                 handler: "packages/functions/auth/invite.validateHandler",
                 link: [auth, DB_URL, DB_TOKEN],
-                runtime: "nodejs20.x",
+                runtime: "nodejs18.x",
                 architecture: "x86_64",
                 nodejs: {
                     install: ["@libsql/client", "@libsql/linux-x64-gnu"],
-                }
+                },
             });
         }
 
@@ -201,7 +190,6 @@ export default $config({
             "REPLICACHE_LICENSE_KEY",
             "lf7fcf72797fa44a3a0b0469a7af59d61"
         );
-
 
         const site = new sst.aws.StaticSite("Site", {
             path: "packages/site",
@@ -229,7 +217,5 @@ export default $config({
             }
             return url;
         });
-
-
     },
 });
