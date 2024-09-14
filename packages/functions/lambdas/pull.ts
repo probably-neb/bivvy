@@ -118,7 +118,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
     const userID = session.properties.userId;
     console.log("user id", userID);
 
-    const { clientGroupID, schemaVersion, cookie } = body.data;
+    const { clientGroupID, schemaVersion: _, cookie } = body.data;
     // TODO: check schema version
     console.log("client data", body.data);
 
@@ -144,8 +144,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 };
 
 async function constructPatches(userID: string) {
-    // const getUsers = getUsersForUser(userID)
-    // const getExpenses = getExpensesForUser(userID);
+    const getUsers = getUsersForUser(userID);
+    const getExpenses = getExpensesForUser(userID);
     const getSplits = getSplitsForUser(userID);
     const getGroups = getGroupsForUser(userID);
 
@@ -155,15 +155,8 @@ async function constructPatches(userID: string) {
     let groups: Awaited<typeof getGroups>;
     let splits: Awaited<typeof getSplits>;
     try {
-        // [expenses, { unique: users, group: groupUsers }, splits, groups] =
-        //     await Promise.all([getExpenses, getUsers, getSplits, getGroups]);
-
-        expenses = []; //await getExpenses;
-        // const { unique, group } = dbg(await getUsers, "users");
-        users = []; //unique;
-        groupUsers = new Map(); //group;
-        splits = await getSplits;
-        groups = await getGroups
+        [expenses, { unique: users, group: groupUsers }, splits, groups] =
+            await Promise.all([getExpenses, getUsers, getSplits, getGroups]);
     } catch (e) {
         console.error("failed to fetch data from db", e);
         return [];
@@ -267,13 +260,19 @@ function groupKey(groupId: string) {
 
 async function getExpensesForUser(userID: string) {
     const rows = await db
-        .select(drizzle.getTableColumns(schema.expenses))
+        .select({
+            ...drizzle.getTableColumns(schema.expenses),
+        })
         .from(schema.expenses)
         .leftJoin(
             schema.users_to_group,
             eq(schema.users_to_group.group_id, schema.expenses.group_id)
         )
-        .where(drizzle.eq(schema.users_to_group.user_id, userID));
+        .where(
+            drizzle.and(
+                drizzle.eq(schema.users_to_group.user_id, userID)
+            )
+        );
     if (!rows) {
         throw new Error("User not found");
     }
@@ -302,7 +301,9 @@ async function getUsersForUser(userID: string) {
     // time with the amount owed across different groups
     const getRows = db
         .select({
-            user: schema.users,
+            user: {
+                ...drizzle.getTableColumns(schema.users),
+            },
             groupID: user_groups_users_to_group.group_id,
         })
         .from(schema.users_to_group)
@@ -322,47 +323,43 @@ async function getUsersForUser(userID: string) {
     const getOwed = getOwedForUser(userID);
     const [rows, owed] = await Promise.all([getRows, getOwed]);
 
+    const users = Parser.all(rows)
+        .runParserOnNested("user", (p) =>
+            p.toUnixMillis("created_at").rename("created_at", "createdAt")
+        )
+        .toUnixMillis()
+        .add("owed", 0)
+        .value();
+
+    const userCount = users.length;
+
     console.dir({ rows, owed }, { depth: null });
-    type GroupId = string;
-    const numRows = rows.length;
 
-    type ParsedRow = {
-        owed: number;
-        groupID: GroupId;
-        user: ReturnType<typeof parseUser>;
-    };
-    const parsedRows: Array<ParsedRow> = new Array(numRows)
-        .fill(null)
-        .map(() => ({
-            groupID: "",
-            user: null as any,
-            owed: 0,
-        }));
-
-    for (let i = 0; i < numRows; i++) {
-        const row = rows[i];
-        if (row.groupID == null) {
-            console.error(`no group for user ${row.user.id}`);
-            continue;
-        }
-        parsedRows[i].groupID = row.groupID;
-        parsedRows[i].user = parseUser(row.user);
-    }
+    type User = typeof users[number]["user"] & { owed: number };
 
     const uniqueUsers = new Map<string, User>();
-    const groupUsers = new Map<GroupId, User[]>();
+    const groupUsers = new Map<string, User[]>();
 
-    for (let i = 0; i < numRows; i++) {
-        const row = parsedRows[i];
+    for (let i = 0; i < userCount; i++) {
+        const row = users[i];
         const groupID = row.groupID;
         const userID = row.user.id;
+        if (groupID == null) {
+            console.warn(
+                "no groupID for user",
+                userID,
+                row.user.name,
+                "... skipping"
+            );
+            continue;
+        }
         const owedToUser = owed.perGroup.get(groupID)?.get(userID) ?? 0;
         const user = Object.assign(row.user, { owed: owedToUser });
 
         if (!groupUsers.has(groupID)) {
             groupUsers.set(groupID, []);
         }
-        groupUsers.get(row.groupID)?.push(user);
+        groupUsers.get(groupID)?.push(user);
 
         if (!uniqueUsers.has(user.id)) {
             uniqueUsers.set(user.id, user);
@@ -387,12 +384,6 @@ async function getUsersForUser(userID: string) {
         group: groupUsers,
     };
     return res;
-}
-
-type User = ReturnType<typeof parseUser> & { owed: number };
-
-function parseUser(u: typeof schema.users.$inferSelect) {
-    return new Parser(u).allDatesToUnixMillis().allKeysToCamelCase().value();
 }
 
 async function getSplitsForUser(userID: string) {
@@ -437,15 +428,11 @@ async function getGroupsForUser(userID: string) {
         throw new Error("User not found");
     }
     const groups = Parser.all(rows)
-        .rename("owner_id", 'ownerId')
-        .rename('created_at', 'createdAt')
-        .toUnixMillis('createdAt')
-        .value()
+        .rename("owner_id", "ownerId")
+        .rename("created_at", "createdAt")
+        .toUnixMillis("createdAt")
+        .value();
     return groups;
-}
-
-function parseGroup(g: typeof schema.groups.$inferSelect) {
-    return new Parser(g).allKeysToCamelCase().allDatesToUnixMillis().value();
 }
 
 async function getOwedForUser(userID: string) {
