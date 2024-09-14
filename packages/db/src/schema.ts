@@ -1,4 +1,4 @@
-import { relations, sql} from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
     sqliteTable as table,
     int,
@@ -40,30 +40,27 @@ function parts(name: string) {
 }
 
 function timestamp(name: string) {
-    return int(name, {mode: "timestamp_ms"})
+    return int(name, { mode: "timestamp_ms" });
 }
 
 function timestampDefaultNow(name: string) {
-    return int(name, {mode: "timestamp_ms"}).default(sql`(datetime('now'))`)
+    return int(name, { mode: "timestamp_ms" }).default(sql`(datetime('now'))`);
 }
 
 function bool(name: string) {
-    return int(name, {mode: "boolean"})
+    return int(name, { mode: "boolean" });
 }
 
-export const users = table(
-    "users",
-    {
-        id: id("id"),
-        name: text("name", { length: 255 }).notNull(),
-        created_at: timestampDefaultNow("created_at"),
-        email: text("email", { length: 255 }),
-        profileUrl: text("profile_url", { length: 512 }),
-    },
-);
+export const users = table("users", {
+    id: id("id"),
+    name: text("name", { length: 255 }).notNull(),
+    created_at: timestampDefaultNow("created_at"),
+    email: text("email", { length: 255 }),
+    profileUrl: text("profile_url", { length: 512 }),
+});
 
 export const userRelations = relations(users, ({ many }) => ({
-    user_to_group: many(users_to_group)
+    user_to_group: many(users_to_group),
 }));
 
 export const users_to_group = table(
@@ -75,7 +72,7 @@ export const users_to_group = table(
     (t) => ({
         pk: primaryKey({ columns: [t.user_id, t.group_id] }),
         gid_idx: index("utg_group_idx").on(t.group_id),
-    }),
+    })
 );
 
 export const usersToGroupRelations = relations(users_to_group, ({ one }) => ({
@@ -89,27 +86,24 @@ export const usersToGroupRelations = relations(users_to_group, ({ one }) => ({
     }),
 }));
 
-export const groups = table(
-    "groups",
-    {
-        id: id("id"),
-        name: text("name", { length: 255 }).notNull(),
-        created_at: timestampDefaultNow("created_at").notNull(),
-        owner_id: idRef("owner_id").notNull(),
-        pattern: text("pattern"),
-        color: text("color", { length: 7 }),
-    },
-);
+export const groups = table("groups", {
+    id: id("id"),
+    name: text("name", { length: 255 }).notNull(),
+    created_at: timestampDefaultNow("created_at").notNull(),
+    owner_id: idRef("owner_id").notNull(),
+    pattern: text("pattern"),
+    color: text("color", { length: 7 }),
+});
 
-export const groupRelations = relations(groups, ({one, many }) => ({
+export const groupRelations = relations(groups, ({ one, many }) => ({
     users_to_group: many(users_to_group),
     expenses: many(expenses),
     splits: many(splits),
     owner: one(users, {
         fields: [groups.owner_id],
         references: [users.id],
-    })
-}))
+    }),
+}));
 
 export const expenses = table(
     "expenses",
@@ -126,10 +120,10 @@ export const expenses = table(
     },
     (t) => ({
         group_idx: index("expense_group_idx").on(t.group_id),
-    }),
+    })
 );
 
-export const expenseRelations = relations(expenses, ({ one, many}) => ({
+export const expenseRelations = relations(expenses, ({ one, many }) => ({
     paid_by: one(users, {
         fields: [expenses.paid_by_user_id],
         references: [users.id],
@@ -141,7 +135,7 @@ export const expenseRelations = relations(expenses, ({ one, many}) => ({
     group: one(groups, {
         fields: [expenses.group_id],
         references: [groups.id],
-    })
+    }),
 }));
 
 export const splits = table(
@@ -151,20 +145,20 @@ export const splits = table(
         name: text("name", { length: 255 }).notNull(),
         group_id: idRef("group_id").notNull(),
         color: text("color", { length: 7 }),
-        is_one_off: bool("is_one_off").default(false)
+        is_one_off: bool("is_one_off").default(false),
     },
     (t) => ({
         group_idx: index("split_group_idx").on(t.group_id),
         name_un: unique("split_name_un").on(t.name, t.group_id),
-    }),
+    })
 );
 
-export const splitRelations = relations(splits, ({many, one }) => ({
+export const splitRelations = relations(splits, ({ many, one }) => ({
     group: one(groups, {
         fields: [splits.group_id],
         references: [groups.id],
     }),
-    portions: many(split_portion_def)
+    portions: many(split_portion_def),
 }));
 
 export const split_portion_def = table("split_portion_def", {
@@ -185,7 +179,7 @@ export const splitPortionDefRelations = relations(
             fields: [split_portion_def.split_id],
             references: [splits.id],
         }),
-    }),
+    })
 );
 
 export const invites = table("invites", {
@@ -193,4 +187,4 @@ export const invites = table("invites", {
     group_id: idRef("group_id").notNull(),
     created_at: timestampDefaultNow("created_at").notNull(),
     accepted_at: timestamp("accepted_at"),
-})
+});

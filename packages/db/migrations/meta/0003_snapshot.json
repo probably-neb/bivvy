@@ -1,6 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
+  "id": "79375f30-e9a0-4ada-9a05-f485c55fb506",
+  "prevId": "e4701e07-35c6-4a6c-b8c9-aa25eef1ca11",
   "tables": {
     "expenses": {
       "name": "expenses",
@@ -241,6 +243,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "is_one_off": {
+          "name": "is_one_off",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": false
         }
       },
       "indexes": {
@@ -340,8 +350,8 @@
       "compositePrimaryKeys": {
         "users_to_group_user_id_group_id_pk": {
           "columns": [
-            "group_id",
-            "user_id"
+            "user_id",
+            "group_id"
           ],
           "name": "users_to_group_user_id_group_id_pk"
         }
@@ -351,9 +361,11 @@
   },
   "enums": {},
   "_meta": {
+    "schemas": {},
     "tables": {},
     "columns": {}
   },
-  "id": "e4701e07-35c6-4a6c-b8c9-aa25eef1ca11",
-  "prevId": "c31be2c7-6bad-4986-ad4e-e1c7dd68557c"
+  "internal": {
+    "indexes": {}
+  }
 }
