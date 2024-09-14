@@ -417,13 +417,13 @@ async function getGroupsForUser(userID: string) {
     const rows = await db
         .select(drizzle.getTableColumns(schema.groups))
         .from(schema.groups)
-        .leftJoin(
+        .innerJoin(
             schema.users_to_group,
             drizzle.and(
                 drizzle.eq(schema.users_to_group.user_id, userID),
                 drizzle.eq(schema.users_to_group.group_id, schema.groups.id)
             )
-        );
+        )
     if (!rows) {
         throw new Error("User not found");
     }
