@@ -13,8 +13,12 @@ export default {
     schema: "./src/schema.ts",
     out: "./migrations",
     driver: "turso",
+    dialect: "sqlite",
     dbCredentials: {
         url: DB_URL!,
         authToken: DB_TOKEN!
-    }
+    },
+    verbose: true,
+    strict: true,
+    breakpoints: true,
 } satisfies DrizzleConfig;

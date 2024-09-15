@@ -71,7 +71,7 @@ function ExpandableCard(props: ParentProps<{ title: () => JSX.Element }>) {
                     </As>
                 </CollapsibleTrigger>
             </div>
-            <CollapsibleContent class="space-y-2">
+            <CollapsibleContent class="space-y-2 hidden overflow-hidden data-[expanded]:flex">
                 {props.children}
             </CollapsibleContent>
         </Collapsible>

@@ -20,7 +20,6 @@ export function UserRenderer(props: {
         if (name.length < 10) return name;
 
         const parts = name.split(" ").filter((p) => p !== "");
-        console.log('parts', parts)
         if (parts.length >= 2) {
             return parts[0] + " " + parts.at(-1)?.[0];
         } else {

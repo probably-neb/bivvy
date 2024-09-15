@@ -5,12 +5,13 @@ import { ZodType, z } from "zod";
 export * as Api from "./api";
 
 const url = import.meta.env.VITE_API_URL;
+const authURL = import.meta.env.VITE_AUTH_URL
 
 export async function validateSessionToken(token: string) {
     console.log("validateSessionToken", token);
     const response = await fetch("/session", {
         headers: {
-            authorization: `Bearer ${token}`
+            authorization: `${token}`
         },
         validator: z.object({
             session: z.discriminatedUnion("type", [
@@ -44,7 +45,7 @@ export async function getAuthProviders() {
 }
 
 export function authUrl(provider: string) {
-    return `${url}/auth/${provider}/authorize`;
+    return `${authURL}/${provider}/authorize`;
 }
 
 export async function scanReceipt(file: File) {

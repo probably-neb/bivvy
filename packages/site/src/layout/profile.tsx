@@ -91,7 +91,7 @@ function LogoutButton() {
     const [_, session] = useSession();
     return (
         <Show when={session.isValid()}>
-            <Button variant="ghost" onClick={session.logout}>
+            <Button variant="ghost" onClick={async () => await session.logout()}>
                 Logout
             </Button>
         </Show>

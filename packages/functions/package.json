@@ -1,27 +1,31 @@
 {
-  "name": "@paypals/functions",
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "test": "sst bind vitest",
-    "typecheck": "tsc -noEmit"
-  },
-  "devDependencies": {
-    "@types/aws-lambda": "^8.10.129",
-    "@types/node": "^20.9.4",
-    "sst": "2.40.3",
-    "vitest": "^0.34.6"
-  },
-  "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.525.0",
-    "@aws-sdk/lib-dynamodb": "^3.525.0",
-    "@libsql/client": "^0.5.3",
-    "@libsql/linux-x64-gnu": "^0.3.8",
-    "@paypals/db": "workspace:^",
-    "@trpc/server": "^10.44.1",
-    "fast-jwt": "^3.3.2",
-    "lodash-es": "^4.17.21",
-    "replicache": "^14.0.3",
-    "zod": "^3.22.4"
-  }
+    "name": "@paypals/functions",
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "test": "sst bind vitest",
+        "typecheck": "tsc -noEmit"
+    },
+    "devDependencies": {
+        "@types/aws-lambda": "^8.10.129",
+        "@types/luxon": "^3.4.2",
+        "@types/node": "^20.9.4",
+        "sst": "3.0.108",
+        "vitest": "^0.34.6"
+    },
+    "dependencies": {
+        "@aws-sdk/client-dynamodb": "^3.525.0",
+        "@aws-sdk/lib-dynamodb": "^3.525.0",
+        "@libsql/client": "^0.5.3",
+        "@libsql/linux-x64-gnu": "^0.3.8",
+        "@paypals/db": "workspace:^",
+        "@trpc/server": "^10.44.1",
+        "fast-jwt": "^3.3.2",
+        "hono": "^4.5.11",
+        "lodash-es": "^4.17.21",
+        "luxon": "^3.5.0",
+        "remeda": "^2.12.0",
+        "replicache": "^14.0.3",
+        "zod": "^3.22.4"
+    }
 }

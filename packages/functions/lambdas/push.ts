@@ -1,9 +1,9 @@
 import { and, db, eq, schema } from "@paypals/db";
 import { ClientGroupTable } from "lib/client-table";
-import { ApiHandler } from "sst/node/api";
-import { useSession } from "sst/node/auth";
+import { session as Session } from "auth/session";
 import Parser from "util/parser";
 import z from "zod";
+import { APIGatewayProxyEvent, Handler } from "aws-lambda";
 
 const NANOID_ID_LENGTH = 21;
 const zId = z.string().length(NANOID_ID_LENGTH);
@@ -209,12 +209,12 @@ function okResponse() {
     };
 }
 
-export const handler = ApiHandler(async (req) => {
-    const body = zBodyParser.safeParse(req.body);
+export const handler: Handler<APIGatewayProxyEvent> = async (event) => {
+    const body = zBodyParser.safeParse(event.body);
     if (!body.success) {
         return errResponse(ErrorReason.InvalidRequest);
     }
-    const session = useSession();
+    const session = await Session.verify(event.headers.authorization);
     if (session.type !== "user") {
         return errResponse(ErrorReason.AuthError);
     }
@@ -229,7 +229,7 @@ export const handler = ApiHandler(async (req) => {
         return errResponse(ErrorReason.InternalError);
     }
     return okResponse();
-});
+};
 
 async function handleMutations(
     mutations: Array<any>,

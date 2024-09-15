@@ -361,7 +361,7 @@ export function ExpensesTable(props: ExpenseButtonProps) {
             table={table}
             addExpenseButtonProps={props.addExpenseButtonProps}
         >
-            <Table class="h-full w-full overflow-y-auto relative">
+            <Table class="h-full w-full overflow-y-auto relative bg-background">
                 <TableHeaders
                     headerGroups={table.getHeaderGroups()}
                     isGrouped={state.grouping.length > 0}
@@ -384,10 +384,12 @@ function ExpensesTableWrapper(
 ) {
     return (
         <div class="mt-6 h-full">
-            <div class="flex flex-row justify-center md:justify-end items-center p-3 pl-6">
+            <div class="flex flex-row justify-center md:justify-between gap-2 items-center p-3 pl-6">
                 <div class="flex flex-row gap-2 scale-75 md:scale-100">
                     <DisplaySettingsMenu table={props.table} />
                     <AddExpenseButton {...props.addExpenseButtonProps} />
+                </div>
+                <div class="flex flex-row gap-2 scale-75 md:scale-100">
                     <Show when={isDev()}>
                         <UploadExpensesButton />
                     </Show>
@@ -419,12 +421,6 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
         props.table.setGrouping(() => [value]);
     }
 
-    const valAnd = <T, R>(val: T | undefined | null, fn: (val: T) => R) => {
-        if (val != null) {
-            return fn(val);
-        }
-        return undefined;
-    };
     return (
         <>
             <DropdownMenu placement="bottom">
@@ -465,6 +461,9 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
                         <DropdownMenuRadioItem value="paidOn">
                             DATE PAID
                         </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="amount">
+                            AMOUNT
+                        </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -480,19 +479,19 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
                         onChange={setGrouping}
                     >
                         <DropdownMenuRadioItem value="none">
-                            None
+                            NONE
                         </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="createdAt">
-                            Date Added
+                            DATE ADDED
                         </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="paidOn">
-                            Date Paid
+                            DATE PAID
                         </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="splitId">
-                            Split
+                            SPLIT
                         </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="paidBy">
-                            Paid By
+                            PAID BY
                         </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
@@ -506,10 +505,10 @@ function TableHeaders(props: {
     isGrouped: boolean;
 }) {
     return (
-        <TableHeader class="sticky top-0 bg-background z-10">
-            <TableRow class="hover:bg-background">
+        <TableHeader class="[&_tr]:border-none sticky top-0 bg-background z-10 py-0">
+            <TableRow class="hover:bg-background bg-background py-0 border-2 border-background">
                 <Show when={props.isGrouped}>
-                    <TableHead class="w-2 px-0"></TableHead>
+                    <TableHead class="w-2 px-0 bg-background"></TableHead>
                     {/* "Expand" Column */}
                 </Show>
                 <For each={props.headerGroups[0].headers}>
@@ -518,7 +517,7 @@ function TableHeaders(props: {
                             <TableHead
                                 class={
                                     header.column.columnDef.meta?.width +
-                                    " text-foreground md:text-lg"
+                                    " text-foreground md:text-lg bg-background"
                                 }
                             >
                                 <Show when={!header.isPlaceholder}>
@@ -678,15 +677,15 @@ function UploadExpensesButton() {
             <DropdownMenu>
                 <DropdownMenuTrigger>
                     <Button variant="outline" class="gap-2 uppercase">
-                        <FiUpload /> Upload
+                        <FiUpload /> UPLOAD
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={[onClick, "receipt"]}>
-                        Receipt
+                        RECEIPT
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={[onClick, "table"]}>
-                        Spreadsheet
+                        SPREADSHEET
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

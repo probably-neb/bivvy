@@ -1,17 +1,20 @@
-import { ApiHandler, useQueryParam } from "sst/node/api";
-import {  useSession } from "sst/node/auth";
+// import { useQueryParam } from "sst/node/api";
+// import { useSession } from "sst/node/auth";
+import {session as Session} from "auth/session";
+import { APIGatewayEvent, Handler } from "aws-lambda";
 import {createSigner, createVerifier, SignerOptions} from "fast-jwt"
 
 type Invite = {
     groupId: string;
 }
 
-export const createHandler = ApiHandler(async () => {
-    const groupId = useQueryParam("groupId");
+export const createHandler: Handler<APIGatewayEvent> = async (event, ctx) => {
+    const groupId = event.queryStringParameters?.['groupId']
+    // const groupId = useQueryParam("groupId");
     if (!groupId) {
         throw new Error("Missing groupId");
     }
-    const session = useSession();
+    const session = Session.verify(event.headers.authorization)
     // FIXME: validate user has permission to invite to group
     if (session.type !== "user") {
         throw new Error("Invalid session type");
@@ -28,10 +31,10 @@ export const createHandler = ApiHandler(async () => {
             "content-type": "application/json"
         }
     }
-})
+}
 
-export const validateHandler = ApiHandler(async () => {
-    const token = useQueryParam("token");
+export const validateHandler: Handler<APIGatewayEvent> = async (event) => {
+    const token = event.queryStringParameters?.['token'] // useQueryParam("token");
     if (!token) {
         return {
             statusCode: 400,
@@ -59,7 +62,7 @@ export const validateHandler = ApiHandler(async () => {
         }
     }
 
-})
+}
 
 
 function create(input: {

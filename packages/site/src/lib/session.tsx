@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { ParentProps, Show, createContext, createMemo, createRenderEffect, createResource, on, splitProps, useContext } from "solid-js";
+import { ParentProps, Show, batch, createContext, createMemo, createRenderEffect, createResource, on, splitProps, useContext } from "solid-js";
 import { createStore } from "solid-js/store";
 import { z } from "zod";
 import { isDev } from "./utils";
@@ -58,7 +58,7 @@ type SessionFunctions = {
     initSession: (i: InitSession) => void,
     vars: () => Pick<Session, "token" | "userId"> | undefined,
     isValidating: () => boolean,
-    logout: () => void,
+    logout: () => Promise<void>,
 }
 
 const defaultFns: SessionFunctions = {
@@ -66,7 +66,7 @@ const defaultFns: SessionFunctions = {
     initSession: (_: InitSession) => {},
     vars: () => undefined,
     isValidating: () => false,
-    logout: () => {},
+    logout: async () => {},
 }
 
 type Ctx = [Session, SessionFunctions]
@@ -136,9 +136,9 @@ export function SessionContextProvider(props: ParentProps) {
         isValidating() {
             return session.validating
         },
-        logout() {
+        async logout() {
             removeAuthToken()
-            closeRep()
+            await closeRep()
             setSession({valid: false, validating: false})
             // NOTE: expecting that the RequireLogin component will handle the session being reset
         },

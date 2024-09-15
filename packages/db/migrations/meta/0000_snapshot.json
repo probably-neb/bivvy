@@ -1,8 +1,6 @@
 {
-  "version": "5",
+  "version": "6",
   "dialect": "sqlite",
-  "id": "cf658929-c5e1-405d-b9a7-d4432a6413db",
-  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "expenses": {
       "name": "expenses",
@@ -353,8 +351,9 @@
   },
   "enums": {},
   "_meta": {
-    "schemas": {},
     "tables": {},
     "columns": {}
-  }
+  },
+  "id": "cf658929-c5e1-405d-b9a7-d4432a6413db",
+  "prevId": "00000000-0000-0000-0000-000000000000"
 }

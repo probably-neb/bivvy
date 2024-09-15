@@ -1,22 +1,64 @@
-import { SSTConfig } from "sst";
-import Api from "./stacks/Api";
-import Site from "./stacks/Site";
-import Auth from "./stacks/Auth";
-import DNS from "./stacks/DNS";
-import { DB } from "./stacks/DB";
+/// <reference path="./.sst/platform/config.d.ts" />
 
-export default {
-    config(input) {
+export default $config({
+    app(input) {
         return {
             name: "paypals",
-            region: "us-west-2",
-            profile:
-                input.stage == "prod" ? "paypals-prod" : "paypals-dev",
+            removal: input?.stage === "production" ? "retain" : "remove",
+            home: "aws",
+            providers: {
+                aws: {
+                    region: "us-west-2",
+                    profile:
+                        input.stage === "production"
+                            ? "paypals-prod"
+                            : "paypals-dev",
+                },
+            },
         };
     },
-    stacks(app) {
-        if (app.stage !== "prod") {
-            app.setDefaultRemovalPolicy("destroy")
+    async run() {
+        const DB_URL = new sst.Secret("DB_URL");
+        const DB_TOKEN = new sst.Secret("DB_TOKEN");
+
+        const DNS_MAPPING: Record<string, string> = {
+            production: "bivvy.cc",
+            prod: "bivvy.cc",
+            development: "dev.bivvy.cc",
+            dev: "dev.bivvy.cc",
+        };
+
+        const stage = $app.stage;
+        const zone = DNS_MAPPING[stage] || "dev.bivvy.cc";
+        const domain = DNS_MAPPING[stage] || `${stage}.dev.bivvy.cc`;
+
+        const AUTH_DOMAIN = "auth." + domain;
+
+        let auth: sst.aws.Auth;
+        {
+            const gcid = new sst.Secret("GOOGLE_CLIENT_ID");
+            const gcids = new sst.Secret("GOOGLE_CLIENT_ID_SECRET");
+
+            auth = new sst.aws.Auth("auth", {
+                authenticator: {
+                    handler: "packages/functions/auth/auth.handler",
+                    link: [gcid, gcids, DB_URL, DB_TOKEN],
+                    runtime: "nodejs18.x",
+                    architecture: "x86_64",
+                    nodejs: {
+                        install: ["@libsql/client", "@libsql/linux-x64-gnu"],
+                    },
+                },
+            });
+
+            const _authRouter = new sst.aws.Router("AuthRouter", {
+                domain: AUTH_DOMAIN,
+                routes: {
+                    "/*": auth.url,
+                },
+            });
+
+            auth.url.apply(console.log.bind(null, "AUTH URL:"));
         }
 
         $transform(sst.aws.Function, (args, opts) => {
@@ -176,4 +218,4 @@ export default {
             return url;
         });
     },
-} satisfies SSTConfig;
+});
