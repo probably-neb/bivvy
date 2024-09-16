@@ -120,7 +120,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
     const { clientGroupID, schemaVersion: _, cookie } = body.data;
     // TODO: check schema version
-    console.log("client data", body.data);
 
     const lastMutations = (await getLastMutations(clientGroupID, userID)) ?? {};
     console.log("got last mutations", lastMutations);
@@ -140,7 +139,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
         patch: patches,
     };
 
-    return dbg(okResponse(response), "ok response");
+    return okResponse(response)
 };
 
 async function constructPatches(userID: string) {
@@ -333,7 +332,7 @@ async function getUsersForUser(userID: string) {
 
     const userCount = users.length;
 
-    console.dir({ rows, owed }, { depth: null });
+    // console.dir({ rows, owed }, { depth: null });
 
     type User = typeof users[number]["user"] & { owed: number };
 
@@ -509,10 +508,10 @@ async function getOwedForUser(userID: string) {
             }
         }
     }
-    return dbg({
+    return {
         total,
         perGroup,
-    });
+    };
 }
 
 export function calculatePortion(
