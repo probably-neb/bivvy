@@ -107,7 +107,6 @@ export default $config({
             },
         });
         {
-            api.addAuthorizer;
             api.route("POST /pull", {
                 handler: "packages/functions/lambdas/pull.handler",
                 link: [clientTable, DB_URL, DB_TOKEN, auth],
@@ -117,7 +116,7 @@ export default $config({
                     // SST_REGION: clientTable.nodes.table.restoreSourceName,
                 },
                 // live: false,
-                memory: "2 GB",
+                // memory: "2 GB",
                 runtime: "nodejs18.x",
                 architecture: "x86_64",
                 nodejs: {
@@ -137,16 +136,24 @@ export default $config({
                     install: ["@libsql/client", "@libsql/linux-x64-gnu"],
                 },
             });
-            // api.route("POST /scan/receipt", {
-            //     handler: "packages/functions/lambdas/scan/receipt/receipt.go",
-            //     // runtime: "go",
-            //     permissions: [
-            //         {
-            //             actions: ["textract:AnalyzeExpense"],
-            //             resources: ["*"],
-            //         },
-            //     ],
-            // });
+            const SCAN_LIVE = undefined
+            api.route("POST /scan/receipt", {
+                handler: "packages/functions/scan/receipt.handler",
+                link: [auth],
+                live: SCAN_LIVE,
+                runtime: "nodejs20.x",
+                permissions: [
+                    {
+                        actions: ["textract:AnalyzeExpense"],
+                        resources: ["*"],
+                    },
+                ],
+                environment: {
+                    IS_LOCAL: String($dev && SCAN_LIVE)
+                }
+            }, {
+                    
+                });
             // api.route("POST /scan/spreadsheet", {
             //     handler: "packages/functions/lambdas/scan/table/table.go",
             //     runtime: "go",

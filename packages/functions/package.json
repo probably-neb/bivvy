@@ -15,6 +15,7 @@
     },
     "dependencies": {
         "@aws-sdk/client-dynamodb": "^3.525.0",
+        "@aws-sdk/client-textract": "^3.651.1",
         "@aws-sdk/lib-dynamodb": "^3.525.0",
         "@libsql/client": "^0.5.3",
         "@libsql/linux-x64-gnu": "^0.3.8",

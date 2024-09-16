@@ -1,10 +1,10 @@
-import { ApiHandler } from "sst/node/api";
 import {
     Textract,
     AnalyzeExpenseRequest,
     AnalyzeExpenseResponse,
     ExpenseField,
 } from "@aws-sdk/client-textract";
+import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import Status from "util/status";
 
 export interface ReceiptInfoValue {
@@ -167,7 +167,7 @@ async function analyzeReceipt(receiptImage: Buffer): Promise<ReceiptInfo> {
                         continue;
                     }
 
-                    console.log(fieldType)
+                    console.log(fieldType);
                     if (fieldType === "ITEM") {
                         itemName = field.ValueDetection?.Text ?? "";
                         confidenceName = expenseFieldConfidence(field);
@@ -200,8 +200,8 @@ async function analyzeReceipt(receiptImage: Buffer): Promise<ReceiptInfo> {
     return receiptInfo;
 }
 
-export const handler = ApiHandler(async function (evt) {
-    const body = evt.body;
+export const handler: APIGatewayProxyHandlerV2 = async function (evt) {
+    const body = evt.body
     if (body == null) {
         return {
             statusCode: Status.BAD_REQUEST,
@@ -238,5 +238,5 @@ export const handler = ApiHandler(async function (evt) {
         body: JSON.stringify(info),
     };
     console.dir(info, { depth: null });
-    return res;
-});
+    return info;
+};
