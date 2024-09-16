@@ -52,6 +52,9 @@ export async function scanReceipt(file: File) {
     const res = await fetch<import(".././../../functions/scan/receipt").ReceiptInfo>("/scan/receipt", {
         method: "POST",
         body: file,
+        headers: {
+            "content-type": file.type,
+        },
     });
     return res;
 }
