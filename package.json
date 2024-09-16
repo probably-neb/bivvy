@@ -19,13 +19,12 @@
     "@types/node": "^20.10.5",
     "aws-cdk-lib": "2.124.0",
     "constructs": "10.3.0",
-    "sst": "3.0.108",
     "typescript": "^5.3.2"
   },
   "workspaces": [
     "packages/*"
   ],
   "dependencies": {
-    "sst": "3.0.108"
+    "sst": "3.0.130"
   }
 }
