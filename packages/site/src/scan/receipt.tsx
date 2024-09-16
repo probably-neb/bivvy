@@ -9,6 +9,7 @@ import {
     For,
     batch,
     ParentProps,
+    Accessor,
 } from "solid-js";
 import { Api } from "@/lib/api";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -21,7 +22,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { attrWhen, cn } from "@/lib/utils";
 import LabeledInput from "@/components/ui/labeled-input";
 import { ToggleButton } from "@/components/ui/toggle";
 import { createStore } from "solid-js/store";
@@ -229,30 +230,7 @@ function ReceiptInfoEdit(props: ParentProps<{ info: ReceiptInfo }>) {
         items: Array<ReceiptInfoItem>;
     };
     const [groups, setGroups] = createStore<ReceiptInfoGroup[]>([]);
-    const [selected, setSelected] = createSignal<Array<number>>([]);
 
-    function createGroupFromSelected() {
-        const selected_ = selected();
-        if (selected_.length == 0) {
-            return;
-        }
-        if (items.length < selected_.length) {
-            console.error("Not enough items");
-        }
-
-        const selectedItems = items.filter((_, i) => selected_.includes(i));
-        const unselectedItems = items.filter((_, i) => !selected_.includes(i));
-        const group = {
-            splitID: null,
-            items: selectedItems,
-        };
-
-        batch(() => {
-            setGroups((groups) => [...groups, group]);
-            setItems(unselectedItems);
-            setSelected([]);
-        });
-    }
 
     function confidenceIndicatorClass(
         confidence: number,
@@ -273,20 +251,82 @@ function ReceiptInfoEdit(props: ParentProps<{ info: ReceiptInfo }>) {
             }
         }
 
-        return "w-2 h-2 p-0 rounded-full " + color;
+        return (
+            "w-2 h-2 p-0 rounded-full -translate-y-1/2 -translate-x-1/2 left-0 top-1/2 " +
+            color
+        );
     }
 
     return (
         <>
             <div class="h-[10%]">
                 {props.children}
+                <Show when={items.length > 1}>
+                    {(_) => {
+                        const [selected, Selected] = createList<boolean>(
+                            items.map(() => false)
+                        );
+                        const [open, setOpen] = createSignal(false);
+                        function createGroupFromSelected() {
+                            if (selected.length <= 1) return;
+                            const selectedItems = items.filter(
+                                (_, i) => selected[i]
+                            );
+                            const unselectedItems = items.filter(
+                                (_, i) => !selected[i]
+                            );
+                            const group = {
+                                splitID: null,
+                                items: selectedItems,
+                            };
 
-                <Button
-                    disabled={selected().length == 0}
-                    onClick={createGroupFromSelected}
-                >
-                    GROUP SELECTED
-                </Button>
+                            batch(() => {
+                                setGroups((groups) => [...groups, group]);
+                                setItems(unselectedItems);
+                                Selected.clear();
+                                setOpen(false);
+                            });
+                        }
+                        return (
+                            <Dialog open={open()} onOpenChange={setOpen}>
+                                <DialogTrigger disabled={items.length <= 1}>
+                                    CREATE GROUP
+                                </DialogTrigger>
+                                <DialogContent class="max-w-[80%] h-64 ring-2 ring-foreground">
+                                    <DialogTitle variant="label">
+                                        <Button
+                                            variant="ghost"
+                                            disabled={selected.length <= 1}
+                                            onClick={createGroupFromSelected}
+                                        >
+                                            CREATE
+                                        </Button>
+                                    </DialogTitle>
+                                    <div class="h-full w-full overflow-y-scroll space-y-2">
+                                        <Index each={items}>
+                                            {(item, i) => (
+                                                <ToggleButton
+                                                    class="w-full flex flex-row data-[pressed]:bg-background data-[pressed]:ring-2 data-[pressed]:ring-foreground data-[pressed]:ring-inset"
+                                                    pressed={selected[i]}
+                                                    onChange={(pressed) =>
+                                                        Selected.set(i, pressed)
+                                                    }
+                                                >
+                                                    <span>
+                                                        {item().name.value}
+                                                    </span>
+                                                    <span>
+                                                        {item().price.value}
+                                                    </span>
+                                                </ToggleButton>
+                                            )}
+                                        </Index>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        );
+                    }}
+                </Show>
             </div>
             <section class="h-[90%] flex flex-col md:flex-row gap-4 p-2 overflow-y-auto w-full md:w-1/2">
                 <Index each={groups}>
@@ -323,48 +363,50 @@ function ReceiptInfoEdit(props: ParentProps<{ info: ReceiptInfo }>) {
                     )}
                 </Index>
                 <Index each={items}>
-                    {(item, index) => (
-                        <Card>
-                            <CardHeader>
-                                <ToggleButton
-                                    pressed={selected().includes(index)}
-                                    onChange={(pressed) => {
-                                        if (!pressed) {
-                                            setSelected(
-                                                selected().filter(
-                                                    (i) => i != index
-                                                )
-                                            );
-                                        } else {
-                                            setSelected([...selected(), index]);
-                                        }
-                                    }}
-                                >
-                                    SELECT
-                                </ToggleButton>
-                            </CardHeader>
-                            <CardContent class="space-y-8">
-                                <LabeledInput
-                                    value={item().name.value}
-                                    label="ITEM"
-                                    rightLabel={null}
-                                    rightLabelClass={confidenceIndicatorClass(
-                                        item().name.confidence
-                                    )}
-                                />
-                                <LabeledInput
-                                    value={item().price.value}
-                                    label="PRICE"
-                                    rightLabel={null}
-                                    rightLabelClass={confidenceIndicatorClass(
-                                        item().price.confidence
-                                    )}
-                                />
-                            </CardContent>
-                        </Card>
-                    )}
+                    {(item) => {
+                        return (
+                            <Card >
+                                <CardContent class="space-y-8 p-4">
+                                    <LabeledInput
+                                        value={item().name.value}
+                                        label="ITEM"
+                                        rightLabel={null}
+                                        rightLabelClass={confidenceIndicatorClass(
+                                            item().name.confidence
+                                        )}
+                                    />
+                                    <LabeledInput
+                                        value={item().price.value}
+                                        label="PRICE"
+                                        rightLabel={null}
+                                        rightLabelClass={confidenceIndicatorClass(
+                                            item().price.confidence
+                                        )}
+                                    />
+                                </CardContent>
+                            </Card>
+                        );
+                    }}
                 </Index>
             </section>
         </>
     );
+}
+
+function createList<T>(defaultValue?: Array<T>): [
+    Array<T>,
+    {
+        set(i: number, v: T): void;
+        clear(): void;
+    }
+] {
+    const [arr, setArr] = createStore<Array<T>>(defaultValue ?? []);
+
+    return [
+        arr,
+        {
+            set: setArr,
+            clear: () => setArr([]),
+        },
+    ];
 }
