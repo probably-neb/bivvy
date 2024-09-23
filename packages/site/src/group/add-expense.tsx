@@ -34,11 +34,9 @@ import {
     Expense,
     useUsers,
     useSplit,
-    Split,
 } from "@/lib/rep";
 import {
     SplitRenderer,
-    UserProfileRenderer,
     UserRenderer,
 } from "@/components/renderers";
 import {
@@ -50,7 +48,7 @@ import {
 import z from "zod";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleButton } from "@/components/ui/toggle";
-import { assert, deepClone } from "@/lib/utils";
+import {  deepClone } from "@/lib/utils";
 
 type SplitMode = "existing" | "new";
 const zExpenseInput = z.discriminatedUnion("mode", [
@@ -68,7 +66,7 @@ type Form = FormApi<ExpenseInput, typeof zodValidator>;
 
 export function AddExpenseCard(props: {
     onSubmit?: () => void;
-    expense?: Expense;
+    expense?: Partial<Expense>;
 }) {
     const mutations = useMutations();
 
@@ -79,14 +77,14 @@ export function AddExpenseCard(props: {
     // update if the expense changes while editing
     const defaultValues = expenseToEdit && {
         description: expenseToEdit.description,
-        amount: expenseToEdit.amount / 100 + 0.0,
+        amount: expenseToEdit.amount ?? 0 / 100 + 0.0,
         paidOn: expenseToEdit.paidOn,
         splitId: expenseToEdit.splitId,
         // NOTE: required otherwise @tanstack/form fails to clean up after itself
         split: { id: expenseToEdit.splitId, portions: {} },
         mode: "existing" as const,
     };
-    let prevSplitWasOneOff = false
+    let prevSplitWasOneOff = false;
 
     const form: Form = createForm<ExpenseInput, typeof zExpenseInput>(() => ({
         onSubmit: async ({ value }) => {
@@ -118,7 +116,9 @@ export function AddExpenseCard(props: {
             }
             try {
                 if (isEditing) {
-                    const e = Object.assign({}, expenseToEdit, value, {prevSplitWasOneOff});
+                    const e = Object.assign({}, expenseToEdit, value, {
+                        prevSplitWasOneOff,
+                    });
                     await mutations.expenseWithOneOffSplitEdit(e);
                 } else {
                     await mutations.expenseWithOneOffSplitCreate(value);
@@ -163,7 +163,7 @@ export function AddExpenseCard(props: {
             >
                 <Field
                     name="description"
-                    label="DESCRIPTION"
+                    label="Description"
                     placeholder="Sparkling Apple Cider"
                     type="text"
                     validator={zBaseExpenseInput.shape.description}
@@ -171,16 +171,20 @@ export function AddExpenseCard(props: {
                 />
                 <MoneyField
                     name="amount"
-                    label="AMOUNT"
+                    label="Amount"
                     placeholder="10.00"
                     validator={zBaseExpenseInput.shape.amount}
                     step="any"
                     form={form}
                 />
-                <SplitField form={form} editingID={expenseToEdit?.splitId} setPrevWasOneOff={() => prevSplitWasOneOff = true} />
+                <SplitField
+                    form={form}
+                    editingID={expenseToEdit?.splitId}
+                    setPrevWasOneOff={() => (prevSplitWasOneOff = true)}
+                />
                 <Field
                     name="paidOn"
-                    label="PAID ON"
+                    label="Paid On"
                     placeholder="2021-01-01"
                     type="date"
                     validator={zBaseExpenseInput.shape.paidOn}
@@ -296,7 +300,11 @@ function dbgFormValue<V>(
     });
 }
 
-function SplitField(props: { form: Form; editingID?: string, setPrevWasOneOff: (val: true) => void }) {
+function SplitField(props: {
+    form: Form;
+    editingID?: string;
+    setPrevWasOneOff: (val: true) => void;
+}) {
     const ExistingTab = <SplitSelect form={props.form} />;
     const NewTab = (
         <CreateNewOneOffSplit form={props.form} editingID={props.editingID} />
@@ -307,9 +315,9 @@ function SplitField(props: { form: Form; editingID?: string, setPrevWasOneOff: (
         if (editingID == null) return "existing" as const;
         const split = prevSplit();
         if (split === undefined) return null;
-        if (split === null) return "existing" as const
+        if (split === null) return "existing" as const;
         if (split.isOneOff) {
-            props.setPrevWasOneOff(true)
+            props.setPrevWasOneOff(true);
             return "new" as const;
         }
         return "existing" as const;
@@ -331,19 +339,21 @@ function SplitField(props: { form: Form; editingID?: string, setPrevWasOneOff: (
                                     class="text-muted-foreground"
                                     value="existing"
                                 >
-                                    SPLIT
+                                    Split
                                 </TabsTrigger>
                                 <TabsTrigger
                                     class="text-muted-foreground"
                                     value="new"
                                 >
-                                    ONE OFF SPLIT
+                                    One Off Split
                                 </TabsTrigger>
                             </TabsList>
                             <TabsContent value="existing" class="px-0">
                                 {ExistingTab}
                             </TabsContent>
-                            <TabsContent value="new" class="px-0">{NewTab}</TabsContent>
+                            <TabsContent value="new" class="px-0">
+                                {NewTab}
+                            </TabsContent>
                         </Tabs>
                     )}
                 </props.form.Field>
@@ -413,7 +423,7 @@ function SplitSelect(props: { form: Form }) {
                             </ComboboxItem>
                         )}
                     >
-                        <TextFieldLabel>SPLIT</TextFieldLabel>
+                        <TextFieldLabel>Split</TextFieldLabel>
                         <ComboboxTrigger class="relative">
                             <Show when={!isSelecting() && selected()}>
                                 {(selected) => (
@@ -446,17 +456,17 @@ function CreateNewOneOffSplit(props: { form: Form; editingID?: string }) {
             // if not editing use default state
             return {};
         }
-        const split = prevSplit()
+        const split = prevSplit();
 
         // returning null will cause the field to delay rendering until split isn't undefined (undefined === loading)
-        if (split === undefined) return null
+        if (split === undefined) return null;
 
         // if a split with the id isn't found or the split isn't a one off, use the default
         // state for creating a one-off split
-        if (split === null || !split.isOneOff) return {}
+        if (split === null || !split.isOneOff) return {};
 
         // return the previous one-off split portions!
-        return split.portions
+        return split.portions;
     });
 
     return (
