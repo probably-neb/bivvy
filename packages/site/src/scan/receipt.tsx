@@ -2,17 +2,11 @@ import {
     createSignal,
     createResource,
     Show,
-    Index,
     JSX,
     createEffect,
-    splitProps,
-    For,
-    batch,
-    ParentProps,
-    Accessor,
+    onCleanup,
 } from "solid-js";
 import { Api } from "@/lib/api";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import LoadingSpinner from "@/components/loading-spinner";
 import { TiUpload } from "solid-icons/ti";
 import {
@@ -21,18 +15,15 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { attrWhen, cn } from "@/lib/utils";
-import LabeledInput from "@/components/ui/labeled-input";
-import { ToggleButton } from "@/components/ui/toggle";
-import { createStore } from "solid-js/store";
+import { ReceiptInfoEdit } from "./reciept-info-edit";
+import { Button, DepressButton } from "@/components/ui/button";
 
 // TODO: support document extract reciept from image
 // https://github.com/ColonelParrot/jscanify
 
-type ReceiptInfo = Awaited<ReturnType<typeof Api.scanReceipt>>;
+export type ReceiptInfo = Awaited<ReturnType<typeof Api.scanReceipt>>;
 
-type ReceiptInfoItem = ReceiptInfo["items"][number];
+export type ReceiptInfoItem = ReceiptInfo["items"][number];
 
 export default function Scan() {
     const [file, setFile] = createSignal<File | null>(null);
@@ -56,9 +47,13 @@ export default function Scan() {
     }
 
     return (
-        <div class="container mx-auto p-4 bg-background w-full h-full ring-2 ring-foreground">
+        <div class="p-4 bg-background w-full h-full ring-2 ring-foreground">
             <Show when={file() == null}>
-                <FileUpload onFileUpload={onUpload} />
+                <div class="flex justify-center">
+                    <div class="w-64">
+                        <FileUpload onFileUpload={onUpload} />
+                    </div>
+                </div>
             </Show>
             <Show when={file()}>
                 {(file) => (
@@ -79,9 +74,11 @@ export default function Scan() {
                                                 Refetch
                                             </button>
                                         </Show>
-                                        <Show when={res.loading}>
-                                            <LoadingSpinner />
-                                        </Show>
+                                        <div class="w-full text-center">
+                                            <Show when={res.loading}>
+                                                <LoadingMessage />
+                                            </Show>
+                                        </div>
                                     </div>
                                 </>
                             }
@@ -102,6 +99,18 @@ export default function Scan() {
     );
 }
 
+function LoadingMessage() {
+    const MAX_DOTS = 4;
+    const [dotsCount, setDotsCount] = createSignal(3);
+
+    const timeoutId = setInterval(
+        () => setDotsCount((c) => (c + 1) % MAX_DOTS),
+        500
+    );
+
+    onCleanup(() => clearInterval(timeoutId));
+    return <span>Loading{Array(dotsCount()).fill(".").join("")}</span>;
+}
 function FileUpload({
     onFileUpload,
 }: {
@@ -189,9 +198,9 @@ function RecieptPreview(props: { reciept: File | null }) {
     return (
         <Dialog open={open()} onOpenChange={setOpen}>
             <DialogTrigger>
-                <Button>RECEIPT</Button>
+                <DepressButton>RECEIPT</DepressButton>
             </DialogTrigger>
-            <DialogContent class="max-w-[80%] max-h-[80%] ring-2 ring-foreground">
+            <DialogContent class="max-w-[80%] lg:max-w-md h-96 max-h-[80%] ring-2 ring-foreground">
                 <DialogTitle variant="label">RECEIPT</DialogTitle>
                 <div class="h-full w-full overflow-y-auto overflow-x-auto">
                     {img}
@@ -211,9 +220,9 @@ function JsonPreview(props: { json: any | null }) {
     return (
         <Dialog open={open()} onOpenChange={setOpen}>
             <DialogTrigger>
-                <Button>{"{} "}JSON</Button>
+                <DepressButton>{"{} "}JSON</DepressButton>
             </DialogTrigger>
-            <DialogContent class="max-w-[80%] max-h-[80%] ring-2 ring-foreground">
+            <DialogContent class="max-w-[80%] lg:max-w-md h-96 max-h-[80%] ring-2 ring-foreground">
                 <DialogTitle variant="label">JSON</DialogTitle>
                 <pre class="h-full max-h-full w-full bg-gray-100 p-4 rounded overflow-x-auto overflow-y-auto">
                     {JSON.stringify(props.json, null, 2)}
@@ -221,192 +230,4 @@ function JsonPreview(props: { json: any | null }) {
             </DialogContent>
         </Dialog>
     );
-}
-
-function ReceiptInfoEdit(props: ParentProps<{ info: ReceiptInfo }>) {
-    const [items, setItems] = createStore<ReceiptInfoItem[]>(props.info.items);
-    type ReceiptInfoGroup = {
-        splitID: string | null;
-        items: Array<ReceiptInfoItem>;
-    };
-    const [groups, setGroups] = createStore<ReceiptInfoGroup[]>([]);
-
-
-    function confidenceIndicatorClass(
-        confidence: number,
-        touched: boolean = false
-    ) {
-        let color = "bg-green-500";
-        if (!touched) {
-            if (confidence < 1 && confidence > 0) {
-                confidence = confidence * 100;
-            }
-
-            if (confidence < 25) {
-                color = "bg-red-500";
-            } else if (confidence < 50) {
-                color = "bg-orange-500";
-            } else if (confidence < 75) {
-                color = "bg-yellow-500";
-            }
-        }
-
-        return (
-            "w-2 h-2 p-0 rounded-full -translate-y-1/2 -translate-x-1/2 left-0 top-1/2 " +
-            color
-        );
-    }
-
-    return (
-        <>
-            <div class="h-[10%]">
-                {props.children}
-                <Show when={items.length > 1}>
-                    {(_) => {
-                        const [selected, Selected] = createList<boolean>(
-                            items.map(() => false)
-                        );
-                        const [open, setOpen] = createSignal(false);
-                        function createGroupFromSelected() {
-                            if (selected.length <= 1) return;
-                            const selectedItems = items.filter(
-                                (_, i) => selected[i]
-                            );
-                            const unselectedItems = items.filter(
-                                (_, i) => !selected[i]
-                            );
-                            const group = {
-                                splitID: null,
-                                items: selectedItems,
-                            };
-
-                            batch(() => {
-                                setGroups((groups) => [...groups, group]);
-                                setItems(unselectedItems);
-                                Selected.clear();
-                                setOpen(false);
-                            });
-                        }
-                        return (
-                            <Dialog open={open()} onOpenChange={setOpen}>
-                                <DialogTrigger disabled={items.length <= 1}>
-                                    CREATE GROUP
-                                </DialogTrigger>
-                                <DialogContent class="max-w-[80%] h-64 ring-2 ring-foreground">
-                                    <DialogTitle variant="label">
-                                        <Button
-                                            variant="ghost"
-                                            disabled={selected.length <= 1}
-                                            onClick={createGroupFromSelected}
-                                        >
-                                            CREATE
-                                        </Button>
-                                    </DialogTitle>
-                                    <div class="h-full w-full overflow-y-scroll space-y-2">
-                                        <Index each={items}>
-                                            {(item, i) => (
-                                                <ToggleButton
-                                                    class="w-full flex flex-row data-[pressed]:bg-background data-[pressed]:ring-2 data-[pressed]:ring-foreground data-[pressed]:ring-inset"
-                                                    pressed={selected[i]}
-                                                    onChange={(pressed) =>
-                                                        Selected.set(i, pressed)
-                                                    }
-                                                >
-                                                    <span>
-                                                        {item().name.value}
-                                                    </span>
-                                                    <span>
-                                                        {item().price.value}
-                                                    </span>
-                                                </ToggleButton>
-                                            )}
-                                        </Index>
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
-                        );
-                    }}
-                </Show>
-            </div>
-            <section class="h-[90%] flex flex-col md:flex-row gap-4 p-2 overflow-y-auto w-full md:w-1/2">
-                <Index each={groups}>
-                    {(group) => (
-                        <Card>
-                            <CardHeader>
-                                <LabeledInput label="DESCRIPTION" />
-                            </CardHeader>
-                            <CardContent class="space-y-4">
-                                <Index each={group().items}>
-                                    {(item) => (
-                                        <>
-                                            <LabeledInput
-                                                value={item().name.value}
-                                                label="ITEM"
-                                                rightLabel={null}
-                                                rightLabelClass={confidenceIndicatorClass(
-                                                    item().name.confidence
-                                                )}
-                                            />
-                                            <LabeledInput
-                                                value={item().price.value}
-                                                label="PRICE"
-                                                rightLabel={null}
-                                                rightLabelClass={confidenceIndicatorClass(
-                                                    item().price.confidence
-                                                )}
-                                            />
-                                        </>
-                                    )}
-                                </Index>
-                            </CardContent>
-                        </Card>
-                    )}
-                </Index>
-                <Index each={items}>
-                    {(item) => {
-                        return (
-                            <Card >
-                                <CardContent class="space-y-8 p-4">
-                                    <LabeledInput
-                                        value={item().name.value}
-                                        label="ITEM"
-                                        rightLabel={null}
-                                        rightLabelClass={confidenceIndicatorClass(
-                                            item().name.confidence
-                                        )}
-                                    />
-                                    <LabeledInput
-                                        value={item().price.value}
-                                        label="PRICE"
-                                        rightLabel={null}
-                                        rightLabelClass={confidenceIndicatorClass(
-                                            item().price.confidence
-                                        )}
-                                    />
-                                </CardContent>
-                            </Card>
-                        );
-                    }}
-                </Index>
-            </section>
-        </>
-    );
-}
-
-function createList<T>(defaultValue?: Array<T>): [
-    Array<T>,
-    {
-        set(i: number, v: T): void;
-        clear(): void;
-    }
-] {
-    const [arr, setArr] = createStore<Array<T>>(defaultValue ?? []);
-
-    return [
-        arr,
-        {
-            set: setArr,
-            clear: () => setArr([]),
-        },
-    ];
 }
