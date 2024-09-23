@@ -29,8 +29,11 @@ type SplitOrOneOff =
           };
       };
 
-export function SplitSelect<Form extends FormApi<SplitOrOneOff, any>>(props: {
+type AnyForm = FormApi<any, any>;
+
+export function SplitSelect<Form extends AnyForm>(props: {
     form: Form;
+    prefix?: string;
 }) {
     const [prevSplitID, setPrevSplitID] = createSignal<string | null>(null);
 
@@ -52,10 +55,11 @@ export function SplitSelect<Form extends FormApi<SplitOrOneOff, any>>(props: {
         }
         return "existing" as const;
     });
+
     return (
         <Show when={defaultValue()}>
             {(defaultValue) => (
-                <props.form.Field name="mode" defaultValue={defaultValue()}>
+                <props.form.Field name={joinNames(props.prefix, "mode")} defaultValue={defaultValue()}>
                     {(field) => (
                         <Tabs
                             defaultValue={field().state.value}
@@ -92,9 +96,10 @@ export function SplitSelect<Form extends FormApi<SplitOrOneOff, any>>(props: {
     );
 }
 
-function ExistingSplitSelect<Form extends FormApi<SplitOrOneOff, any>>(props: {
+function ExistingSplitSelect<Form extends AnyForm>(props: {
     form: Form;
     onSelect: (id: string | null) => void;
+    prefix?: string;
 }) {
     const splits = useSplits();
     const allOptions = createMemo(() =>
@@ -127,8 +132,9 @@ function ExistingSplitSelect<Form extends FormApi<SplitOrOneOff, any>>(props: {
         }
         setIsSelecting(isOpen);
     };
+
     return (
-        <props.form.Field name="splitId">
+        <props.form.Field name={joinNames(props.prefix, "splitId") as any}>
             {(field) => {
                 const selectedId = createMemo(() => field().state.value);
                 const selected = createMemo(() => {
@@ -183,6 +189,7 @@ function ExistingSplitSelect<Form extends FormApi<SplitOrOneOff, any>>(props: {
 function CreateNewOneOffSplit<Form extends FormApi<SplitOrOneOff, any>>(props: {
     form: Form;
     prevSplitID?: string | null;
+    prefix?: string;
 }) {
     const users = useUsers();
 
@@ -212,7 +219,7 @@ function CreateNewOneOffSplit<Form extends FormApi<SplitOrOneOff, any>>(props: {
                     <For each={users()}>
                         {(user) => (
                             <props.form.Field
-                                name={`split.portions. ${user.id} `}
+                                name={joinNames(props.prefix, `split.portions. ${user.id} `) as any}
                                 defaultValue={portions()[user.id] ?? 0}
                             >
                                 {(field) => (
@@ -233,5 +240,21 @@ function CreateNewOneOffSplit<Form extends FormApi<SplitOrOneOff, any>>(props: {
                 )}
             </Show>
         </div>
+    );
+}
+
+function joinNames(...names: Array<string | undefined>): string {
+    return names.filter(Boolean).join(".");
+}
+
+export function addSpacesToKeys(obj: Record<string, any>) {
+    return Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [` ${k} `, v])
+    );
+}
+
+export function removeSpacesFromKeys(obj: Record<string, any>) {
+    return Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [k.trim(), v])
     );
 }
