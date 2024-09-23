@@ -129,6 +129,28 @@ export default class Parser<T extends object, Single extends boolean = false> {
         return this as any;
     }
 
+    fromUnixMillis<K extends KeyOfType<T, number>>(
+        ...keys: K[]
+    ): Parser<
+        Simplify<
+            Omit<T, K> & {
+                [key in K]: NullableIfOtherNullable<Date, T[key]>;
+            }
+        >,
+        Single
+    > {
+        let arr = this.arr as Array<any>;
+        for (let i = 0; i < arr.length; i++) {
+            let elem = arr[i];
+            if (elem == null) continue;
+            for (const key of keys) {
+                if (elem[key] == null) continue;
+                elem[key] = new Date(elem[key]);
+            }
+        }
+        return this as any;
+    }
+
     toUnixMillis<Keys extends KeyOfType<T, Date>>(
         ...keys: Keys[]
     ): Parser<
@@ -381,6 +403,28 @@ export default class Parser<T extends object, Single extends boolean = false> {
         }
         return this as any;
     }
+
+    defaultInfer<K extends keyof T, V>(
+        key: K,
+        value: V
+    ): Parser<
+        {
+            [key in keyof T]: key extends K
+                ? Exclude<T[key], null | undefined> | V
+                : T[key];
+        },
+        Single
+    > {
+        let arr = this.arr as Array<any>;
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i][key] == null) {
+                arr[i][key] = value;
+            }
+        }
+        return this as any;
+    }
+
+
 
     addComputed<K extends string, V>(
         key: K,
