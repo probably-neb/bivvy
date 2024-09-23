@@ -347,14 +347,14 @@ async function createExpense(args: Expense) {
 }
 
 async function _expenseCreate(tx: Tx, args: Expense, opts?: {withOneOffSplit: boolean}) {
-    const e = new Parser(args)
+    const e = Parser.single(args)
         .rename("splitId", "split_id")
         .rename("paidBy", "paid_by_user_id")
         .add("reiumbursed_at", null)
         .replace("paidOn", "paid_on", (d) => new Date(d))
         .rename("groupId", "group_id")
         .replace("createdAt", "created_at", (d) => new Date(d))
-        .or_undefined("created_at")
+        .defaultInfer("created_at", undefined)
         .value();
     // TODO: remove checks, add foreign key constraints
     // NOTE: check that is_one_off is false prevents one off splits from being used by multiple expenses
@@ -403,7 +403,7 @@ async function expenseWithOneOffSplitCreate(args: ExpenseWithOneOffSplit) {
         const splitID = split.id
 
         await _splitCreate(tx, split)
-        const expense = new Parser(args)
+        const expense = Parser.single(args)
             .remove("split")
             .add("splitId", splitID)
             .value()
@@ -466,7 +466,7 @@ async function getExpenseSplitIfOneOff(tx: Tx, expenseID: string) {
     if (prevSplit.is_one_off !== true) {
         return null
     }
-    return new Parser(prevSplit)
+    return Parser.single(prevSplit)
         .rename("is_one_off", "isOneOff")
         .rename("group_id", "groupId")
         .value()
@@ -504,11 +504,11 @@ async function _expenseEdit(tx: Tx, args: Expense, userID: string) {
     // NOTE: must ensure groupId, paidBy, createdAt are not changed
     // This is done now with `where` clause, so expense will not be found because one isn't equal
     // but we lose info about what was changed leading to bad UX
-    const e = new Parser(args)
+    const e = Parser.single(args)
         .rename("splitId", "split_id")
         .rename("groupId", "group_id")
         .replace("createdAt", "created_at", (d) => new Date(d))
-        .or_undefined("created_at")
+        .defaultInfer("created_at", undefined)
         .replace("paidOn", "paid_on", (d) => new Date(d))
         .rename("paidBy", "paid_by_user_id")
         // FIXME: date reimbursed is lost when changed to status
@@ -564,7 +564,7 @@ async function expenseWithOneOffSplitEdit(args: ExpenseWithOneOffSplit, userID: 
             await _splitCreate(tx, split)
         }
 
-        const expense = new Parser(args)
+        const expense = Parser.single(args)
             .remove("split")
             .add("splitId", splitID)
             .value()
@@ -583,7 +583,7 @@ async function createSplit(args: Split) {
 
 async function _splitCreate(tx: Tx, args: Split) {
     const portions = { ...args.portions };
-    const s = new Parser(args)
+    const s = Parser.single(args)
         .remove("portions")
         .rename("groupId", "group_id")
         .rename("isOneOff", "is_one_off")
@@ -634,9 +634,10 @@ async function _splitDelete(tx: Tx, args: {id: string, groupId: string}) {
 async function createGroup(args: CreateGroupInput, userID: string) {
     await db.transaction(async (tx) => {
         const groupID = args.id;
-        const ownerID = args.ownerId;
+        const ownerID = userID;
         assert(ownerID === userID, "Cannot create group owned by another user")
-        const g = new Parser(args)
+        const g = Parser.single(args)
+            .set('ownerId', userID)
             .rename("ownerId", "owner_id")
             // FIXME: stop creating default splits
             .remove("defaultSplitId")
@@ -657,11 +658,11 @@ async function addUserToGroup(tx: Tx, groupId: string, userId: string) {
 }
 
 async function createInvite(args: Invite) {
-    const invite = new Parser(args)
-        .intToDate("createdAt")
+    const invite = Parser.single(args)
+        .fromUnixMillis("createdAt")
         .rename("createdAt", "created_at")
-        .or_undefined("created_at")
-        .intToDate("acceptedAt")
+        .defaultInfer("created_at", undefined)
+        .fromUnixMillis("acceptedAt")
         .rename("acceptedAt", "accepted_at")
         .rename("groupId", "group_id")
         .value();
@@ -702,7 +703,8 @@ async function groupEdit(args: Group, userID: string) {
             throw new Error(`cannot edit a group you do not own`);
         }
 
-        const group = new Parser({...args})
+        const group = Parser.single(args)
+            .deepCopy()
             .remove("ownerId")
             .remove("id")
             .remove("createdAt")
