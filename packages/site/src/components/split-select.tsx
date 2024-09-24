@@ -15,6 +15,7 @@ import { ToggleButton } from "./ui/toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Form } from "@/lib/forms";
 import { z } from "zod";
+import * as R from "remeda";
 
 type SplitMode = "existing" | "new";
 
@@ -28,17 +29,13 @@ type SplitOrOneOff =
           portions: Record<string, number>;
       };
 
-export function SplitSelect(props: {
-    prefix?: string;
-}) {
+export function SplitSelect(props: { prefix?: string }) {
     const [prevSplitID, setPrevSplitID] = createSignal<string | null>(null);
 
     const ExistingTab = (
         <ExistingSplitSelect
             prefix={props.prefix}
-            onSelect={(id) => 
-                setPrevSplitID(id)
-            }
+            onSelect={(id) => setPrevSplitID(id)}
         />
     );
     const NewTab = (
@@ -69,7 +66,7 @@ export function SplitSelect(props: {
             <>
                 <input
                     type="hidden"
-                    name={Form.joinNames(props.prefix,  "mode")}
+                    name={Form.joinNames(props.prefix, "mode")}
                     value={mode()}
                 />
                 <Tabs
@@ -103,14 +100,30 @@ export function SplitSelect(props: {
 export namespace SplitSelect {
     export const Validator = z.discriminatedUnion("mode", [
         z.object({
-            mode: z.literal('new'),
-            portions: z.record(z.string().min(1, 'invalid split'), z.coerce.number()),
+            mode: z.literal("new"),
+            portions: z
+                .record(z.string().min(1, "invalid split"), z.coerce.number())
+                .superRefine((portions, ctx) => {
+                    const isEmpty = R.isEmpty(portions)
+                    const portionCount = R.pipe(portions, R.values(), R.sum())
+                    const hasNoPortions = portionCount == 0
+
+                    console.log('portions ok', isEmpty, portionCount)
+                    if (isEmpty || hasNoPortions) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            message: "at least one portion is required",
+                        });
+                    }
+                }),
         }),
         z.object({
-            mode: z.literal('existing'),
-            id: z.string({required_error: "split is required"}).min(1, "split is required"),
-        })
-    ])
+            mode: z.literal("existing"),
+            id: z
+                .string({ required_error: "split is required" })
+                .min(1, "split is required"),
+        }),
+    ]);
 }
 
 function ExistingSplitSelect(props: {
@@ -162,6 +175,8 @@ function ExistingSplitSelect(props: {
         return allOptions().find((o) => o.id === id);
     });
 
+    let inputRef!: HTMLInputElement;
+
     return (
         <Combobox<Option>
             value={selected()}
@@ -170,6 +185,12 @@ function ExistingSplitSelect(props: {
             onChange={(selected) => {
                 setSelectedID(selected?.id);
                 props.onSelect(selected?.id ?? null);
+                inputRef.dispatchEvent(
+                    new Event("change", {
+                        bubbles: true,
+                        cancelable: true,
+                    })
+                );
             }}
             onOpenChange={onOpenChange}
             optionTextValue="name"
@@ -194,6 +215,7 @@ function ExistingSplitSelect(props: {
                  */}
                 <ComboboxInput
                     class="data-[closed]:text-card"
+                    ref={inputRef}
                     name={splitIDName}
                 />
             </ComboboxTrigger>
@@ -246,14 +268,22 @@ function CreateNewOneOffSplit(props: {
                                         defaultValue ??
                                         0
                                 );
+                                let inputRef!: HTMLInputElement;
                                 return (
                                     <ToggleButton
                                         pressed={value() > 0}
-                                        onChange={(pressed) =>
-                                            setValue(pressed ? 1 : 0)
-                                        }
+                                        onChange={(pressed) => {
+                                            setValue(pressed ? 1 : 0);
+                                            inputRef.dispatchEvent(
+                                                new Event("change", {
+                                                    bubbles: true,
+                                                    cancelable: true,
+                                                })
+                                            );
+                                        }}
                                     >
                                         <input
+                                            ref={inputRef}
                                             type="hidden"
                                             name={name}
                                             value={value()}
