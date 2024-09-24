@@ -10,14 +10,16 @@
         "shadd": "bunx shadcn-solid@latest add"
     },
     "dependencies": {
-        "@kobalte/core": "^0.12.4",
+        "@kobalte/core": "^0.12.6",
         "@solidjs/router": "0.10.5",
         "@tanstack/solid-form": "^0.11.0",
         "@tanstack/solid-table": "^8.13.2",
         "@tanstack/zod-form-adapter": "^0.11.0",
+        "@types/luxon": "^3.4.2",
         "class-variance-authority": "^0.7.0",
         "clsx": "^2.0.0",
         "lodash-es": "^4.17.21",
+        "luxon": "^3.5.0",
         "nanoid": "^5.0.4",
         "remeda": "^2.12.0",
         "replicache": "^14.0.3",
