@@ -1,7 +1,21 @@
 "use client";
 
 import { assert, cn } from "@/lib/utils";
-import { createContext, createMemo, JSX, onMount, useContext } from "solid-js";
+import {
+    Accessor,
+    batch,
+    Component,
+    ComponentProps,
+    createContext,
+    createEffect,
+    createMemo,
+    createSignal,
+    JSX,
+    onMount,
+    ParentProps,
+    Show,
+    useContext,
+} from "solid-js";
 import { createStore, SetStoreFunction } from "solid-js/store";
 import { z } from "zod";
 import { DateTime } from "luxon";
@@ -10,37 +24,90 @@ import * as R from "remeda";
 import { Button } from "@/components/ui/button";
 import { For } from "solid-js";
 
-export namespace Form {
-    export type State<Validator extends z.ZodTypeAny> = {
-        errors: Record<string, Array<string> | undefined>;
-        touched: Record<string, boolean>;
-        validator: Validator;
-        defaultValues?: {
-            obj: Partial<z.infer<Validator>>;
-            map: Data.EncodedFormData;
-            used: Record<string, boolean>;
-        };
-        onSubmit: OnSubmit<Validator>;
+export type State<Validator extends z.ZodTypeAny> = {
+    errors: Record<string, Array<string> | undefined>;
+    touched: Record<string, boolean>;
+    validator: Validator;
+    defaultValues?: {
+        obj: Partial<z.infer<Validator>>;
+        map: Form.Data.EncodedFormData;
+        used: Record<string, boolean>;
     };
+    allTouched: boolean;
+    onSubmit: OnSubmit<Validator>;
+};
 
-    const context = createContext<{
-        state: State<any>;
-        setState: SetStoreFunction<State<any>>;
-    }>(null as any);
+const Context = createContext<{
+    state: State<any>;
+    setState: SetStoreFunction<State<any>>;
+}>(
+    null as any
+    // {
+    //     state: {
+    //         errors: {},
+    //         touched: {},
+    //         validator: z.void(),
+    //         defaultValues: undefined,
+    //         onSubmit: console.log.bind('no ctx'),
+    //     },
+    //     setState: () => {},
+    // }
+);
 
-    type OnSubmit<Validator extends z.ZodTypeAny> = (
-        submitted: z.infer<Validator>,
-        event: SubmitEvent & {
-            target: Element;
-            currentTarget: HTMLFormElement;
-        }
-    ) => void | Promise<void>;
+type OnSubmit<Validator extends z.ZodTypeAny> = (
+    submitted: z.infer<Validator>,
+    event: SubmitEvent & {
+        target: Element;
+        currentTarget: HTMLFormElement;
+    }
+) => void | Promise<void>;
+
+export namespace Form {
+    // export function Provider<Validator extends z.ZodTypeAny>(
+    //     props: ParentProps<{
+    //         validator: Validator;
+    //         class?: string;
+    //         onSubmit: OnSubmit<Validator>;
+    //         defaultValues?: Partial<z.infer<Validator>>;
+    //         allTouched?: boolean;
+    //     }>
+    // ) {
+    //     const [store, setStore] = createStore<State<Validator>>({
+    //         errors: {},
+    //         touched: {},
+    //         validator: props.validator,
+    //         onSubmit: props.onSubmit,
+    //         defaultValues:
+    //             props.defaultValues == null
+    //                 ? undefined
+    //                 : {
+    //                       obj: props.defaultValues,
+    //                       map: Data.encode(props.defaultValues)!,
+    //                       used: {},
+    //                   },
+    //         allTouched: props.allTouched ?? false,
+    //     });
+    //
+    //     console.log("create");
+    //
+    //     return (
+    //         <Context.Provider
+    //             value={{
+    //                 state: store,
+    //                 setState: setStore,
+    //             }}
+    //         >
+    //             <Form class={props.class}>{props.children}</Form>
+    //         </Context.Provider>
+    //     );
+    // }
 
     export function create<Validator extends z.ZodTypeAny>(props: {
         validator: Validator;
         class?: string;
         onSubmit: OnSubmit<Validator>;
         defaultValues?: Partial<z.infer<Validator>>;
+        allTouched?: boolean;
     }) {
         const [store, setStore] = createStore<State<Validator>>({
             errors: {},
@@ -55,152 +122,221 @@ export namespace Form {
                           map: Data.encode(props.defaultValues)!,
                           used: {},
                       },
+            allTouched: props.allTouched ?? false,
         });
 
+        console.log("create");
+
         return {
-            Provider: ({ children }: { children: JSX.Element }) => {
+            Provider(providerProps: ParentProps) {
                 return (
-                    <context.Provider
+                    <Context.Provider
                         value={{
                             state: store,
                             setState: setStore,
                         }}
                     >
-                        <form
-                            class={cn("flex flex-col gap-4", props.class)}
-                            onSubmit={async (e) => {
-                                const ctx = use();
-                                const form = e.target as HTMLFormElement;
-                                const formData = new FormData(form);
-                                const data = Data.decode(formData);
-
-                                const validationRes =
-                                    ctx.state.validator.safeParse(data);
-
-                                if (validationRes.success) {
-                                    await ctx.state.onSubmit(
-                                        validationRes.data,
-                                        e
-                                    );
-                                } else {
-                                    const errors = Data.prettifyZodError(
-                                        validationRes.error
-                                    );
-                                    ctx.setState("errors", errors);
-                                    console.error("error", errors);
-                                }
-                            }}
-                            onChange={Batcher.createMapped(
-                                (e) => ({
-                                    form: e.currentTarget,
-                                    // @ts-expect-error name not field
-                                    name: e.target?.name as string | undefined,
-                                }),
-                                (changes) => {
-                                    console.log("on change");
-
-                                    let forms = R.pipe(
-                                        changes,
-                                        R.map(R.prop("form")),
-                                        R.filter(R.isNonNullish),
-                                        R.unique()
-                                    );
-                                    if (forms.length === 0) {
-                                        // this can happen occasionally
-                                        // I believe it is because a single thing was
-                                        // changed but it's 'form' attr is set to
-                                        // a non existent form to ensure it
-                                        // is not included in the submitted form data
-                                        return;
-                                    }
-                                    assert(
-                                        forms.length === 1,
-                                        "more than one form recieved"
-                                    );
-                                    let form = forms[0]!;
-
-                                    let ctx = use();
-                                    let validator = ctx.state.validator;
-                                    if (validator == null) {
-                                        return;
-                                    }
-
-                                    const formData = new FormData(form);
-                                    const data = Data.decode(formData);
-                                    const validationRes =
-                                        validator.safeParse(data);
-                                    if (validationRes.success) {
-                                        ctx.setState("errors", {});
-                                    } else {
-                                        ctx.setState(
-                                            "errors",
-                                            Data.prettifyZodError(
-                                                validationRes.error
-                                            )
-                                        );
-                                    }
-                                    let names = R.pipe(
-                                        changes,
-                                        R.map(R.prop("name")),
-                                        R.filter(R.isNonNullish),
-                                        R.unique()
-                                    );
-                                    console.log("changed", names);
-                                },
-                                {
-                                    // NOTE: making maxSize large results in
-                                    // better performance for forms with large
-                                    // updates that set lots of fields with one change
-                                    // This is coupled with the low maxWait
-                                    // to make it so single changes are handled quickly
-                                    // and lots of changes in a short timespan
-                                    // are handled all at once
-                                    maxSize: 512,
-                                    maxWait: 100,
-                                }
-                            )}
-                            onBlur={Batcher.createMapped(
-                                // @ts-expect-error name not field
-                                (e) => e.target?.name as string | undefined,
-                                (blurred) => {
-                                    const ctx = use();
-                                    ctx.setState("touched", (touched) =>
-                                        Object.assign(
-                                            {},
-                                            touched,
-                                            R.pipe(
-                                                blurred,
-                                                R.filter(R.isNonNullish),
-                                                R.fromKeys(R.constant(true))
-                                            )
-                                        )
-                                    );
-                                },
-                                {
-                                    // NOTE: making maxSize large results in
-                                    // better performance for forms with large
-                                    // updates that set lots of fields with one change
-                                    // This is coupled with the low maxWait
-                                    // to make it so single changes are handled quickly
-                                    // and lots of changes in a short timespan
-                                    // are handled all at once
-                                    maxSize: 512,
-                                    maxWait: 100,
-                                }
-                            )}
-                        >
-                            {children}
-                            <UnusedDefaultValues />
-                        </form>
-                    </context.Provider>
+                        <Form class={props.class}>
+                            {providerProps.children}
+                        </Form>
+                    </Context.Provider>
                 );
             },
         };
     }
 
-    function use() {
-        const ctx = useContext(context);
+    function Form(props: ParentProps<{ class?: string }>) {
+        const ctx = use();
+
+        let formRef!: HTMLFormElement;
+        onMount(() => {
+            const allTouched = ctx.state.allTouched;
+            const validator = ctx.state.validator;
+            const timeoutID = setTimeout(() => {
+                if (allTouched) {
+                    const errors = validateForm(formRef, validator);
+                    console.log("mount errors", errors);
+
+                    if (errors != null) ctx.setState("errors", errors);
+                }
+            });
+            return () => clearTimeout(timeoutID);
+        });
+        const [validated, setValidated] = createSignal(false);
+
+        return (
+            <form
+                class={cn("flex flex-col gap-4", props.class)}
+                onClick={(e) => {
+                    if (!validated()) {
+                        batch(() => {
+                            validateForm(e.currentTarget, ctx.state.validator);
+                            setValidated(true);
+                        });
+                    }
+                }}
+                onSubmit={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const form = e.target as HTMLFormElement;
+                    const formData = new FormData(form);
+
+                    const data = Data.decode(formData);
+
+                    const validationRes = ctx.state.validator.safeParse(data);
+
+                    if (validationRes.success) {
+                        await ctx.state.onSubmit(validationRes.data, e);
+                    } else {
+                        const errors = Data.prettifyZodError(
+                            validationRes.error
+                        );
+                        ctx.setState("errors", errors);
+                        console.error("error", errors);
+                    }
+                }}
+                onChange={Batcher.createMapped(
+                    (e) => ({
+                        form: e.currentTarget,
+                        // @ts-expect-error name not field
+                        name: e.target?.name as string | undefined,
+                    }),
+                    (changes) => {
+                        console.log("on change");
+
+                        let forms = R.pipe(
+                            changes,
+                            R.map(R.prop("form")),
+                            R.filter(R.isNonNullish),
+                            R.unique()
+                        );
+                        if (forms.length === 0) {
+                            // this can happen occasionally
+                            // I believe it is because a single thing was
+                            // changed but it's 'form' attr is set to
+                            // a non existent form to ensure it
+                            // is not included in the submitted form data
+                            return;
+                        }
+                        assert(
+                            forms.length === 1,
+                            "more than one form recieved"
+                        );
+                        let form = forms[0]!;
+
+                        let validator = ctx.state.validator;
+                        if (validator == null) {
+                            return;
+                        }
+
+                        batch(() => {
+                            const errors = validateForm(form, validator);
+                            if (errors == null) {
+                                ctx.setState("errors", {});
+                            } else {
+                                ctx.setState("errors", errors);
+                            }
+                            let names = R.pipe(
+                                changes,
+                                R.map(R.prop("name")),
+                                R.filter(R.isNonNullish),
+                                R.unique()
+                            );
+                            ctx.setState("touched", (touched) =>
+                                Object.assign(
+                                    {},
+                                    touched,
+                                    R.fromKeys(names, R.constant(true))
+                                )
+                            );
+                            console.log("changed", names);
+                        });
+                    },
+                    {
+                        // NOTE: making maxSize large results in
+                        // better performance for forms with large
+                        // updates that set lots of fields with one change
+                        // This is coupled with the low maxWait
+                        // to make it so single changes are handled quickly
+                        // and lots of changes in a short timespan
+                        // are handled all at once
+                        maxSize: 512,
+                        maxWait: 100,
+                    }
+                )}
+                onBlur={Batcher.createMapped(
+                    (e) =>
+                        (e.target as undefined | HTMLInputElement)?.name as
+                            | string
+                            | undefined,
+                    (blurred) => {
+                        const names = R.pipe(blurred, R.filter(R.isNonNullish));
+                        ctx.setState("touched", (touched) =>
+                            Object.assign(
+                                {},
+                                touched,
+                                R.fromKeys(names, R.constant(true))
+                            )
+                        );
+                        console.log("touched", names);
+                    },
+                    {
+                        // NOTE: making maxSize large results in
+                        // better performance for forms with large
+                        // updates that set lots of fields with one change
+                        // This is coupled with the low maxWait
+                        // to make it so single changes are handled quickly
+                        // and lots of changes in a short timespan
+                        // are handled all at once
+                        maxSize: 512,
+                        maxWait: 100,
+                    }
+                )}
+            >
+                {props.children}
+                <UnusedDefaultValues />
+            </form>
+        );
+    }
+
+    function validateForm(
+        form: HTMLFormElement,
+        validator: z.ZodTypeAny
+    ): Record<string, string[]> | null {
+        const formData = new FormData(form);
+
+        const data = Data.decode(formData);
+
+        const validationRes = validator.safeParse(data);
+
+        if (validationRes.success) {
+            return null;
+        } else {
+            const errors = Data.prettifyZodError(validationRes.error);
+            return errors;
+        }
+    }
+
+    export function wrap<
+        Validator extends z.ZodTypeAny,
+        Comp extends Component<any>
+    >(opts: Parameters<typeof create<Validator>>[0], Component: Comp): Comp {
+        return ((props: ComponentProps<Comp>) => {
+            const form = create(opts);
+
+            return (
+                <form.Provider>
+                    <Component {...props} />
+                </form.Provider>
+            );
+        }) as Comp;
+    }
+
+    export function use() {
+        const ctx = useContext(Context);
         if (ctx == null) {
+            console.error("no ctx");
             throw new Error("useForm must be used within a FormProvider");
         }
 
@@ -214,9 +350,7 @@ export namespace Form {
                 ctx.setState("defaultValues", "used", name, true);
             }
         });
-        return createMemo(() => {
-            return ctx.state.defaultValues?.map[name] as T | undefined;
-        });
+        return ctx.state.defaultValues?.map[name] as T | undefined;
     }
 
     export function UnusedDefaultValues() {
@@ -247,16 +381,53 @@ export namespace Form {
     export function useFieldError(name: string) {
         const ctx = use();
         return createMemo(() =>
-            ctx.state.touched[name]
-                ? ctx.state.errors[name]?.join("; ") ?? null
-                : null
+            isTouched(name) ? ctx.state.errors[name]?.join("; ") ?? null : null
         );
+    }
+
+    export function useMultiFieldError(prefix: string): Accessor<string> {
+        const ctx = use();
+        return createMemo(() => {
+            return R.pipe(
+                ctx.state.errors,
+                R.entries(),
+                R.filter(
+                    ([name, _err]) =>
+                        _err != null &&
+                        R.startsWith(name, prefix) &&
+                        getIsTouched(ctx, name)
+                ),
+                R.map(R.prop("1")),
+                R.flat()
+            ).join("; ");
+        });
+    }
+
+    function getIsTouched(ctx: ReturnType<typeof use>, name: string): boolean {
+        return ctx.state.allTouched || (ctx.state.touched[name] ?? false);
+    }
+    export function isTouched(name: string) {
+        const ctx = use();
+        return createMemo(() => getIsTouched(ctx, name));
     }
 
     export function FieldError(props: { for: string }) {
         const fieldError = useFieldError(props.for);
 
-        return <span class="h-8 w-full text-destructive">{fieldError()}</span>;
+        return (
+            <span class="h-8 w-full text-destructive uppercase">
+                {fieldError()}
+            </span>
+        );
+    }
+
+    export function MultiFieldError(props: { for: string }) {
+        const fieldError = useMultiFieldError(props.for);
+        return (
+            <span class="h-8 w-full text-destructive uppercase">
+                {fieldError}
+            </span>
+        );
     }
 
     export function SubmitButton(props: {
@@ -268,7 +439,17 @@ export namespace Form {
               }) => JSX.Element);
     }) {
         // FIXME: implement
-        return <Button>SUBMIT</Button>;
+        return <Button type="submit">SUBMIT</Button>;
+    }
+
+    export function joinNames(
+        ...names: Array<number | string | undefined>
+    ): string {
+        return names
+            .filter(R.isNonNullish)
+            .map((v) => (typeof v === "number" ? `[${v}]` : v))
+            .join(".")
+            .replaceAll(".[", "[");
     }
 
     export namespace Data {
