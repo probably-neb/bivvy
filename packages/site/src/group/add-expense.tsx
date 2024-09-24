@@ -35,10 +35,7 @@ import {
     useUsers,
     useSplit,
 } from "@/lib/rep";
-import {
-    SplitRenderer,
-    UserRenderer,
-} from "@/components/renderers";
+import { SplitRenderer, UserRenderer } from "@/components/renderers";
 import {
     NumberField,
     NumberFieldErrorMessage,
@@ -48,7 +45,8 @@ import {
 import z from "zod";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleButton } from "@/components/ui/toggle";
-import {  deepClone } from "@/lib/utils";
+import { deepClone } from "@/lib/utils";
+import { removeSpacesFromKeys } from "@/components/split-select";
 
 type SplitMode = "existing" | "new";
 const zExpenseInput = z.discriminatedUnion("mode", [
@@ -86,7 +84,7 @@ export function AddExpenseCard(props: {
     };
     let prevSplitWasOneOff = false;
 
-    const form: Form = createForm<ExpenseInput, typeof zExpenseInput>(() => ({
+    const form: Form = createForm<ExpenseInput, typeof zodValidator>(() => ({
         onSubmit: async ({ value }) => {
             // copy so the following changes are not reflected in the visible form state
             value = deepClone(value);
@@ -198,17 +196,6 @@ export function AddExpenseCard(props: {
     );
 }
 
-function addSpacesToKeys(obj: Record<string, any>) {
-    return Object.fromEntries(
-        Object.entries(obj).map(([k, v]) => [` ${k} `, v])
-    );
-}
-
-function removeSpacesFromKeys(obj: Record<string, any>) {
-    return Object.fromEntries(
-        Object.entries(obj).map(([k, v]) => [k.trim(), v])
-    );
-}
 
 function SaveButton(props: { form: Form; isEditing: boolean }) {
     enum State {
@@ -519,45 +506,35 @@ type FieldProps = {
 // TODO: move to components
 export function Field(props: FieldProps) {
     const { validator, name, label, type, form, step, placeholder } = props;
+    const field = form.createField(() => ({ name, validator }));
     return (
-        <form.Field
-            name={name}
-            validators={{
-                onChange: validator,
-            }}
+        <TextField
+            validationState={
+                field().getMeta().touchedErrors.length > 0 ? "invalid" : "valid"
+            }
         >
-            {(field) => (
-                <TextField
-                    validationState={
-                        field().getMeta().touchedErrors.length > 0
-                            ? "invalid"
-                            : "valid"
-                    }
-                >
-                    <TextFieldLabel>{label}</TextFieldLabel>
-                    <TextFieldInput
-                        type={type}
-                        placeholder={placeholder}
-                        step={step}
-                        value={
-                            type === "date"
-                                ? formatDate(field().state.value!)
-                                : field().state.value ?? ""
-                        }
-                        onChange={(e) =>
-                            field().handleChange(
-                                props.parse?.(e.target.value) ?? e.target.value
-                            )
-                        }
-                    />
-                    <TextFieldErrorMessage>
-                        <For each={field().state.meta.errors}>
-                            {(error) => <div class="text-red-500">{error}</div>}
-                        </For>
-                    </TextFieldErrorMessage>
-                </TextField>
-            )}
-        </form.Field>
+            <TextFieldLabel>{label}</TextFieldLabel>
+            <TextFieldInput
+                type={type}
+                placeholder={placeholder}
+                step={step}
+                value={
+                    type === "date"
+                        ? formatDate(field().getValue())
+                        : field().getValue() ?? ""
+                }
+                onChange={(e) =>
+                    field().handleChange(
+                        props.parse?.(e.target.value) ?? e.target.value
+                    )
+                }
+            />
+            <TextFieldErrorMessage>
+                <For each={field().state.meta.errors}>
+                    {(error) => <div class="text-red-500">{error}</div>}
+                </For>
+            </TextFieldErrorMessage>
+        </TextField>
     );
 }
 
@@ -601,7 +578,7 @@ export function MoneyField(props: Omit<FieldProps, "type">) {
                         rawValue={rawValue()}
                         onRawValueChange={(value) => {
                             if (isNaN(value)) {
-                                // @ts-ignore used to get "Required" error instead of "got nan" error when no value
+                                // @ts-expect-error used to get "Required" error instead of "got nan" error when no value
                                 value = undefined;
                             }
                             field().handleChange(value);
