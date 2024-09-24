@@ -1,6 +1,5 @@
 import { useSplit, useSplits, useUsers } from "@/lib/rep";
-import { FormApi } from "@tanstack/solid-form";
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, batch, createMemo, createSignal, onMount } from "solid-js";
 import { SplitRenderer, UserRenderer } from "./renderers";
 import {
     Combobox,
@@ -14,34 +13,39 @@ import { TextFieldLabel } from "./ui/textfield";
 import { createFilter } from "@kobalte/core";
 import { ToggleButton } from "./ui/toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Form } from "@/lib/forms";
+import { z } from "zod";
 
 type SplitMode = "existing" | "new";
 
 type SplitOrOneOff =
     | {
           mode: "existing";
-          splitId: string;
+          id: string;
       }
     | {
           mode: "new";
-          split: {
-              portions: Record<string, number>;
-          };
+          portions: Record<string, number>;
       };
 
-type AnyForm = FormApi<any, any>;
-
-export function SplitSelect<Form extends AnyForm>(props: {
-    form: Form;
+export function SplitSelect(props: {
     prefix?: string;
 }) {
     const [prevSplitID, setPrevSplitID] = createSignal<string | null>(null);
 
     const ExistingTab = (
-        <ExistingSplitSelect form={props.form} onSelect={setPrevSplitID} />
+        <ExistingSplitSelect
+            prefix={props.prefix}
+            onSelect={(id) => 
+                setPrevSplitID(id)
+            }
+        />
     );
     const NewTab = (
-        <CreateNewOneOffSplit form={props.form} prevSplitID={prevSplitID()} />
+        <CreateNewOneOffSplit
+            prevSplitID={prevSplitID()}
+            prefix={props.prefix}
+        />
     );
     const prevSplit = useSplit(() => prevSplitID() ?? "/");
     const defaultValue = createMemo(() => {
@@ -56,48 +60,60 @@ export function SplitSelect<Form extends AnyForm>(props: {
         return "existing" as const;
     });
 
+    const [mode, setMode] = createSignal<SplitMode>(
+        defaultValue() ?? "existing"
+    );
+
     return (
         <Show when={defaultValue()}>
-            {(defaultValue) => (
-                <props.form.Field name={joinNames(props.prefix, "mode")} defaultValue={defaultValue()}>
-                    {(field) => (
-                        <Tabs
-                            defaultValue={field().state.value}
-                            class="h-32"
-                            onChange={(value) =>
-                                field().handleChange(value as SplitMode)
-                            }
+            <>
+                <input
+                    type="hidden"
+                    name={Form.joinNames(props.prefix,  "mode")}
+                    value={mode()}
+                />
+                <Tabs
+                    defaultValue={mode()}
+                    class="h-32"
+                    onChange={(value) => setMode(value as SplitMode)}
+                >
+                    <TabsList class="justify-center">
+                        <TabsTrigger
+                            class="text-muted-foreground"
+                            value="existing"
                         >
-                            <TabsList class="justify-center">
-                                <TabsTrigger
-                                    class="text-muted-foreground"
-                                    value="existing"
-                                >
-                                    SPLIT
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    class="text-muted-foreground"
-                                    value="new"
-                                >
-                                    ONE OFF SPLIT
-                                </TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="existing" class="px-0">
-                                {ExistingTab}
-                            </TabsContent>
-                            <TabsContent value="new" class="px-0">
-                                {NewTab}
-                            </TabsContent>
-                        </Tabs>
-                    )}
-                </props.form.Field>
-            )}
+                            SPLIT
+                        </TabsTrigger>
+                        <TabsTrigger class="text-muted-foreground" value="new">
+                            ONE OFF SPLIT
+                        </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="existing" class="px-0">
+                        {ExistingTab}
+                    </TabsContent>
+                    <TabsContent value="new" class="px-0">
+                        {NewTab}
+                    </TabsContent>
+                </Tabs>
+            </>
         </Show>
     );
 }
 
-function ExistingSplitSelect<Form extends AnyForm>(props: {
-    form: Form;
+export namespace SplitSelect {
+    export const Validator = z.discriminatedUnion("mode", [
+        z.object({
+            mode: z.literal('new'),
+            portions: z.record(z.string().min(1, 'invalid split'), z.coerce.number()),
+        }),
+        z.object({
+            mode: z.literal('existing'),
+            id: z.string({required_error: "split is required"}).min(1, "split is required"),
+        })
+    ])
+}
+
+function ExistingSplitSelect(props: {
     onSelect: (id: string | null) => void;
     prefix?: string;
 }) {
@@ -132,69 +148,68 @@ function ExistingSplitSelect<Form extends AnyForm>(props: {
         }
         setIsSelecting(isOpen);
     };
+    const splitIDName = Form.joinNames(props.prefix, "id");
+
+    const [selectedID, setSelectedID] = createSignal(
+        Form.useDefaultValueFor<string>(splitIDName)
+    );
+
+    const selected = createMemo(() => {
+        const id = selectedID();
+        if (id == null || id === "") {
+            return undefined;
+        }
+        return allOptions().find((o) => o.id === id);
+    });
 
     return (
-        <props.form.Field name={joinNames(props.prefix, "splitId") as any}>
-            {(field) => {
-                const selectedId = createMemo(() => field().state.value);
-                const selected = createMemo(() => {
-                    const id = selectedId();
-                    if (id == null || id === "") {
-                        return undefined;
-                    }
-                    return allOptions().find((o) => o.id === id);
-                });
-                return (
-                    <Combobox<Option>
-                        value={selected()}
-                        options={options()}
-                        onInputChange={(value) => setSearchValue(value)}
-                        onChange={(opt) => {
-                            field().handleChange(opt?.id ?? null);
-                            props.onSelect(opt?.id ?? null);
-                        }}
-                        onOpenChange={onOpenChange}
-                        optionTextValue="name"
-                        optionValue="id"
-                        optionLabel="name"
-                        itemComponent={(props) => (
-                            <ComboboxItem item={props.item}>
-                                <props.item.rawValue.element />
-                            </ComboboxItem>
-                        )}
-                    >
-                        <TextFieldLabel>SPLIT</TextFieldLabel>
-                        <ComboboxTrigger class="relative">
-                            <Show when={!isSelecting() && selected()}>
-                                {(selected) => (
-                                    <div class="absolute">
-                                        {selected().element()}
-                                    </div>
-                                )}
-                            </Show>
-                            {/*
-                             * `data-[closed]:text-card` hides the text by setting it to the same color as the card
-                             * so there is no risk of some peeking out from behind the selected elem overlay
-                             */}
-                            <ComboboxInput class="data-[closed]:text-card" />
-                        </ComboboxTrigger>
-                        <ComboboxContent />
-                    </Combobox>
-                );
+        <Combobox<Option>
+            value={selected()}
+            options={options()}
+            onInputChange={(value) => setSearchValue(value)}
+            onChange={(selected) => {
+                setSelectedID(selected?.id);
+                props.onSelect(selected?.id ?? null);
             }}
-        </props.form.Field>
+            onOpenChange={onOpenChange}
+            optionTextValue="name"
+            optionValue="id"
+            optionLabel="name"
+            itemComponent={(props) => (
+                <ComboboxItem item={props.item}>
+                    <props.item.rawValue.element />
+                </ComboboxItem>
+            )}
+        >
+            <TextFieldLabel>SPLIT</TextFieldLabel>
+            <ComboboxTrigger class="relative">
+                <Show when={!isSelecting() && selected()}>
+                    {(selected) => (
+                        <div class="absolute">{selected().element()}</div>
+                    )}
+                </Show>
+                {/*
+                 * `data-[closed]:text-card` hides the text by setting it to the same color as the card
+                 * so there is no risk of some peeking out from behind the selected elem overlay
+                 */}
+                <ComboboxInput
+                    class="data-[closed]:text-card"
+                    name={splitIDName}
+                />
+            </ComboboxTrigger>
+            <ComboboxContent />
+        </Combobox>
     );
 }
 
-function CreateNewOneOffSplit<Form extends FormApi<SplitOrOneOff, any>>(props: {
-    form: Form;
+function CreateNewOneOffSplit(props: {
     prevSplitID?: string | null;
     prefix?: string;
 }) {
     const users = useUsers();
 
     const prevSplit = useSplit(() => props.prevSplitID ?? "/");
-    const portions = createMemo(() => {
+    const prevPortions = createMemo(() => {
         if (props.prevSplitID == null) {
             // if not editing use default state
             return {};
@@ -214,37 +229,45 @@ function CreateNewOneOffSplit<Form extends FormApi<SplitOrOneOff, any>>(props: {
 
     return (
         <div>
-            <Show when={portions()}>
-                {(portions) => (
-                    <For each={users()}>
-                        {(user) => (
-                            <props.form.Field
-                                name={joinNames(props.prefix, `split.portions. ${user.id} `) as any}
-                                defaultValue={portions()[user.id] ?? 0}
-                            >
-                                {(field) => (
+            <Show when={prevPortions()}>
+                {(prevPortions) => {
+                    return (
+                        <For each={users()}>
+                            {(user) => {
+                                const name = Form.joinNames(
+                                    props.prefix,
+                                    "portions",
+                                    user.id
+                                );
+                                const defaultValue =
+                                    Form.useDefaultValueFor<number>(name);
+                                const [value, setValue] = createSignal(
+                                    prevPortions()?.[user.id] ??
+                                        defaultValue ??
+                                        0
+                                );
+                                return (
                                     <ToggleButton
-                                        pressed={field().state.value > 0}
+                                        pressed={value() > 0}
                                         onChange={(pressed) =>
-                                            field().handleChange(
-                                                pressed ? 1 : 0
-                                            )
+                                            setValue(pressed ? 1 : 0)
                                         }
                                     >
+                                        <input
+                                            type="hidden"
+                                            name={name}
+                                            value={value()}
+                                        />
                                         <UserRenderer userId={user.id} />
                                     </ToggleButton>
-                                )}
-                            </props.form.Field>
-                        )}
-                    </For>
-                )}
+                                );
+                            }}
+                        </For>
+                    );
+                }}
             </Show>
         </div>
     );
-}
-
-function joinNames(...names: Array<string | undefined>): string {
-    return names.filter(Boolean).join(".");
 }
 
 export function addSpacesToKeys(obj: Record<string, any>) {
