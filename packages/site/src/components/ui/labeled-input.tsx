@@ -16,6 +16,7 @@ export default function LabeledInput(props: LabeledInputProps) {
         "label",
         "rightLabel",
         "rightLabelClass",
+        "children",
     ]);
     const id = `labeled-input-${local.label}`;
     return (
@@ -29,13 +30,14 @@ export default function LabeledInput(props: LabeledInputProps) {
             <Show when={local.rightLabel !== undefined}>
                 <div
                     class={cn(
-                        "absolute right-2 top-0 -translate-y-2/3 ring-1 px-2 max-w-24 overflow-ellipsis ring-foreground bg-background",
+                        "absolute right-2 top-0 -translate-y-2/3 ring-1 max-w-24 overflow-ellipsis ring-foreground bg-background",
                         local.rightLabelClass
                     )}
                 >
                     {local.rightLabel}
                 </div>
             </Show>
+            {local.children}
             <input
                 type={local.type}
                 class={cn(
