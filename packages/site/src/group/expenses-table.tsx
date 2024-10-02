@@ -361,7 +361,7 @@ export function ExpensesTable(props: ExpenseButtonProps) {
             table={table}
             addExpenseButtonProps={props.addExpenseButtonProps}
         >
-            <Table class="h-full w-full overflow-y-auto relative bg-background">
+            <Table class="max-h-full w-full overflow-y-auto relative bg-background table-auto">
                 <TableHeaders
                     headerGroups={table.getHeaderGroups()}
                     isGrouped={state.grouping.length > 0}
@@ -551,7 +551,7 @@ function TopLevelTableRows(props: {
         <Show
             when={props.isGrouped}
             fallback={
-                <TableBody class="min-h-0 max-h-full overflow-y-auto ring-2 ring-foreground">
+                <TableBody class="overflow-y-auto ring-2 ring-foreground">
                     <For each={props.rows}>
                         {(row) => (
                             <ExpenseTableRow
@@ -568,7 +568,7 @@ function TopLevelTableRows(props: {
                     const [expanded, setExpanded] = createSignal(false);
                     return (
                         <Show when={row.getIsGrouped()}>
-                            <TableRow>
+                            <TableRow class="h-8 max-h-8">
                                 <TableCell class="w-2 p-0 items-center text-muted-foreground ">
                                     <span>{row.subRows.length}</span>
                                     <Button
@@ -624,17 +624,18 @@ function ExpenseTableRow(props: {
 }) {
     return (
         <TableRow
+            class="h-8 max-h-8"
             onClick={
                 props.viewExpense && [props.viewExpense, props.row.original.id]
             }
         >
             <Show when={props.row.depth > 0}>
-                <TableCell class="w-0 p-0"></TableCell>
+                <TableCell class="h-8 w-0 p-0"></TableCell>
             </Show>
             <For each={props.row.getVisibleCells()}>
-                {(cell, i) => (
+                {(cell) => (
                     <TableCell
-                        class={`${cell.column.columnDef.meta?.width ?? ""}`}
+                        class={`${cell.column.columnDef.meta?.width ?? ""} h-8`}
                     >
                         {flexRender(
                             cell.column.columnDef.cell,
