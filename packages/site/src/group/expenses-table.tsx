@@ -390,9 +390,7 @@ function ExpensesTableWrapper(
                     <AddExpenseButton {...props.addExpenseButtonProps} />
                 </div>
                 <div class="flex flex-row gap-2 scale-75 md:scale-100">
-                    <Show when={isDev()}>
-                        <UploadExpensesButton />
-                    </Show>
+                    <UploadExpensesButton />
                 </div>
             </div>
             <div class="w-full h-full pb-24">{props.children}</div>
