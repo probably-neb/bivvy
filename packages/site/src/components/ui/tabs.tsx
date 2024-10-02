@@ -53,6 +53,19 @@ export const TabsTrigger: ParentComponent<TabsPrimitive.TabsTriggerProps> = prop
   );
 };
 
+export const DepressTabsTrigger: ParentComponent<TabsPrimitive.TabsTriggerProps> = props => {
+  const [local, rest] = splitProps(props, ["class"]);
+  return (
+    <TabsPrimitive.Trigger
+      class={cn(
+        "inline-flex items-center justify-center whitespace-nowrap px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-muted-foreground data-[selected]:text-foreground data-[selected]:-translate-x-[6px] data-[selected]:-translate-y-[6px] bg-background ring-2 ring-foreground translate-x-0 translate-y-0",
+        local.class
+      )}
+      {...rest}
+    />
+  );
+};
+
 export const TabsIndicator: ParentComponent<TabsPrimitive.TabsIndicatorProps> = props => {
   const [local, rest] = splitProps(props, ["class"]);
   return (

@@ -12,7 +12,7 @@ import {
 import { TextFieldLabel } from "./ui/textfield";
 import { createFilter } from "@kobalte/core";
 import { ToggleButton } from "./ui/toggle";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { DepressTabsTrigger, Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Form } from "@/lib/forms";
 import { z } from "zod";
 import * as R from "remeda";
@@ -75,15 +75,20 @@ export function SplitSelect(props: { prefix?: string }) {
                     onChange={(value) => setMode(value as SplitMode)}
                 >
                     <TabsList class="justify-center">
-                        <TabsTrigger
-                            class="text-muted-foreground"
-                            value="existing"
-                        >
-                            SPLIT
-                        </TabsTrigger>
-                        <TabsTrigger class="text-muted-foreground" value="new">
-                            ONE OFF SPLIT
-                        </TabsTrigger>
+                        <div class="bg-slate-200">
+                            <DepressTabsTrigger
+                                value="existing"
+                            >
+                                SPLIT
+                            </DepressTabsTrigger>
+                        </div>
+                        <div class="bg-slate-200">
+                            <DepressTabsTrigger
+                                value="new"
+                            >
+                                ONE OFF SPLIT
+                            </DepressTabsTrigger>
+                        </div>
                     </TabsList>
                     <TabsContent value="existing" class="px-0">
                         {ExistingTab}
@@ -104,11 +109,11 @@ export namespace SplitSelect {
             portions: z
                 .record(z.string().min(1, "invalid split"), z.coerce.number())
                 .superRefine((portions, ctx) => {
-                    const isEmpty = R.isEmpty(portions)
-                    const portionCount = R.pipe(portions, R.values(), R.sum())
-                    const hasNoPortions = portionCount == 0
+                    const isEmpty = R.isEmpty(portions);
+                    const portionCount = R.pipe(portions, R.values(), R.sum());
+                    const hasNoPortions = portionCount == 0;
 
-                    console.log('portions ok', isEmpty, portionCount)
+                    console.log("portions ok", isEmpty, portionCount);
                     if (isEmpty || hasNoPortions) {
                         ctx.addIssue({
                             code: z.ZodIssueCode.custom,
@@ -202,7 +207,6 @@ function ExistingSplitSelect(props: {
                 </ComboboxItem>
             )}
         >
-            <TextFieldLabel>SPLIT</TextFieldLabel>
             <ComboboxTrigger class="relative">
                 <Show when={!isSelecting() && selected()}>
                     {(selected) => (
