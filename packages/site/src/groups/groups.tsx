@@ -13,17 +13,19 @@ export default function Groups() {
 
     // TODO: overview card with total owed in all groups
     return (
-        <div class="w-full h-full bg-background p-8 lg:p-16 ring-2 ring-foreground flex flex-wrap gap-4 lg:gap-32 h-max-min overflow-y-auto gap-y-8 lg:gap-y-16 justify-center md:justify-normal">
-            <Show when={groups()} fallback={<LoadingCard />}>
-                {(groups) => (
-                    <>
-                        <For each={groups()}>
-                            {(group) => <GroupCard group={group} />}
-                        </For>
-                        <NewGroupCard />
-                    </>
-                )}
-            </Show>
+        <div class="w-full h-full bg-background ring-2 ring-foreground ">
+            <div class="p-8 lg:p-16 flex flex-wrap gap-4 lg:gap-32 h-max-min overflow-y-auto gap-y-8 lg:gap-y-16 justify-center md:justify-normal">
+                <Show when={groups()} fallback={<LoadingCard />}>
+                    {(groups) => (
+                        <>
+                            <For each={groups()}>
+                                {(group) => <GroupCard group={group} />}
+                            </For>
+                            <NewGroupCard />
+                        </>
+                    )}
+                </Show>
+            </div>
         </div>
     );
 }
