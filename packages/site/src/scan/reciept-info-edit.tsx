@@ -1,4 +1,4 @@
-import { createStore, SetStoreFunction, StoreSetter } from "solid-js/store";
+import { createStore, SetStoreFunction } from "solid-js/store";
 import { ReceiptInfo } from "./receipt";
 import {
     Accessor,
@@ -7,6 +7,7 @@ import {
     Setter,
     Show,
     batch,
+    createEffect,
     createMemo,
     createSignal,
     onMount,
@@ -31,6 +32,10 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { attrWhen } from "@/lib/utils";
+import { useNavigate } from "@solidjs/router";
+import { routes } from "@/routes";
+import { useCurrentGroupId } from "@/lib/group";
+import { useMutations } from "@/lib/rep";
 
 type ReceiptInfoItem = ReceiptInfo["items"][number] & {
     grouped?: boolean;
@@ -41,26 +46,53 @@ type ReceiptInfoGroup = {
     items: Array<ReceiptInfoItem>;
 };
 
+const priceValidator = z
+    .string()
+    .transform((s) => Number.parseFloat(s))
+    .pipe(
+        z
+            .number({
+                invalid_type_error: "NOT A PRICE",
+                coerce: true,
+            })
+            .positive("PRICE MUST BE POSITIVE")
+            .finite("NOT A PRICE")
+    );
 export const ReceiptInfoEdit = Form.wrap(
     {
         validator: z.object({
-            items: z.array(
-                z.object({
-                    name: z.string().min(1, "item name is required"),
-                    price: z.number({
-                        invalid_type_error: "Not a number",
-                        coerce: true
-                    }),
-                    split: SplitSelect.Validator,
-                })
-            ),
+            paidOn: z.coerce.number(),
+            items: z
+                .array(
+                    z
+                        .object({
+                            name: z
+                                .string({
+                                    required_error: "ITEM NAME IS REQUIRED",
+                                })
+                                .min(1, "ITEM NAME IS REQUIRED"),
+                            price: priceValidator,
+                            split: SplitSelect.Validator,
+                        })
+                        .optional()
+                )
+                .transform((items) =>
+                    items.filter(
+                        (item): item is NonNullable<typeof item> => item != null
+                    )
+                ),
             groups: z
                 .array(
                     z.object({
+                        description: z.string().optional(),
                         items: z.array(
                             z.object({
-                                name: z.string().min(1),
-                                price: z.coerce.number(),
+                                name: z
+                                    .string({
+                                        required_error: "ITEM NAME IS REQUIRED",
+                                    })
+                                    .min(1, "ITEM NAME IS REQUIRED"),
+                                price: priceValidator,
                             })
                         ),
                         split: SplitSelect.Validator,
@@ -68,14 +100,90 @@ export const ReceiptInfoEdit = Form.wrap(
                 )
                 .default([]),
         }),
-        onSubmit: console.log.bind(null, "on submit"),
+        onSubmitCtx() {
+            const mutations = useMutations()
+            const navigate = useNavigate()
+            const currentGroupID = useCurrentGroupId()
+            return {
+                mutations,
+                navigate,
+                currentGroupID
+            }
+        },
+        async onSubmit(data, {mutations, navigate, currentGroupID}) {
+            for (const item of data.items) {
+                if (item.split.mode === "new") {
+                    const expense = {
+                        paidOn: data.paidOn,
+                        split: {
+                            portions: item.split.portions,
+                        },
+                        description: item.name,
+                        amount: item.price * 100,
+                    };
+
+                    await mutations.expenseWithOneOffSplitCreate(expense);
+                } else if (item.split.mode === "existing") {
+                    const expense = {
+                        paidOn: data.paidOn,
+                        splitId: item.split.id,
+                        amount: item.price * 100,
+                        description: item.name,
+                    };
+                    await mutations.addExpense(expense);
+                } else {
+                    throw new Error("Invalid item split mode", {
+                        cause: item.split,
+                    });
+                }
+            }
+            for (const group of data.groups) {
+                let description: string = ""; 
+                {
+                    if(group.description != null && group.description.length > 0) {
+                        description += group.description
+                        description += "\n"
+                    }
+                    description += group.items
+                    .map((item) => "- " + item.name + " ($" + item.price + ")")
+                    .join("\n");
+                }
+                const amount = group.items
+                    .map((g) => g.price)
+                    .reduce((a, b) => a + b, 0) * 100;
+
+                if (group.split.mode === "new") {
+                    const expense = {
+                        paidOn: data.paidOn,
+                        split: {
+                            portions: group.split.portions,
+                        },
+                        description,
+                        amount,
+                    };
+
+                    await mutations.expenseWithOneOffSplitCreate(expense);
+                } else if (group.split.mode === "existing") {
+                    const expense = {
+                        paidOn: data.paidOn,
+                        splitId: group.split.id,
+                        amount,
+                        description,
+                    };
+                    await mutations.addExpense(expense);
+                } else {
+                    throw new Error("Invalid group split mode", {
+                        cause: group.split,
+                    });
+                }
+            }
+            navigate(routes.group(currentGroupID()!))
+            console.log({success: true, data})
+        },
         class: "w-full h-full",
         allTouched: true,
     },
     (props: ParentProps<{ info: ReceiptInfo }>) => {
-        console.log("reciept");
-        const ctx = Form.use();
-        console.log(ctx.state.touched);
         const [items, setItems] = createStore<Array<ReceiptInfoItem>>(
             props.info.items
         );
@@ -102,6 +210,7 @@ export const ReceiptInfoEdit = Form.wrap(
                     <Form.SubmitButton />
                 </div>
                 <section class="h-[90%] overflow-y-auto w-full">
+                    <input name="paidOn" type="hidden" value={paidOn()} />
                     <div class="grid grid-cols-[repeat(auto-fill,minmax(18rem,1fr))] auto-rows-auto grid-flow-dense gap-2.5 p-2 w-full">
                         <Index each={groups}>
                             {(group, index) => (
@@ -203,6 +312,7 @@ function OkIndicator(props: { for: string }) {
     const fieldError = Form.useFieldError(props.for);
     const [open, setOpen] = createSignal(false);
     const state = createMemo(() => {
+        console.log("updating state", props.for, fieldError());
         return fieldError() == null ? "ok" : "err";
     });
     return (
@@ -211,7 +321,7 @@ function OkIndicator(props: { for: string }) {
                 onClick={() => setOpen((open: boolean) => !open)}
                 disabled={state() == "ok"}
                 data-err={attrWhen(state() == "err")}
-                class="text-sm text-foreground uppercase bg-green-500 data-[err]:bg-destructive w-full h-full px-2 h-4"
+                class="text-sm text-foreground uppercase bg-green-500 data-[err]:bg-destructive w-full px-2 h-5"
             >
                 <Show when={state() == "ok"} fallback="ERROR">
                     OK
@@ -387,7 +497,7 @@ function Group(props: {
             }}
         >
             <CardHeader>
-                <LabeledInput label="DESCRIPTION" />
+                <LabeledInput label="DESCRIPTION" name={Form.joinNames(groupName(), "description")}/>
                 <div class="flex w-min flex-nowrap gap-x-2 justify-between">
                     <span>TOTAL</span>
                     <span>${total().toFixed(digitCount())}</span>
@@ -410,12 +520,7 @@ function Group(props: {
                 <Index each={props.group.items}>
                     {(item, itemIndex) => {
                         const itemName = createMemo(() =>
-                            Form.joinNames(
-                                groupName(),
-                                "items",
-                                itemIndex,
-                                "name"
-                            )
+                            Form.joinNames(groupName(), "items", itemIndex)
                         );
                         const itemNameName = createMemo(() =>
                             Form.joinNames(itemName(), "name")
@@ -429,12 +534,7 @@ function Group(props: {
                                 <LabeledInput
                                     value={item().name.value}
                                     label="ITEM"
-                                    name={Form.joinNames(
-                                        groupName(),
-                                        "items",
-                                        itemIndex,
-                                        "name"
-                                    )}
+                                    name={itemNameName()}
                                     rightLabel={
                                         <OkIndicator for={itemNameName()} />
                                     }

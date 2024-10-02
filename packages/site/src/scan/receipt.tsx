@@ -16,7 +16,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { ReceiptInfoEdit } from "./reciept-info-edit";
-import { Button, DepressButton } from "@/components/ui/button";
+import { DepressButton } from "@/components/ui/button";
 
 // TODO: support document extract reciept from image
 // https://github.com/ColonelParrot/jscanify
