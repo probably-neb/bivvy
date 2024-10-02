@@ -31,7 +31,7 @@ async function analyzeReceipt(receiptImage: Buffer): Promise<ReceiptInfo> {
     let response: AnalyzeExpenseResponse;
 
     response: {
-        let isLocal = !!process.env.IS_LOCAL;
+        let isLocal = process.env.IS_LOCAL === "true";
 
         if (isLocal) {
             const fs = await import("node:fs");
