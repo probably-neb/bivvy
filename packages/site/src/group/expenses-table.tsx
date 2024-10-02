@@ -687,9 +687,6 @@ function UploadExpensesButton() {
                     <DropdownMenuItem onClick={[onClick, "receipt"]}>
                         RECEIPT
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={[onClick, "table"]}>
-                        SPREADSHEET
-                    </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>
