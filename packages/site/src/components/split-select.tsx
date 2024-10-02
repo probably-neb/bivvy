@@ -210,7 +210,10 @@ function ExistingSplitSelect(props: {
             <ComboboxTrigger class="relative">
                 <Show when={!isSelecting() && selected()}>
                     {(selected) => (
+                        <>
                         <div class="absolute">{selected().element()}</div>
+                        <input type="hidden" name={splitIDName} value={selected().id} />
+                        </>
                     )}
                 </Show>
                 {/*
@@ -220,7 +223,6 @@ function ExistingSplitSelect(props: {
                 <ComboboxInput
                     class="data-[closed]:text-card"
                     ref={inputRef}
-                    name={splitIDName}
                 />
             </ComboboxTrigger>
             <ComboboxContent />
