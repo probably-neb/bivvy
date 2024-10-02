@@ -4,10 +4,8 @@ import {
     Accessor,
     Index,
     ParentProps,
-    Setter,
     Show,
     batch,
-    createEffect,
     createMemo,
     createSignal,
     onMount,
@@ -58,6 +56,7 @@ const priceValidator = z
             .positive("PRICE MUST BE POSITIVE")
             .finite("NOT A PRICE")
     );
+
 export const ReceiptInfoEdit = Form.wrap(
     {
         validator: z.object({
@@ -80,7 +79,7 @@ export const ReceiptInfoEdit = Form.wrap(
                     items.filter(
                         (item): item is NonNullable<typeof item> => item != null
                     )
-                ),
+                ).default([]),
             groups: z
                 .array(
                     z.object({
