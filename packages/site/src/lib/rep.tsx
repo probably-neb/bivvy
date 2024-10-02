@@ -532,7 +532,7 @@ export function ReplicacheContextProvider(props: ParentProps) {
             const groupID = ctx.groupId
             assert(groupID != null, "Group not set")
             const e = expandExpenseInput(expense, { userID, groupID });
-            await ctx.rep.mutate.addExpense(zExpense.parse(e));
+            await ctx.rep.mutate.addExpense(loudParse(zExpense, e));
         },
         async expenseWithOneOffSplitCreate(input: ExpenseWithOneOffSplitInput) {
             const ctx = useCtx();
@@ -646,6 +646,18 @@ export function ReplicacheContextProvider(props: ParentProps) {
     );
 }
 
+function loudParse<Validator extends z.ZodTypeAny>(validator: Validator, input: unknown): z.infer<Validator> {
+    try {
+        return validator.parse(input);
+    } catch (e) {
+        if (e instanceof z.ZodError) {
+            console.error('error parsing', input, e)
+        }
+        throw e
+    }
+}
+
+
 function expandExpenseInput(input: ExpenseInput, ctx: { userID: string, groupID: string }) {
     const id = nanoid();
     let e: Expense = {
@@ -677,9 +689,9 @@ function expandSplitInput(input: SplitInput, groupID: string) {
 function expandExpenseWithOneOffSplitInput(input: ExpenseWithOneOffSplitInput, ctx: { userID: string, groupID: string }) {
     const expenseInput = Object.assign(input, { splitId: "_____PLACEHOLDER_____" })
     const expense = expandExpenseInput(expenseInput, ctx)
-    const splitInput = Object.assign(input.split, { name: generateOneOffSplitName(expense.id), color: null })
+    const splitInput = Object.assign(input.split, { name: generateOneOffSplitName(expense.id), color: null, isOneOff: true})
     const split = expandSplitInput(splitInput, ctx.groupID)
-    split.isOneOff = true
+    // split.isOneOff = true
     const output = Object.assign(expense, { split })
     return output
 }
