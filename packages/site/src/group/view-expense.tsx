@@ -42,7 +42,7 @@ export function ViewExpenseCard(props: { expenseId: Expense["id"] }) {
             </KV>
             <KV k="DESCRIPTION:">
                 <Show when={expense()?.description}>
-                    {(description) => <span>{description()}</span>}
+                    {(description) => <div class="whitespace-pre-wrap">{description()}</div>}
                 </Show>
             </KV>
         </div>

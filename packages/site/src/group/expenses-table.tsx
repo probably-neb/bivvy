@@ -74,7 +74,7 @@ import {
 } from "@/components/ui/hover-card";
 import { As } from "@kobalte/core";
 import { TbArrowsUpDown, TbSelector } from "solid-icons/tb";
-import { FaSolidBoxesStacked } from 'solid-icons/fa'
+import { FaSolidBoxesStacked } from "solid-icons/fa";
 
 // NOTE: order of fields here determines order in table
 const columnFields = [
@@ -194,11 +194,11 @@ const columns: ColumnDef<Expense>[] = [
                         <HoverCard>
                             <HoverCardTrigger>
                                 <span class="block text-nowrap truncate w-20 lg:w-32">
-                                    {description()}
+                                    {description().split("\n")[0]}
                                 </span>
                             </HoverCardTrigger>
-                            <HoverCardContent>
-                                <span>{description()}</span>
+                            <HoverCardContent class="whitespace-pre-wrap">
+                                {description()}
                             </HoverCardContent>
                         </HoverCard>
                     </Show>
@@ -426,7 +426,8 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
             <DropdownMenu placement="bottom">
                 <DropdownMenuTrigger asChild>
                     <As component={Button} variant="outline">
-                        <TbArrowsUpDown />&nbsp;SORT
+                        <TbArrowsUpDown />
+                        &nbsp;SORT
                     </As>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
@@ -448,7 +449,9 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
                     </DropdownMenuRadioGroup>
                     <DropdownMenuSeparator />
                     <DropdownMenuRadioGroup
-                        value={props.table.getState().sorting.at(0)?.id ?? "none"}
+                        value={
+                            props.table.getState().sorting.at(0)?.id ?? "none"
+                        }
                         onChange={setSortingCol}
                         class="data-[selected]:underline"
                     >
@@ -470,7 +473,8 @@ function DisplaySettingsMenu(props: { table: ExpenseTable }) {
             <DropdownMenu placement="bottom">
                 <DropdownMenuTrigger asChild>
                     <As component={Button} variant="outline">
-                        <FaSolidBoxesStacked />&nbsp;GROUP
+                        <FaSolidBoxesStacked />
+                        &nbsp;GROUP
                     </As>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
