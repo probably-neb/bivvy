@@ -26,6 +26,7 @@
         "solid-color": "link:../solid-color/",
         "solid-icons": "^1.1.0",
         "solid-js": "^1.8.7",
+        "solid-sonner": "^0.2.8",
         "tailwind-merge": "^2.0.0",
         "tailwindcss-animate": "^1.0.7",
         "zod": "^3.22.4"
