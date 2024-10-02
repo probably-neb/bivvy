@@ -14,7 +14,7 @@ export default function Groups() {
     // TODO: overview card with total owed in all groups
     return (
         <div class="w-full h-full bg-background ring-2 ring-foreground ">
-            <div class="p-8 lg:p-16 flex flex-wrap gap-4 lg:gap-32 h-max-min overflow-y-auto gap-y-8 lg:gap-y-16 justify-center md:justify-normal">
+            <div class="p-8 lg:p-16 flex flex-wrap gap-4 lg:gap-32 h-max-min overflow-y-auto gap-y-8 lg:gap-y-16 justify-center md:justify-normal max-h-full">
                 <Show when={groups()} fallback={<LoadingCard />}>
                     {(groups) => (
                         <>
