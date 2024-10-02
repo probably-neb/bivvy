@@ -7,24 +7,24 @@ import {
     Component,
     ComponentProps,
     createContext,
-    createEffect,
     createMemo,
     createSignal,
     JSX,
+    NoInfer,
     onMount,
     ParentProps,
-    Show,
     useContext,
 } from "solid-js";
-import { createStore, SetStoreFunction } from "solid-js/store";
+import { createStore, reconcile, SetStoreFunction } from "solid-js/store";
 import { z } from "zod";
 import { DateTime } from "luxon";
 
 import * as R from "remeda";
 import { Button } from "@/components/ui/button";
 import { For } from "solid-js";
+import { useMutations } from "../rep";
 
-export type State<Validator extends z.ZodTypeAny> = {
+export type State<Validator extends z.ZodTypeAny, OnSubmitCtx> = {
     errors: Record<string, Array<string> | undefined>;
     touched: Record<string, boolean>;
     validator: Validator;
@@ -34,12 +34,14 @@ export type State<Validator extends z.ZodTypeAny> = {
         used: Record<string, boolean>;
     };
     allTouched: boolean;
-    onSubmit: OnSubmit<Validator>;
+    onSubmit: OnSubmit<Validator, OnSubmitCtx>;
+    onSubmitCtx?: () => OnSubmitCtx,
 };
 
 const Context = createContext<{
-    state: State<any>;
-    setState: SetStoreFunction<State<any>>;
+    state: State<any, any>;
+    setState: SetStoreFunction<State<any, any>>;
+    setErrors: (errs: Record<string, string[]>) => void;
 }>(
     null as any
     // {
@@ -54,8 +56,9 @@ const Context = createContext<{
     // }
 );
 
-type OnSubmit<Validator extends z.ZodTypeAny> = (
+type OnSubmit<Validator extends z.ZodTypeAny, OnSubmitCtx> = (
     submitted: z.infer<Validator>,
+    ctx: OnSubmitCtx,
     event: SubmitEvent & {
         target: Element;
         currentTarget: HTMLFormElement;
@@ -102,18 +105,20 @@ export namespace Form {
     //     );
     // }
 
-    export function create<Validator extends z.ZodTypeAny>(props: {
+    export function create<Validator extends z.ZodTypeAny, OnSubmitCtx>(props: {
         validator: Validator;
         class?: string;
-        onSubmit: OnSubmit<Validator>;
+        onSubmit: OnSubmit<Validator, NoInfer<OnSubmitCtx>>;
+        onSubmitCtx?: () => OnSubmitCtx,
         defaultValues?: Partial<z.infer<Validator>>;
         allTouched?: boolean;
     }) {
-        const [store, setStore] = createStore<State<Validator>>({
+        const [store, setStore] = createStore<State<Validator, OnSubmitCtx>>({
             errors: {},
             touched: {},
             validator: props.validator,
             onSubmit: props.onSubmit,
+            onSubmitCtx: props.onSubmitCtx,
             defaultValues:
                 props.defaultValues == null
                     ? undefined
@@ -125,6 +130,10 @@ export namespace Form {
             allTouched: props.allTouched ?? false,
         });
 
+        function setErrors(errors: Record<string, Array<string> | undefined>) {
+            setStore("errors", reconcile(errors));
+        }
+
         console.log("create");
 
         return {
@@ -134,6 +143,7 @@ export namespace Form {
                         value={{
                             state: store,
                             setState: setStore,
+                            setErrors: setErrors,
                         }}
                     >
                         <Form class={props.class}>
@@ -148,33 +158,32 @@ export namespace Form {
     function Form(props: ParentProps<{ class?: string }>) {
         const ctx = use();
 
-        let formRef!: HTMLFormElement;
-        onMount(() => {
-            const allTouched = ctx.state.allTouched;
-            const validator = ctx.state.validator;
-            const timeoutID = setTimeout(() => {
-                if (allTouched) {
-                    const errors = validateForm(formRef, validator);
-                    console.log("mount errors", errors);
-
-                    if (errors != null) ctx.setState("errors", errors);
-                }
-            });
-            return () => clearTimeout(timeoutID);
-        });
         const [validated, setValidated] = createSignal(false);
+
+        const onSubmitCtx = ctx.state.onSubmitCtx?.()
 
         return (
             <form
                 class={cn("flex flex-col gap-4", props.class)}
-                onClick={(e) => {
-                    if (!validated()) {
+                onMouseOver={Batcher.createMapped(
+                    (e) => e.currentTarget,
+                    (forms) => {
+                        console.log("on mouse over", validated());
+                        if (validated() || !ctx.state.allTouched) return;
+                        const form = R.find(forms, R.isNonNullish);
+                        if (form == null) return;
+                        const errors = validateForm(form, ctx.state.validator);
+                        if (errors == null) return;
                         batch(() => {
-                            validateForm(e.currentTarget, ctx.state.validator);
+                            ctx.setErrors(errors);
                             setValidated(true);
                         });
+                    },
+                    {
+                        maxSize: 512,
+                        maxWait: 500,
                     }
-                }}
+                )}
                 onSubmit={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -187,15 +196,82 @@ export namespace Form {
                     const validationRes = ctx.state.validator.safeParse(data);
 
                     if (validationRes.success) {
-                        await ctx.state.onSubmit(validationRes.data, e);
+                        await ctx.state.onSubmit(validationRes.data, onSubmitCtx, e);
                     } else {
                         const errors = Data.prettifyZodError(
                             validationRes.error
                         );
-                        ctx.setState("errors", errors);
+                        ctx.setErrors(errors);
                         console.error("error", errors);
                     }
                 }}
+                onInput={Batcher.createMapped(
+                    (e) => ({
+                        form: e.currentTarget,
+                        // @ts-expect-error name not field
+                        name: e.target?.name as string | undefined,
+                    }),
+                    (changes) => {
+                        console.log("on change");
+
+                        let forms = R.pipe(
+                            changes,
+                            R.map(R.prop("form")),
+                            R.filter(R.isNonNullish),
+                            R.unique()
+                        );
+                        if (forms.length === 0) {
+                            // this can happen occasionally
+                            // I believe it is because a single thing was
+                            // changed but it's 'form' attr is set to
+                            // a non existent form to ensure it
+                            // is not included in the submitted form data
+                            return;
+                        }
+                        assert(
+                            forms.length === 1,
+                            "more than one form recieved"
+                        );
+                        let form = forms[0]!;
+
+                        let validator = ctx.state.validator;
+                        if (validator == null) {
+                            return;
+                        }
+
+                        batch(() => {
+                            const errors = validateForm(form, validator);
+                            if (errors == null) {
+                                ctx.setErrors({});
+                            } else {
+                                ctx.setErrors(errors);
+                            }
+                            let names = R.pipe(
+                                changes,
+                                R.map(R.prop("name")),
+                                R.filter(R.isNonNullish),
+                                R.unique()
+                            );
+                            ctx.setState(
+                                "touched",
+                                // NOTE: expecting shallow merge
+                                R.fromKeys(names, R.constant(true))
+                            );
+                            console.log("changed", names);
+                        });
+                    },
+                    {
+                        // NOTE: making maxSize large results in
+                        // better performance for forms with large
+                        // updates that set lots of fields with one change
+                        // This is coupled with the low maxWait
+                        // to make it so single changes are handled quickly
+                        // and lots of changes in a short timespan
+                        // are handled all at once
+                        maxSize: 512,
+                        maxWait: 300, // debounce onInput
+                    }
+                )}
                 onChange={Batcher.createMapped(
                     (e) => ({
                         form: e.currentTarget,
@@ -233,9 +309,9 @@ export namespace Form {
                         batch(() => {
                             const errors = validateForm(form, validator);
                             if (errors == null) {
-                                ctx.setState("errors", {});
+                                ctx.setErrors({});
                             } else {
-                                ctx.setState("errors", errors);
+                                ctx.setErrors(errors);
                             }
                             let names = R.pipe(
                                 changes,
@@ -320,8 +396,9 @@ export namespace Form {
 
     export function wrap<
         Validator extends z.ZodTypeAny,
-        Comp extends Component<any>
-    >(opts: Parameters<typeof create<Validator>>[0], Component: Comp): Comp {
+        Comp extends Component<any>,
+        OnSubmitCtx,
+    >(opts: Parameters<typeof create<Validator, OnSubmitCtx>>[0], Component: Comp): Comp {
         return ((props: ComponentProps<Comp>) => {
             const form = create(opts);
 
@@ -380,9 +457,13 @@ export namespace Form {
 
     export function useFieldError(name: string) {
         const ctx = use();
-        return createMemo(() =>
-            isTouched(name) ? ctx.state.errors[name]?.join("; ") ?? null : null
-        );
+        return createMemo(() => {
+            const err = isTouched(name)
+                ? ctx.state.errors[name]?.join("; ") ?? null
+                : null;
+            console.log("updating error for", name, err);
+            return err;
+        });
     }
 
     export function useMultiFieldError(prefix: string): Accessor<string> {
@@ -425,7 +506,7 @@ export namespace Form {
         const fieldError = useMultiFieldError(props.for);
         return (
             <span class="h-8 w-full text-destructive uppercase">
-                {fieldError}
+                {fieldError()}
             </span>
         );
     }
