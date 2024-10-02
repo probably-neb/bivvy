@@ -169,15 +169,15 @@ function ExpensesTab() {
     const addExpenseButtonProps = createMemo(getAddExpenseButtonProps);
     return (
         <div class="flex flex-col h-full justify-center lg:flex-row">
-            <aside class="w-full h-full flex flex-col justify-start lg:w-1/3 lg:order-last lg:border-l-2 lg:border-dashed lg:border-l-foreground lg:pl-6">
-                <ExpenseCardWrapper />
-            </aside>
             <section class="w-full lg:w-2/3 h-full pr-4">
                 <ExpensesTable
                     viewExpense={viewExpense}
                     addExpenseButtonProps={addExpenseButtonProps()}
                 />
             </section>
+            <aside class="w-full h-full flex flex-col justify-start lg:w-1/3 lg:order-last lg:border-l-2 lg:border-dashed lg:border-l-foreground lg:pl-6">
+                <ExpenseCardWrapper />
+            </aside>
         </div>
     );
 }
