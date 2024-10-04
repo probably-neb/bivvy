@@ -161,15 +161,15 @@ export function AddExpenseCard(props: {
             >
                 <Field
                     name="description"
-                    label="Description"
-                    placeholder="Sparkling Apple Cider"
+                    label="DESCRIPTION"
+                    placeholder="SPARKLING APPLE CIDER"
                     type="text"
                     validator={zBaseExpenseInput.shape.description}
                     form={form}
                 />
                 <MoneyField
                     name="amount"
-                    label="Amount"
+                    label="AMOUNT"
                     placeholder="10.00"
                     validator={zBaseExpenseInput.shape.amount}
                     step="any"
@@ -182,7 +182,7 @@ export function AddExpenseCard(props: {
                 />
                 <Field
                     name="paidOn"
-                    label="Paid On"
+                    label="PAID ON"
                     placeholder="2021-01-01"
                     type="date"
                     validator={zBaseExpenseInput.shape.paidOn}
